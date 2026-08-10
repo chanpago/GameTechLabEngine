@@ -1,0 +1,23 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks10_679.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_679.wav",
+      "TriggerTime" : 0.558069
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks10_602.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_602.wav",
+      "TriggerTime" : 1.040187
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

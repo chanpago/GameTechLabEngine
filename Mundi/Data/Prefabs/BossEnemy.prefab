@@ -1,0 +1,382 @@
+{
+  "AnimationCutEndTime" : 0.000000,
+  "AttackCooldown" : 1.000000,
+  "AttackRange" : 300.000000,
+  "ChargeAttackAnimPath" : "Data/FBX/SKM_DKM_Full/Animation/Game/Game/Dark_Knight/Animations/Anim_DKM_Attack_03.FBX_Unreal Take",
+  "ChargeStartAnimPath" : "",
+  "CurrentAttackPattern" : 0,
+  "CurrentPhase" : 1,
+  "DeathAnimPath" : "Data/FBX/SKM_DKM_Full/Animation/Anim_DKM_Death.FBX_Unreal Take",
+  "DetectionRange" : 2000.000000,
+  "HeavySlamAnimPath" : "Data/FBX/SKM_DKM_Full/Animation/Game/Game/Dark_Knight/Animations/Anim_DKM_Attack_01.FBX_Unreal Take",
+  "LightComboAnimPath" : "Data/FBX/SKM_DKM_Full/Animation/Game/Game/Dark_Knight/Animations/Anim_DKM_Attack_01.FBX_Unreal Take",
+  "LoseTargetRange" : 3000.000000,
+  "MaxAttackPatterns" : 4,
+  "MaxLockOnDistance" : 1500.000000,
+  "MaxPhase" : 2,
+  "MeshPrefabPath" : "",
+  "MoveSpeed" : 350.000000,
+  "ObjectName" : "보스 에너미_0",
+  "OwnedComponents" : [{
+      "CapsuleHalfHeight" : 2.500000,
+      "CapsuleRadius" : 0.400000,
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 10890,
+      "ObjectName" : "WeaponCollider",
+      "ParentId" : 10891,
+      "RelativeLocation" : [58.633282, -0.560002, 0.281755],
+      "RelativeRotationEuler" : [0.000000, 90.000000, 0.000001],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UCapsuleComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : false,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bRegisterToPhysX" : true,
+      "bShapeHiddenInGame" : true,
+      "bShapeIsVisible" : true,
+      "bTickEnabled" : true
+    }, {
+      "BoxExtent" : [0.000000, 0.000000, 0.000000],
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 10921,
+      "ObjectName" : "UHitboxComponent_1",
+      "ParentId" : 0,
+      "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UHitboxComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : false,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bShapeHiddenInGame" : true,
+      "bShapeIsVisible" : true,
+      "bTickEnabled" : true
+    }, {
+      "AnimGraphPath" : "Data/Graphs/BossEnemy.graph",
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 10896,
+      "MaterialSlots" : [{
+          "Type" : "None"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/SKM_DKM_Full/T_DKM_Boots_ALB.PNG",
+              "1" : "Data/FBX/SKM_DKM_Full/T_DKM_Boots_NRM.PNG",
+              "2" : "Data/FBX/SKM_DKM_Full/T_DKM_Boots_ALB.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_DKM_Boots",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/SKM_DKM_Full/T_DKM_Helmet_ALB.PNG",
+              "1" : "Data/FBX/SKM_DKM_Full/T_DKM_Helmet_NRM.PNG",
+              "2" : "Data/FBX/SKM_DKM_Full/T_DKM_Helmet_ALB.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_DKM_Helmet",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/SKM_DKM_Full/T_DKM_Armor_ALB.PNG",
+              "1" : "Data/FBX/SKM_DKM_Full/T_DKM_Armor_NRM.PNG",
+              "2" : "Data/FBX/SKM_DKM_Full/T_DKM_Armor_ARM.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_DKM_Armor",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/SKM_DKM_Full/T_DKM_Gauntlets_ALB.PNG",
+              "1" : "Data/FBX/SKM_DKM_Full/T_DKM_Gauntlets_NRM.PNG",
+              "2" : "Data/FBX/SKM_DKM_Full/T_DKM_Gauntlets_ARM.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_DKM_Gauntlets",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/SKM_DKM_Full/T_DKM_Pants_ALB.PNG",
+              "1" : "Data/FBX/SKM_DKM_Full/T_DKM_Pants_NRM.PNG",
+              "2" : "Data/FBX/SKM_DKM_Full/T_DKM_Pants_ARM.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_DKM_Pants",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/SKM_DKM_Full/T_DKM_Armor_ALB.PNG",
+              "1" : "Data/FBX/SKM_DKM_Full/T_DKM_Armor_NRM.PNG",
+              "2" : "Data/FBX/SKM_DKM_Full/T_DKM_Armor_ARM.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_DKM_Armor_5",
+          "Type" : "UMaterialInstanceDynamic"
+        }],
+      "ObjectName" : "USkeletalMeshComponent_1",
+      "ParentId" : 10922,
+      "PhysicsAssetOverridePath" : "Data/Physics/Boss.phys",
+      "RelativeLocation" : [0.000000, 0.000000, -2.746004],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [2.500000, 2.500000, 2.500000],
+      "SkeletalMesh" : "Data/FBX/SKM_DKM_Full/SKM_DKM_Full.FBX",
+      "Type" : "USkeletalMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true
+    }, {
+      "ObjectName" : "UCharacterMovementComponent_1",
+      "Type" : "UCharacterMovementComponent",
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bTickEnabled" : true
+    }, {
+      "AngularDampingOverride" : 0.050000,
+      "BoxExtent" : [0.500000, 0.500000, 0.500000],
+      "CapsuleHalfHeight" : 0.500000,
+      "CapsuleRadius" : 0.250000,
+      "CollisionEnabled_Internal" : 2,
+      "CollisionOffset" : [0.000000, 0.000000, 0.000000],
+      "CollisionRotation" : [0.000000, 0.000000, 0.000000],
+      "CollisionType" : 1,
+      "FrictionCombineModeOverride" : 2,
+      "Id" : 10891,
+      "LinearDampingOverride" : 0.010000,
+      "MassOverride" : 10.000000,
+      "MaterialSlots" : [{
+          "Type" : "None"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/SKM_DKM_Full/M_DKM_Sword_ALB.PNG",
+              "1" : "Data/FBX/SKM_DKM_Full/M_DKM_Sword_NRM.PNG"
+            },
+            "Vectors" : {
+              "EmissiveColor" : [0.011583, 0.011583, 0.011583, 1.000000]
+            }
+          },
+          "ParentPath" : "M_DKM_Sword",
+          "Type" : "UMaterialInstanceDynamic"
+        }],
+      "ObjectName" : "WeaponMeshComponent",
+      "ParentId" : 10896,
+      "PhysMaterialPreset" : 0,
+      "RelativeLocation" : [0.197128, 0.488980, 0.964492],
+      "RelativeRotationEuler" : [176.491577, -26.321400, -20.498117],
+      "RelativeScale" : [0.010000, 0.010000, 0.010000],
+      "RestitutionCombineModeOverride" : 2,
+      "SphereRadius" : 0.500000,
+      "StaticMesh" : "Data/FBX/SKM_DKM_Full/SM_DKM_Sword.FBX",
+      "Type" : "UStaticMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bEnableCollision" : true,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bSimulatePhysics" : false,
+      "bTickEnabled" : true
+    }, {
+      "BlockCostPerHit" : 20.000000,
+      "BlockDrainRate" : 25.000000,
+      "BlockMinRequired" : 20.000000,
+      "CurrentFocus" : 0.000000,
+      "CurrentHealth" : 500.000000,
+      "CurrentStamina" : 200.000000,
+      "DodgeCost" : 25.000000,
+      "FocusChargeRate" : 15.000000,
+      "HeavyAttackCost" : 30.000000,
+      "LightAttackCost" : 15.000000,
+      "MaxFocus" : 100.000000,
+      "MaxHealth" : 500.000000,
+      "MaxStamina" : 200.000000,
+      "ObjectName" : "UStatsComponent_1",
+      "ParryCost" : 10.000000,
+      "StaminaRegenDelay" : 1.000000,
+      "StaminaRegenRate" : 20.000000,
+      "Type" : "UStatsComponent",
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bTickEnabled" : true
+    }, {
+      "ObjectName" : "ULuaScriptComponent_2",
+      "ScriptFilePath" : "Data/Scripts/AI/BossAI.lua",
+      "Type" : "ULuaScriptComponent",
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bTickEnabled" : true
+    }, {
+      "CapsuleHalfHeight" : 2.800000,
+      "CapsuleRadius" : 0.500000,
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 10922,
+      "ObjectName" : "UCapsuleComponent_1",
+      "ParentId" : 0,
+      "RelativeLocation" : [23.071335, 0.901447, 3.176952],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 130.423691],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UCapsuleComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bRegisterToPhysX" : true,
+      "bShapeHiddenInGame" : true,
+      "bShapeIsVisible" : true,
+      "bTickEnabled" : true
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 10923,
+      "ObjectName" : "LockOnIndicator",
+      "ParentId" : 10896,
+      "RelativeLocation" : [0.020479, -0.000000, 0.995665],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [0.400000, 0.400000, 0.400000],
+      "Texture" : "Data/Textures/FakeLight.png",
+      "Type" : "UBillboardComponent",
+      "bAlwaysOnTop" : true,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : true,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bRenderInPIE" : true,
+      "bTickEnabled" : true
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 10924,
+      "ObjectName" : "UParticleSystemComponent_10",
+      "ParentId" : 10891,
+      "ParticleIndex" : 0,
+      "ParticleName" : "",
+      "RelativeLocation" : [73.340759, -0.012126, 4.073148],
+      "RelativeRotationEuler" : [18.853045, 10.259788, -42.698689],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_SwordRibbon.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : true,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 10925,
+      "ObjectName" : "UParticleSystemComponent_47",
+      "ParentId" : 10891,
+      "ParticleIndex" : 0,
+      "ParticleName" : "",
+      "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_SwordRibbon2.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : true,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }],
+  "Phase2HealthThreshold" : 0.500000,
+  "PunishAttackAnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_04_04_Seq.FBX_Unreal Take",
+  "RootComponentId" : 10922,
+  "RotationSpeed" : 5.000000,
+  "Slash_1_AnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_01_01_Seq.FBX_Unreal Take",
+  "Slash_2_AnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_01_02_Seq.FBX_Unreal Take",
+  "Slash_3_AnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_01_03_Seq.FBX_Unreal Take",
+  "Smash_1_AnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_04_04_Seq.FBX_Unreal Take",
+  "Smash_2_AnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_04_01_Seq.FBX_Unreal Take",
+  "SpinAttackAnimPath" : "Data/FBX/SKM_DKM_Full/Animation/Game/Game/Dark_Knight/Animations/Anim_DKM_Attack_01.FBX_Unreal Take",
+  "Spin_1_AnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_02_01_Seq.FBX_Unreal Take",
+  "Spin_2_AnimPath" : "Data/FBX/SKM_DKM_Full/Animation/DKM_Combo_Attack_02_02_Seq.FBX_Unreal Take",
+  "SubWeaponBoneName" : "hand_l",
+  "SubWeaponOffset" : [0.000000, 0.000000, 0.000000],
+  "SubWeaponRotationOffset" : [0.000000, 0.000000, 0.000000],
+  "Tag" : "",
+  "TargetHeight" : 100.000000,
+  "TargetPriority" : 1.000000,
+  "Type" : "ABossEnemy",
+  "WeaponBoneName" : "hand_r",
+  "WeaponOffset" : [0.100000, 0.200000, 0.000000],
+  "WeaponRotationOffset" : [-118.699997, -110.300003, -16.299999],
+  "WeaponTraceLength" : 5.000000,
+  "WeaponTraceRadius" : 0.400000,
+  "bActorHiddenInGame" : false,
+  "bActorIsActive" : true,
+  "bDrawWeaponDebug" : true,
+  "bEnableAttackRootMotion" : true,
+  "bHasSuperArmor" : true,
+  "bIsAttacking" : false
+}

@@ -1,0 +1,41 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision",
+      "TriggerTime" : 0.003301
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision",
+      "TriggerTime" : 0.582676
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks10_679.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_679.wav",
+      "TriggerTime" : 0.077580
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Crash/Banks17_75.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks17_75.wav",
+      "TriggerTime" : 0.189824
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

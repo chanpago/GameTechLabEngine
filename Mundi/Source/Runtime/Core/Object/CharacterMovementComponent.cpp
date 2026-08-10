@@ -1,0 +1,534 @@
+﻿#include "pch.h"
+#include "CharacterMovementComponent.h"
+#include "Character.h"
+#include "SceneComponent.h"
+#include "CapsuleComponent.h"
+#include "World.h"
+#include "Source/Runtime/Engine/Physics/PhysScene.h"
+#include "Source/Runtime/Engine/Collision/Collision.h"
+
+UCharacterMovementComponent::UCharacterMovementComponent()
+{
+	// 캐릭터 전용 설정 값
+	DefaultWalkSpeed = 3.0f;
+	SprintWalkSpeed = 6.0f;
+	MaxWalkSpeed = DefaultWalkSpeed;
+	TargetWalkSpeed = DefaultWalkSpeed;
+	SpeedInterpRate = 10.0f; // 보간 속도 (초당)
+
+	MaxAcceleration = 20.0f;
+	JumpZVelocity = 8.0;
+
+	BrackingDeceleration = 20.0f; // 입력이 없을 때 감속도
+	GroundFriction = 8.0f; //바닥 마찰 계수
+}
+
+UCharacterMovementComponent::~UCharacterMovementComponent()
+{
+}
+
+void UCharacterMovementComponent::InitializeComponent()
+{
+	Super::InitializeComponent();
+
+	CharacterOwner = Cast<ACharacter>(GetOwner());
+}
+
+void UCharacterMovementComponent::TickComponent(float DeltaSeconds)
+{
+	//Super::TickComponent(DeltaSeconds);
+
+	if (!UpdatedComponent || !CharacterOwner) return;
+
+	// 속도 보간 (Linear Interpolation)
+	if (MaxWalkSpeed != TargetWalkSpeed)
+	{
+		float InterpAmount = SpeedInterpRate * DeltaSeconds;
+		if (MaxWalkSpeed < TargetWalkSpeed)
+		{
+			MaxWalkSpeed = FMath::Min(MaxWalkSpeed + InterpAmount, TargetWalkSpeed);
+		}
+		else
+		{
+			MaxWalkSpeed = FMath::Max(MaxWalkSpeed - InterpAmount, TargetWalkSpeed);
+		}
+	}
+
+	// 입력 소비 및 정규화
+	FVector FrameInputVector = CharacterOwner->ConsumeMovementInputVector();
+	FrameInputVector.Z = 0.0f;
+	if (!FrameInputVector.IsZero())
+	{
+		FrameInputVector.Normalize();
+	}
+
+	// 매 프레임 관통 상태 해결
+	ResolveOverlaps();
+
+	// 가변 DeltaTime으로 물리 업데이트 (매 프레임 실행 → 부드러운 이동)
+	if (bIsFalling)
+	{
+		PhysFalling(DeltaSeconds);
+	}
+	else
+	{
+		PhysWalking(DeltaSeconds, FrameInputVector);
+	}
+}
+
+void UCharacterMovementComponent::DoJump()
+{
+	if (!bIsFalling)
+	{
+			Velocity.Z = JumpZVelocity;
+		bIsFalling = true;
+	}
+}
+
+void UCharacterMovementComponent::StopJump()
+{
+	//if (bIsFalling && Velocity.Z > 0.0f)
+	//{
+	//	Velocity.Z *= 0.5f;
+	//}
+}
+
+void UCharacterMovementComponent::SetSprinting(bool bSprint)
+{
+	TargetWalkSpeed = bSprint ? SprintWalkSpeed : DefaultWalkSpeed;
+}
+
+void UCharacterMovementComponent::PhysWalking(float DeltaSecond, const FVector& InputVector)
+{
+	// 입력 벡터는 TickComponent에서 이미 정규화되어 전달됨
+	// 속도 계산
+	CalcVelocity(InputVector, DeltaSecond, GroundFriction, BrackingDeceleration);
+
+	if (!CharacterOwner || !CharacterOwner->GetController())
+	{
+		Acceleration = FVector::Zero();
+		Velocity = FVector::Zero();
+		return;
+	}
+
+	FVector DeltaLoc = Velocity * DeltaSecond;
+
+	// Sweep 검사를 통한 안전한 이동
+	if (!DeltaLoc.IsZero())
+	{
+		FHitResult Hit;
+		bool bMoved = SafeMoveUpdatedComponent(DeltaLoc, Hit);
+
+		// 충돌 시 슬라이딩 처리
+		if (!bMoved && Hit.bBlockingHit)
+		{
+			// 벽에 붙어있으면 (Distance≈0) Velocity에서 벽 방향 성분 제거
+			if (Hit.Distance < KINDA_SMALL_NUMBER)
+			{
+				float VelDot = FVector::Dot(Velocity, Hit.ImpactNormal);
+				if (VelDot < 0.0f)
+				{
+					Velocity = Velocity - Hit.ImpactNormal * VelDot;
+				}
+			}
+
+			FVector SlideVector = SlideAlongSurface(DeltaLoc, Hit);
+			if (!SlideVector.IsZero())
+			{
+				FHitResult SlideHit;
+				SafeMoveUpdatedComponent(SlideVector, SlideHit);
+			}
+		}
+	}
+
+	// 바닥 검사
+	FHitResult FloorHit;
+	if (!CheckFloor(FloorHit))
+	{
+		// 경사면 내려가기: 더 긴 거리로 바닥 찾기
+		const float MaxStepDownHeight = 0.5f;
+		FVector StepDownStart = UpdatedComponent->GetWorldLocation();
+		FVector StepDownEnd = StepDownStart - FVector(0, 0, MaxStepDownHeight);
+
+		float Radius, HalfHeight;
+		GetCapsuleSize(Radius, HalfHeight);
+
+		FPhysScene* PhysScene = GetPhysScene();
+		FHitResult StepDownHit;
+
+		if (PhysScene && PhysScene->SweepCapsule(StepDownStart, StepDownEnd, Radius, HalfHeight, StepDownHit, CharacterOwner))
+		{
+			// 바닥 찾음 - 스냅 (경사면 내려가기)
+			if (StepDownHit.ImpactNormal.Z > 0.7f)
+			{
+				const float SkinWidth = 0.025f;  // 통일된 SkinWidth
+				float SnapDistance = StepDownHit.Distance - SkinWidth;
+				if (SnapDistance > KINDA_SMALL_NUMBER)
+				{
+					FVector NewLoc = UpdatedComponent->GetWorldLocation();
+					NewLoc.Z -= SnapDistance;
+					UpdatedComponent->SetWorldLocation(NewLoc);
+				}
+				// Walking 유지
+				return;
+			}
+		}
+
+		// 바닥 못 찾음 - Falling
+		bIsFalling = true;
+	}
+}
+
+void UCharacterMovementComponent::PhysFalling(float DeltaSecond)
+{
+	// 중력 적용
+	float ActualGravity = GLOBAL_GRAVITY_Z * GravityScale;
+	Velocity.Z += ActualGravity * DeltaSecond;
+
+	// 위치 이동 (Sweep 검사)
+	FVector DeltaLoc = Velocity * DeltaSecond;
+
+	FHitResult Hit;
+	bool bMoved = SafeMoveUpdatedComponent(DeltaLoc, Hit);
+
+	// 충돌 처리
+	if (!bMoved && Hit.bBlockingHit)
+	{
+		// 바닥에 착지했는지 확인 (충돌 노말이 위를 향하면 바닥)
+		// 단, 상승 중(Velocity.Z > 0)에는 착지하지 않음 (경사면에서 점프 시)
+		if (Hit.ImpactNormal.Z > 0.7f && Velocity.Z <= 0.0f)
+		{
+			// 착지
+			Velocity.Z = 0.0f;
+			bIsFalling = false;
+			// SafeMoveUpdatedComponent에서 이미 SkinWidth 적용된 위치로 설정됨
+			// Hit.Location으로 덮어쓰면 경사면에 박힘
+		}
+		else
+		{
+			// 벽 또는 상승 중 경사면 충돌 - 슬라이딩
+			FVector SlideVector = SlideAlongSurface(DeltaLoc, Hit);
+			if (!SlideVector.IsZero())
+			{
+				FHitResult SlideHit;
+				bool bSlided = SafeMoveUpdatedComponent(SlideVector, SlideHit);
+
+				// 2차 슬라이딩 (모서리 처리)
+				if (!bSlided && SlideHit.bBlockingHit)
+				{
+					FVector SlideVector2 = SlideAlongSurface(SlideVector, SlideHit);
+					if (!SlideVector2.IsZero())
+					{
+						FHitResult SlideHit2;
+						SafeMoveUpdatedComponent(SlideVector2, SlideHit2);
+					}
+				}
+			}
+
+			// 속도에서 충돌 방향 성분 제거 (벽에 부딪히면 그 방향 속도 0)
+			float VelDot = FVector::Dot(Velocity, Hit.ImpactNormal);
+			if (VelDot < 0.0f)
+			{
+				Velocity = Velocity - Hit.ImpactNormal * VelDot;
+			}
+		}
+	}
+	else
+	{
+		// 상승 중일 때는 바닥 검사 건너뛰기 (점프 직후 바로 착지 방지)
+		if (Velocity.Z > 0.0f)
+			return;
+
+		// 바닥 검사
+		FHitResult FloorHit;
+		if (CheckFloor(FloorHit))
+		{
+			// 바닥에 닿음
+			Velocity.Z = 0.0f;
+			bIsFalling = false;
+
+			// 바닥으로 스냅 (SkinWidth 여유를 두고 이동)
+			const float SkinWidth = 0.025f;  // 통일된 SkinWidth
+			float SnapDistance = FloorHit.Distance - SkinWidth;
+			if (SnapDistance > KINDA_SMALL_NUMBER)
+			{
+				FVector CurrentLoc = UpdatedComponent->GetWorldLocation();
+				CurrentLoc.Z -= SnapDistance;
+				UpdatedComponent->SetWorldLocation(CurrentLoc);
+			}
+		}
+	}
+}
+
+void UCharacterMovementComponent::CalcVelocity(const FVector& Input, float DeltaSecond, float Friction, float BrackingDecel)
+{
+	//  Z축을 속도에서 제외
+	FVector CurrentVelocity = Velocity;
+	CurrentVelocity.Z = 0.0f;
+
+	// 입력이 있는 지 확인
+	bool bHasInput = !Input.IsZero();
+
+	// 입력이 있으면 가속 
+	if (bHasInput)
+	{
+		FVector AccelerationVec = Input * MaxAcceleration;
+
+		CurrentVelocity += AccelerationVec * DeltaSecond;
+
+		if (CurrentVelocity.Size() > MaxWalkSpeed)
+		{
+			CurrentVelocity = CurrentVelocity.GetNormalized() * MaxWalkSpeed;
+		}
+	}
+
+	// 입력이 없으면 감속 
+	else
+	{
+		float CurrentSpeed = CurrentVelocity.Size();
+		if (CurrentSpeed > 0.0f)
+		{
+			float DropAmount = BrackingDecel * DeltaSecond;
+
+			//속도가 0 아래로 내려가지 않도록 방어처리 
+			float NewSpeed = FMath::Max(CurrentSpeed -  DropAmount, 0.0f);
+			
+			CurrentVelocity = CurrentVelocity.GetNormalized() * NewSpeed;
+		}  
+	}
+
+	Velocity.X = CurrentVelocity.X;
+	Velocity.Y = CurrentVelocity.Y;
+}
+
+bool UCharacterMovementComponent::SafeMoveUpdatedComponent(const FVector& Delta, FHitResult& OutHit)
+{
+	OutHit.Reset();
+
+	if (!UpdatedComponent || Delta.IsZero())
+		return true;
+
+	FPhysScene* PhysScene = GetPhysScene();
+	if (!PhysScene)
+	{
+		// PhysScene이 없으면 그냥 이동
+		UE_LOG("[CharacterMovement] PhysScene is null - moving without sweep");
+		UpdatedComponent->AddRelativeLocation(Delta);
+		return true;
+	}
+
+	float Radius, HalfHeight;
+	GetCapsuleSize(Radius, HalfHeight);
+
+	FVector Start = UpdatedComponent->GetWorldLocation();
+	FVector End = Start + Delta;
+
+	// 자기 자신은 무시
+	AActor* OwnerActor = CharacterOwner;
+
+	bool bHit = PhysScene->SweepCapsule(Start, End, Radius, HalfHeight, OutHit, OwnerActor);
+
+	// 디버깅 로그
+	if (bHit)
+	{
+		UE_LOG("[CharacterMovement] Sweep HIT! Distance: %.3f, Normal: (%.2f, %.2f, %.2f)",
+			OutHit.Distance, OutHit.ImpactNormal.X, OutHit.ImpactNormal.Y, OutHit.ImpactNormal.Z);
+	}
+
+	if (bHit && OutHit.bBlockingHit)
+	{
+		// 충돌 지점 직전까지만 이동 (SkinWidth로 관통 방지)
+		const float SkinWidth = 0.025f;  // 기존 0.00125f에서 증가 - 관통 방지 여유 공간
+
+		// Distance가 거의 0이면 이미 벽에 붙어있는 상태 - 밀어내기 필요
+		if (OutHit.Distance < KINDA_SMALL_NUMBER)
+		{
+			// 벽에 딱 붙어있음 - Normal 방향으로 SkinWidth만큼 밀어내기
+			FVector PushBack = OutHit.ImpactNormal * SkinWidth;
+			UpdatedComponent->AddRelativeLocation(PushBack);
+
+			UE_LOG("[CharacterMovement] SafeMove: Touching wall (Dist=0), pushing back by Normal*(%.4f)", SkinWidth);
+			return false;
+		}
+
+		float SafeDistance = FMath::Max(0.0f, OutHit.Distance - SkinWidth);
+		FVector SafeLocation = Start + Delta.GetNormalized() * SafeDistance;
+		UpdatedComponent->SetWorldLocation(SafeLocation);
+		return false;
+	}
+	else
+	{
+		// 충돌 없음 - 전체 이동
+		UpdatedComponent->AddRelativeLocation(Delta);
+		return true;
+	}
+}
+
+FVector UCharacterMovementComponent::SlideAlongSurface(const FVector& Delta, const FHitResult& Hit)
+{
+	if (!Hit.bBlockingHit)
+		return Delta;
+
+	// 충돌 노말에 수직인 방향으로 슬라이딩
+	FVector Normal = Hit.ImpactNormal;
+
+	// Delta에서 노말 방향 성분을 제거
+	float DotProduct = FVector::Dot(Delta, Normal);
+	FVector SlideVector = Delta - Normal * DotProduct;
+
+	return SlideVector;
+}
+
+bool UCharacterMovementComponent::CheckFloor(FHitResult& OutHit)
+{
+	OutHit.Reset();
+
+	if (!UpdatedComponent)
+		return false;
+
+	FPhysScene* PhysScene = GetPhysScene();
+	if (!PhysScene)
+	{
+		// PhysScene이 없으면 임시로 Z=0을 바닥으로 취급
+		UE_LOG("[CharacterMovement] CheckFloor: PhysScene is null, using Z=0 fallback");
+		return UpdatedComponent->GetWorldLocation().Z <= 0.001f;
+	}
+
+	float Radius, HalfHeight;
+	GetCapsuleSize(Radius, HalfHeight);
+
+	FVector Start = UpdatedComponent->GetWorldLocation();
+	// 바닥 검사는 캡슐 바닥에서 약간 아래로 Sweep
+	const float FloorCheckDistance = 0.1f;  // 검사 거리 증가
+	FVector End = Start - FVector(0, 0, FloorCheckDistance);
+
+	AActor* OwnerActor = CharacterOwner;
+
+	bool bHit = PhysScene->SweepCapsule(Start, End, Radius, HalfHeight, OutHit, OwnerActor);
+
+	// 디버깅 로그
+	/*UE_LOG("[CharacterMovement] CheckFloor: Capsule(R=%.2f, H=%.2f), Start=(%.2f, %.2f, %.2f), Hit=%s",
+		Radius, HalfHeight, Start.X, Start.Y, Start.Z, bHit ? "YES" : "NO");*/
+
+	// 바닥으로 인정하려면 노말이 위를 향해야 함
+	if (bHit && OutHit.ImpactNormal.Z > 0.7f)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+void UCharacterMovementComponent::GetCapsuleSize(float& OutRadius, float& OutHalfHeight) const
+{
+	// 기본값
+	OutRadius = 0.5f;
+	OutHalfHeight = 1.0f;
+
+	if (CharacterOwner)
+	{
+		if (UCapsuleComponent* Capsule = CharacterOwner->GetCapsuleComponent())
+		{
+			// 월드 스케일 적용 (디버그 렌더링과 일치시키기 위함)
+			const FTransform WorldTransform = Capsule->GetWorldTransform();
+			const float AbsScaleX = std::fabs(WorldTransform.Scale3D.X);
+			const float AbsScaleY = std::fabs(WorldTransform.Scale3D.Y);
+			const float AbsScaleZ = std::fabs(WorldTransform.Scale3D.Z);
+
+			OutRadius = Capsule->CapsuleRadius * FMath::Max(AbsScaleX, AbsScaleY);
+			OutHalfHeight = Capsule->CapsuleHalfHeight * AbsScaleZ;
+		}
+	}
+}
+
+FPhysScene* UCharacterMovementComponent::GetPhysScene() const
+{
+	if (CharacterOwner)
+	{
+		if (UWorld* World = CharacterOwner->GetWorld())
+		{
+			return World->GetPhysScene();
+		}
+	}
+	return nullptr;
+}
+
+bool UCharacterMovementComponent::ResolveOverlaps()
+{
+	if (!UpdatedComponent || !CharacterOwner)
+		return true;
+
+	FPhysScene* PhysScene = GetPhysScene();
+	if (!PhysScene)
+		return true;
+
+	float Radius, HalfHeight;
+	GetCapsuleSize(Radius, HalfHeight);
+
+	const int32 MaxDepenetrationIterations = 4;
+	const float MaxDepenetrationDistance = 2.0f;  // 최대 탈출 거리 제한
+	const float SkinWidth = 0.025f;  // 탈출 시 여유 거리
+
+	float TotalAdjustment = 0.0f;
+	FVector InitialLocation = UpdatedComponent->GetWorldLocation();
+
+	for (int32 Iter = 0; Iter < MaxDepenetrationIterations; ++Iter)
+	{
+		FVector CurrentLocation = UpdatedComponent->GetWorldLocation();
+
+		FVector PenetrationNormal;
+		float PenetrationDepth;
+
+		bool bOverlapping = PhysScene->OverlapCapsuleWithMTD(
+			CurrentLocation,
+			Radius,
+			HalfHeight,
+			PenetrationNormal,
+			PenetrationDepth,
+			CharacterOwner
+		);
+
+		if (!bOverlapping)
+		{
+			// 더 이상 관통 없음 - 성공
+			if (Iter > 0)
+			{
+				FVector FinalLocation = UpdatedComponent->GetWorldLocation();
+				UE_LOG("[CharacterMovement] ResolveOverlaps: SUCCESS after %d iterations", Iter);
+				UE_LOG("[CharacterMovement] ResolveOverlaps: Moved from (%.2f, %.2f, %.2f) to (%.2f, %.2f, %.2f), Total=%.3f",
+					InitialLocation.X, InitialLocation.Y, InitialLocation.Z,
+					FinalLocation.X, FinalLocation.Y, FinalLocation.Z, TotalAdjustment);
+			}
+			return true;
+		}
+
+		// 탈출 이동 계산
+		float AdjustmentDistance = PenetrationDepth + SkinWidth;
+		FVector Adjustment = PenetrationNormal * AdjustmentDistance;
+
+		UE_LOG("[CharacterMovement] ResolveOverlaps Iter[%d]: Pos=(%.2f, %.2f, %.2f), Depth=%.4f, Normal=(%.2f, %.2f, %.2f), AdjDist=%.4f",
+			Iter, CurrentLocation.X, CurrentLocation.Y, CurrentLocation.Z,
+			PenetrationDepth, PenetrationNormal.X, PenetrationNormal.Y, PenetrationNormal.Z, AdjustmentDistance);
+
+		// 안전 장치: 총 이동 거리 제한
+		TotalAdjustment += AdjustmentDistance;
+		if (TotalAdjustment > MaxDepenetrationDistance)
+		{
+			UE_LOG("[CharacterMovement] ResolveOverlaps: ABORT - Max distance exceeded (%.2f > %.2f)",
+				TotalAdjustment, MaxDepenetrationDistance);
+			// 그래도 현재까지의 조정은 적용
+			UpdatedComponent->AddRelativeLocation(Adjustment);
+			return false;
+		}
+
+		// 위치 조정 적용
+		UpdatedComponent->AddRelativeLocation(Adjustment);
+	}
+
+	// 최대 반복 후에도 여전히 관통 중
+	FVector FinalLocation = UpdatedComponent->GetWorldLocation();
+	UE_LOG("[CharacterMovement] ResolveOverlaps: FAILED after %d iterations", MaxDepenetrationIterations);
+	UE_LOG("[CharacterMovement] ResolveOverlaps: Stuck at (%.2f, %.2f, %.2f), moved %.3f from start",
+		FinalLocation.X, FinalLocation.Y, FinalLocation.Z, TotalAdjustment);
+	return false;
+}

@@ -1,0 +1,582 @@
+﻿#include "pch.h"
+#include "EnemyBase.h"
+#include "EnemyAIController.h"
+#include "StatsComponent.h"
+#include "HitboxComponent.h"
+#include "BillboardComponent.h"
+#include "CapsuleComponent.h"
+#include "World.h"
+#include "PlayerController.h"
+#include "GameModeBase.h"
+#include "GameState.h"
+
+
+
+AEnemyBase::AEnemyBase()
+{
+    // 스탯 컴포넌트
+    StatsComponent = CreateDefaultSubobject<UStatsComponent>("StatsComponent");
+    StatsComponent->MaxHealth = 100.f;
+    StatsComponent->CurrentHealth = 100.f;
+
+    // 히트박스 컴포넌트
+     HitboxComponent = CreateDefaultSubobject<UHitboxComponent>("HitboxComponent");
+     HitboxComponent->SetBoxExtent(FVector(60.f, 60.f, 60.f));
+}
+
+void AEnemyBase::DuplicateSubObjects()
+{
+    Super::DuplicateSubObjects();
+
+    // 프리팹 로드 후 컴포넌트 포인터 재바인딩
+    StatsComponent = nullptr;
+    HitboxComponent = nullptr;
+    LockOnIndicator = nullptr;
+
+    for (UActorComponent* Comp : GetOwnedComponents())
+    {
+        if (auto* Stats = Cast<UStatsComponent>(Comp))
+        {
+            StatsComponent = Stats;
+        }
+        else if (auto* Hitbox = Cast<UHitboxComponent>(Comp))
+        {
+            HitboxComponent = Hitbox;
+        }
+        else if (auto* Billboard = Cast<UBillboardComponent>(Comp))
+        {
+            LockOnIndicator = Billboard;
+        }
+    }
+
+    UE_LOG("[EnemyBase] DuplicateSubObjects - StatsComponent: %p, HitboxComponent: %p",
+           StatsComponent, HitboxComponent);
+}
+
+void AEnemyBase::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // Find lock-on indicator billboard from prefab
+    int32 BillboardCount = 0;
+    for (UActorComponent* Comp : GetOwnedComponents())
+    {
+        if (Cast<UBillboardComponent>(Comp))
+        {
+            BillboardCount++;
+        }
+    }
+
+    LockOnIndicator = Cast<UBillboardComponent>(GetComponent(UBillboardComponent::StaticClass()));
+    if (LockOnIndicator)
+    {
+        LockOnIndicator->SetName("LockOnIndicator");
+        LockOnIndicator->SetHiddenInGame(true);
+        LockOnIndicator->SetRenderInPIE(true);
+        LockOnIndicator->SetAlwaysOnTop(true);
+        LockOnIndicator->SetEditability(true);  // Required for rendering in PIE
+    }
+
+    // 델리게이트 바인딩
+    if (StatsComponent)
+    {
+      //  StatsComponent->OnDeath.AddDynamic(this, &AEnemyBase::HandleDeath);
+    }
+
+    // 히트박스 소유자 설정
+    if (HitboxComponent)
+    {
+        HitboxComponent->SetOwnerActor(this);
+    }
+
+    // 무기 충돌 시 데미지 처리 등록
+    OnWeaponHit.Add([this](AActor* HitActor, const FDamageInfo& DamageInfo) {
+        if (IDamageable* Target = GetDamageable(HitActor))
+        {
+            if (Target->CanBeHit())
+            {
+                Target->TakeDamage(DamageInfo);
+            }
+        }
+    });
+
+    // WeaponCollider 로그 (바인딩은 Character::BeginPlay에서 처리)
+    if (WeaponCollider)
+    {
+        UE_LOG("[EnemyBase] WeaponCollider found: %s", WeaponCollider->GetName().c_str());
+    }
+
+    // AI 컨트롤러 생성 및 빙의
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        AIController = World->SpawnActor<AEnemyAIController>();
+        if (AIController)
+        {
+            AIController->Possess(this);
+        }
+    }
+}
+
+void AEnemyBase::Tick(float DeltaSeconds)
+{
+    Super::Tick(DeltaSeconds);
+
+    // Only process AI when in Fighting state
+    if (AGameModeBase* GM = GWorld ? GWorld->GetGameMode() : nullptr)
+    {
+        if (AGameState* GS = Cast<AGameState>(GM->GetGameState()))
+        {
+            if (GS->GetGameFlowState() != EGameFlowState::Fighting)
+            {
+                return;
+            }
+        }
+    }
+
+    if (AIState != EEnemyAIState::Dead)
+    {
+        UpdateAI(DeltaSeconds);
+    }
+}
+
+// ============================================================================
+// AI 로직
+// ============================================================================
+
+void AEnemyBase::UpdateAI(float DeltaTime)
+{
+    switch (AIState)
+    {
+    case EEnemyAIState::Idle:
+        UpdateIdle(DeltaTime);
+        break;
+    case EEnemyAIState::Chase:
+        UpdateChase(DeltaTime);
+        break;
+    case EEnemyAIState::Attack:
+        UpdateAttack(DeltaTime);
+        break;
+    case EEnemyAIState::Stagger:
+        UpdateStagger(DeltaTime);
+        break;
+    default:
+        break;
+    }
+
+    // 공격 쿨타임 업데이트
+    if (AttackTimer > 0.f)
+    {
+        AttackTimer -= DeltaTime;
+    }
+}
+
+void AEnemyBase::SetAIState(EEnemyAIState NewState)
+{
+    if (AIState == NewState)
+    {
+        return;
+    }
+
+    EEnemyAIState OldState = AIState;
+    AIState = NewState;
+
+    // 상태 전환 시 처리
+    if (OldState == EEnemyAIState::Attack)
+    {
+        bIsAttacking = false;
+        HitboxComponent->DisableHitbox();
+    }
+}
+
+void AEnemyBase::UpdateIdle(float DeltaTime)
+{
+    // 플레이어 감지 시 추적 시작
+    if (DetectPlayer())
+    {
+        SetAIState(EEnemyAIState::Chase);
+    }
+}
+
+void AEnemyBase::UpdateChase(float DeltaTime)
+{
+    if (!TargetActor)
+    {
+        SetAIState(EEnemyAIState::Idle);
+        return;
+    }
+
+    // 거리 체크
+    float Distance = (TargetActor->GetActorLocation() - GetActorLocation()).Size();
+
+    // 너무 멀면 타겟 잃음
+    if (Distance > LoseTargetRange)
+    {
+        TargetActor = nullptr;
+        SetAIState(EEnemyAIState::Idle);
+        return;
+    }
+
+    // 공격 범위 안이면 공격
+    if (Distance <= AttackRange && AttackTimer <= 0.f)
+    {
+        StartAttack();
+        return;
+    }
+
+    // 타겟 방향으로 이동
+    LookAtTarget(DeltaTime);
+    MoveToTarget(DeltaTime);
+}
+
+void AEnemyBase::UpdateAttack(float DeltaTime)
+{
+    // 공격 애니메이션이 끝나면 상태 전환
+    // TODO: 애니메이션 완료 체크
+    // 임시로 타이머 사용
+    if (!bIsAttacking)
+    {
+        SetAIState(EEnemyAIState::Chase);
+    }
+}
+
+void AEnemyBase::UpdateStagger(float DeltaTime)
+{
+    StaggerTimer -= DeltaTime;
+    if (StaggerTimer <= 0.f)
+    {
+        SetAIState(EEnemyAIState::Chase);
+    }
+}
+
+// ============================================================================
+// 감지
+// ============================================================================
+
+bool AEnemyBase::DetectPlayer()
+{
+    // 월드에서 플레이어 찾기
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    // TODO: 플레이어 캐릭터 찾는 로직
+    // 임시: 태그로 찾기 또는 PlayerController에서 가져오기
+    // APlayerController* PC = World->GetFirstPlayerController();
+    // if (PC && PC->GetPawn())
+    // {
+    //     float Distance = (PC->GetPawn()->GetActorLocation() - GetActorLocation()).Length();
+    //     if (Distance <= DetectionRange)
+    //     {
+    //         TargetActor = PC->GetPawn();
+    //         return true;
+    //     }
+    // }
+
+    return false;
+}
+
+bool AEnemyBase::IsPlayerInAttackRange()
+{
+    if (!TargetActor)
+    {
+        return false;
+    }
+
+    float Distance = (TargetActor->GetActorLocation() - GetActorLocation()).Size();
+    return Distance <= AttackRange;
+}
+
+void AEnemyBase::LookAtTarget(float DeltaTime)
+{
+    if (!TargetActor)
+    {
+        return;
+    }
+
+    FVector Direction = TargetActor->GetActorLocation() - GetActorLocation();
+    Direction.Z = 0.f; // 수평 방향만
+
+    if (Direction.SizeSquared() > 0.01f)
+    {
+        Direction = Direction.GetNormalized();
+        // TODO: 부드러운 회전
+        // FQuat TargetRotation = FQuat::LookAt(Direction, FVector::UpVector);
+        // SetActorRotation(FQuat::Slerp(GetActorRotation(), TargetRotation, RotationSpeed * DeltaTime));
+    }
+}
+
+void AEnemyBase::MoveToTarget(float DeltaTime)
+{
+    if (!TargetActor)
+    {
+        return;
+    }
+
+    FVector Direction = TargetActor->GetActorLocation() - GetActorLocation();
+    float Distance = Direction.Size();
+
+    // 공격 범위보다 가까우면 이동 안 함
+    if (Distance <= AttackRange * 0.8f)
+    {
+        return;
+    }
+
+    Direction = Direction.GetNormalized();
+    FVector NewLocation = GetActorLocation() + Direction * MoveSpeed * DeltaTime;
+    SetActorLocation(NewLocation);
+}
+
+// ============================================================================
+// 공격
+// ============================================================================
+
+void AEnemyBase::StartAttack()
+{
+    SetAIState(EEnemyAIState::Attack);
+    bIsAttacking = true;
+    AttackTimer = AttackCooldown;
+
+    // 패턴 선택 (랜덤 또는 순차)
+    ExecuteAttackPattern(CurrentAttackPattern);
+    CurrentAttackPattern = (CurrentAttackPattern + 1) % MaxAttackPatterns;
+}
+
+void AEnemyBase::ExecuteAttackPattern(int PatternIndex)
+{
+    FDamageInfo DamageInfo;
+    DamageInfo.Instigator = this;
+
+    switch (PatternIndex)
+    {
+    case 0: // 약공격
+        DamageInfo.Damage = 15.f;
+        DamageInfo.DamageType = EDamageType::Light;
+        DamageInfo.HitReaction = EHitReaction::Flinch;
+        DamageInfo.StaggerDuration = 0.3f;
+        break;
+
+    case 1: // 강공격
+        DamageInfo.Damage = 30.f;
+        DamageInfo.DamageType = EDamageType::Heavy;
+        DamageInfo.HitReaction = EHitReaction::Stagger;
+        DamageInfo.StaggerDuration = 0.6f;
+        bHasSuperArmor = true; // 강공격 중 슈퍼아머
+        break;
+
+    default:
+        DamageInfo.Damage = 10.f;
+        DamageInfo.DamageType = EDamageType::Light;
+        break;
+    }
+
+    HitboxComponent->EnableHitbox(DamageInfo);
+
+    // TODO: 공격 애니메이션 재생
+}
+
+// ============================================================================
+// IDamageable 구현
+// ============================================================================
+
+float AEnemyBase::TakeDamage(const FDamageInfo& DamageInfo)
+{
+    UE_LOG("[EnemyBase] TakeDamage called! Damage: %.1f, CurrentHP: %.1f",
+           DamageInfo.Damage, StatsComponent ? StatsComponent->GetCurrentHealth() : -1.f);
+
+    if (!CanBeHit())
+    {
+        UE_LOG("[EnemyBase] TakeDamage blocked - CanBeHit() returned false");
+        return 0.f;
+    }
+
+    StatsComponent->ApplyDamage(DamageInfo.Damage);
+    UE_LOG("[EnemyBase] After ApplyDamage - CurrentHP: %.1f", StatsComponent->GetCurrentHealth());
+
+    // 사망 체크
+    if (!StatsComponent->IsAlive())
+    {
+        OnDeath();
+        return DamageInfo.Damage;
+    }
+
+    // 슈퍼아머가 없으면 피격 반응
+    if (!bHasSuperArmor)
+    {
+        OnHitReaction(DamageInfo.HitReaction, DamageInfo);
+    }
+
+    return DamageInfo.Damage;
+}
+
+bool AEnemyBase::IsAlive() const
+{
+    return StatsComponent && StatsComponent->IsAlive();
+}
+
+bool AEnemyBase::CanBeHit() const
+{
+    return IsAlive() && AIState != EEnemyAIState::Dead;
+}
+
+void AEnemyBase::OnHitReaction(EHitReaction Reaction, const FDamageInfo& DamageInfo)
+{
+    if (Reaction == EHitReaction::None)
+    {
+        return;
+    }
+
+    // 공격 중단
+    bIsAttacking = false;
+    bHasSuperArmor = false;
+    HitboxComponent->DisableHitbox();
+
+    // 경직 상태로 전환
+    SetAIState(EEnemyAIState::Stagger);
+    StaggerTimer = DamageInfo.StaggerDuration;
+
+    // AI 컨트롤러에 경직 알림
+    if (AIController)
+    {
+        AIController->EnterStagger(DamageInfo.StaggerDuration);
+    }
+
+    // TODO: 피격 애니메이션 재생
+
+    // 넉백
+    if (Reaction == EHitReaction::Knockback && DamageInfo.KnockbackForce > 0.f)
+    {
+        FVector KnockbackDir = DamageInfo.HitDirection * DamageInfo.KnockbackForce;
+        AddActorWorldLocation(KnockbackDir * 0.1f);
+    }
+}
+
+void AEnemyBase::OnDeath()
+{
+    SetAIState(EEnemyAIState::Dead);
+    HitboxComponent->DisableHitbox();
+
+    // AI 컨트롤러에 사망 알림
+    if (AIController)
+    {
+        AIController->OnPawnDeath();
+    }
+
+    // 애니메이션 일시정지는 AnimNotify_PauseAnimation에서 처리
+    // 죽음 애니메이션 끝 부분에 노티파이 추가 필요
+
+    // TODO: 일정 시간 후 Destroy
+}
+
+void AEnemyBase::HandleDeath()
+{
+    OnDeath();
+}
+
+// ============================================================================
+// ITargetable 구현
+// ============================================================================
+
+bool AEnemyBase::CanBeTargeted() const
+{
+    // TODO TEMP
+    return true;
+    return IsAlive() && AIState != EEnemyAIState::Dead;
+}
+
+FVector AEnemyBase::GetTargetLocation() const
+{
+    FVector Location = GetActorLocation();
+    Location.Z += TargetHeight;
+    return Location;
+}
+
+void AEnemyBase::OnTargetLocked()
+{
+    bIsCurrentlyTargeted = true;
+
+    // Show lock-on indicator
+    if (LockOnIndicator)
+    {
+        LockOnIndicator->SetHiddenInGame(false);
+    }
+}
+
+void AEnemyBase::OnTargetUnlocked()
+{
+    bIsCurrentlyTargeted = false;
+
+    // Hide lock-on indicator
+    if (LockOnIndicator)
+    {
+        LockOnIndicator->SetHiddenInGame(true);
+    }
+}
+
+void AEnemyBase::NotifyAttackFinished()
+{
+    bIsAttacking = false;
+    bHasSuperArmor = false;
+    HitboxComponent->DisableHitbox();
+
+    // AI 컨트롤러에 공격 완료 알림
+    if (AIController)
+    {
+        AIController->OnAttackFinished();
+    }
+}
+
+// ============================================================================
+// 프리팹 관련
+// ============================================================================
+
+void AEnemyBase::LoadMeshFromPrefab()
+{
+    if (MeshPrefabPath.empty())
+    {
+        return;
+    }
+
+    // 프리팹에서 메시 로드
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    FWideString FullPath = UTF8ToWide(GDataDir) + L"/" + UTF8ToWide(MeshPrefabPath);
+    AActor* PrefabActor = World->SpawnPrefabActor(FullPath);
+
+    if (PrefabActor)
+    {
+        // 프리팹 액터의 메시 컴포넌트를 이 액터로 복사
+        // TODO: SkeletalMeshComponent 복사 로직
+
+        // 임시로 프리팹 액터 제거
+        World->AddPendingKillActor(PrefabActor);
+    }
+}
+
+AEnemyBase* AEnemyBase::SpawnFromPrefab(UWorld* World, const FString& PrefabPath, const FVector& Location)
+{
+    if (!World || PrefabPath.empty())
+    {
+        return nullptr;
+    }
+
+    FWideString FullPath = UTF8ToWide(GDataDir) + L"/" + UTF8ToWide(PrefabPath);
+    AActor* SpawnedActor = World->SpawnPrefabActor(FullPath);
+
+    if (SpawnedActor)
+    {
+        SpawnedActor->SetActorLocation(Location);
+
+        // AEnemyBase로 캐스팅 시도
+        AEnemyBase* Enemy = dynamic_cast<AEnemyBase*>(SpawnedActor);
+        return Enemy;
+    }
+
+    return nullptr;
+}

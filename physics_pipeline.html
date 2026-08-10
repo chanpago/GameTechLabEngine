@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>물리 시스템 - 씬 쿼리 파이프라인</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    background: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    padding: 30px;
+  }
+  .page {
+    width: 1100px;
+    background: #f5f0e0;
+    border-radius: 18px;
+    padding: 36px 40px 40px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+  }
+  h2 {
+    font-size: 20px;
+    margin-bottom: 18px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── 섹션 박스 ── */
+  .section {
+    background: #f5d94e;
+    border: 2.5px solid #222;
+    border-radius: 14px;
+    padding: 14px 18px 18px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  .section-dashed {
+    border-style: dashed;
+  }
+  .section-title {
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* ── 노드 공통 ── */
+  .node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: bold;
+    padding: 7px 14px;
+    min-width: 80px;
+    line-height: 1.35;
+  }
+  .node-blue {
+    background: #3a6fbf;
+    color: #fff;
+    border-radius: 20px;
+    border: 2px solid #1a3a6a;
+  }
+  .node-green {
+    background: #4caf50;
+    color: #fff;
+    border-radius: 20px;
+    border: 2px solid #2a6e2e;
+  }
+  .node-red {
+    background: #d84040;
+    color: #fff;
+    border-radius: 20px;
+    border: 2px solid #8a1a1a;
+  }
+  .node-gray {
+    background: #777;
+    color: #fff;
+    border-radius: 20px;
+    border: 2px solid #444;
+  }
+  .node-orange {
+    background: #e67e22;
+    color: #fff;
+    border-radius: 20px;
+    border: 2px solid #a05510;
+  }
+
+  /* ── 다이아몬드 (조건) ── */
+  .diamond-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 90px; height: 55px;
+    position: relative;
+  }
+  .diamond {
+    width: 64px; height: 64px;
+    background: #3a6fbf;
+    border: 2px solid #1a3a6a;
+    transform: rotate(45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .diamond span {
+    transform: rotate(-45deg);
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    white-space: nowrap;
+  }
+
+  /* ── 화살표 ── */
+  .arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #222;
+    font-size: 18px;
+    padding: 0 3px;
+    font-weight: bold;
+  }
+  .arrow-label {
+    font-size: 10.5px;
+    color: #444;
+    position: relative;
+    top: -12px;
+    margin: 0 -6px;
+    font-weight: normal;
+  }
+  .arrow-down {
+    display: flex;
+    justify-content: center;
+    font-size: 22px;
+    color: #222;
+    margin: 6px 0;
+  }
+
+  /* ── 플로우 행 ── */
+  .flow-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  /* ── 서브텍스트 ── */
+  .sub {
+    font-size: 10.5px;
+    color: #555;
+    font-weight: normal;
+    display: block;
+    margin-top: 1px;
+  }
+
+  /* ── 레이아웃 헬퍼 ── */
+  .row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .row > .section { flex: 1; }
+  .center { text-align: center; }
+  .mb8 { margin-bottom: 8px; }
+  .mb4 { margin-bottom: 4px; }
+  .mt8 { margin-top: 8px; }
+
+  .big-arrow-down {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0;
+    font-size: 26px;
+    color: #222;
+  }
+
+  .tag {
+    display: inline-block;
+    background: #eee;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #333;
+    margin: 2px 2px;
+  }
+  .tag-sync { background: #d0e8ff; border-color: #6aafe6; }
+  .tag-async { background: #ffd0d0; border-color: #e06a6a; }
+
+  .note {
+    font-size: 11.5px;
+    color: #555;
+    margin-top: 6px;
+    padding-left: 8px;
+    border-left: 3px solid #ccc;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>구현 소개 – 물리 시스템 (PhysX 5.x)</h1>
+  <h2>Scene Query Pipeline</h2>
+
+  <!-- ═══════════ 1) 두 가지 물리 사용 방식 (완전 분리) ═══════════ -->
+  <div class="row">
+    <div class="section">
+      <div class="section-title">씬 쿼리 (Sweep / Overlap) <span class="tag tag-sync">동기</span></div>
+      <div style="font-size:12.5px; line-height:1.6;">
+        <b>주체:</b> 게임 코드가 요청<br>
+        <b>위치 제어:</b> 게임 코드가 직접<br>
+        <b>용도:</b> 이동, 바닥 감지, 공격 판정, 카메라<br>
+        <b>지연:</b> 없음 (즉시 반환)
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">물리 시뮬레이션 (Ragdoll) <span class="tag tag-async">비동기</span></div>
+      <div style="font-size:12.5px; line-height:1.6;">
+        <b>주체:</b> PhysX가 자동 계산<br>
+        <b>위치 제어:</b> PhysX가 결정<br>
+        <b>용도:</b> 래그돌 (사망 연출)<br>
+        <b>지연:</b> 1프레임 (다음 프레임에서 결과 수확)
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 2-A) 씬 쿼리 흐름 ═══════════ -->
+  <div class="section mb8" style="background:#d0e8ff;">
+    <div class="section-title">씬 쿼리 흐름 <span class="tag tag-sync">동기 · 지연 없음</span></div>
+    <div class="flow-row">
+      <div class="node node-blue">
+        게임 코드에서 호출
+        <span class="sub" style="color:#ddd;">SweepCapsule() 등</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-orange">
+        PhysX Scene→sweep()
+        <span class="sub" style="color:#ddd;">동기 실행</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-green">
+        결과 즉시 반환
+        <span class="sub" style="color:#ddd;">FHitResult</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-blue">
+        같은 Tick에서 사용
+        <span class="sub" style="color:#ddd;">이동 보정, 데미지 등</span>
+      </div>
+    </div>
+    <div class="note">
+      호출 → 결과 → 사용이 <b>전부 같은 프레임, 같은 Tick</b> 안에서 완료됨<br>
+      WaitForSimulation / StepSimulation과 <b>무관</b>한 독립적인 함수 호출
+    </div>
+  </div>
+
+  <!-- ═══════════ 2-B) 래그돌 시뮬레이션 흐름 ═══════════ -->
+  <div class="section mb8" style="background:#ffd0d0;">
+    <div class="section-title">래그돌 시뮬레이션 흐름 <span class="tag tag-async">비동기 · 1프레임 지연</span></div>
+
+    <div style="font-size:13px; font-weight:bold; margin-bottom:6px; color:#333;">Frame N</div>
+    <div class="flow-row">
+      <div class="node node-orange">
+        WaitForSimulation()
+        <span class="sub" style="color:#ddd;">Frame N-1 결과 수확<br>fetchResults</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-blue">
+        액터 Tick
+        <span class="sub" style="color:#ddd;">래그돌 결과로<br>본 위치 갱신</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-red">
+        StepSimulation()
+        <span class="sub" style="color:#ddd;">래그돌 시뮬 시작<br>(비동기, 워커 스레드)</span>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:center; margin:10px 0 6px; gap:8px;">
+      <div style="flex:1; border-top:2px dashed #999;"></div>
+      <span style="font-size:12px; color:#666; white-space:nowrap;">다음 프레임</span>
+      <div style="flex:1; border-top:2px dashed #999;"></div>
+    </div>
+
+    <div style="font-size:13px; font-weight:bold; margin-bottom:6px; color:#333;">Frame N+1</div>
+    <div class="flow-row">
+      <div class="node node-orange">
+        WaitForSimulation()
+        <span class="sub" style="color:#ddd;">Frame N 결과 수확<br><b style="color:#fff;">← 1프레임 지연</b></span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-gray" style="opacity:0.6;">
+        액터 Tick ...
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-gray" style="opacity:0.6;">
+        StepSimulation() ...
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:10px;">
+      StepSimulation()이 워커 스레드에서 비동기로 실행 → 다음 프레임 WaitForSimulation()에서 결과 수확 = <b>1프레임 지연</b><br>
+      <span style="color:#888;">simulate()가 비동기로 도는 동안 다른 작업을 병렬 처리 → 프레임 타임 절약</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ 3) 씬 쿼리 파이프라인 ═══════════ -->
+  <div class="section">
+    <div class="section-title">씬 쿼리 파이프라인 (3단계)</div>
+
+    <div class="flow-row" style="align-items:flex-start;">
+
+      <!-- 1단계 -->
+      <div style="text-align:center;">
+        <div class="node node-blue" style="min-width:180px;">
+          1단계: Sweep 호출
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          형상 지정 (Capsule / Box / Sphere)<br>
+          Start, End, IgnoreActor(this)<br>
+          <span style="color:#888;">자기 자신 제외는 내부에서 자동 처리</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="font-size:26px; margin-top:8px;">→</div>
+
+      <!-- 2단계 -->
+      <div style="text-align:center;">
+        <div class="node node-orange" style="min-width:200px;">
+          2단계: PhysX Sweep 실행
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          SCOPED_READ_LOCK<br>
+          Scene→sweep()<br>
+          <span style="color:#888;">Broad Phase → AABB 후보 추림</span><br>
+          <span style="color:#888;">Narrow Phase → 실제 교차 검사</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="font-size:26px; margin-top:8px;">→</div>
+
+      <!-- 3단계 -->
+      <div style="text-align:center;">
+        <div class="node node-green" style="min-width:180px;">
+          3단계: 결과 변환
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          PxSweepHit → FHitResult<br>
+          ImpactPoint, Normal, Distance<br>
+          <span style="color:#888;">PxActor→userData→</span><br>
+          <span style="color:#888;">FBodyInstance→OwnerComp</span><br>
+          <span style="color:#888;">→GetOwner()→AActor*</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════ 4) 사용처 ═══════════ -->
+  <div class="row">
+    <div class="section">
+      <div class="section-title">Sweep 사용처</div>
+      <div class="flow-row mb4">
+        <div class="node node-blue" style="font-size:11px;">SweepCapsule<span class="sub">캐릭터 이동 / 바닥</span></div>
+        <div class="node node-blue" style="font-size:11px;">SweepBox<span class="sub">무기 공격 판정 (HitboxComponent)</span></div>
+        <div class="node node-blue" style="font-size:11px;">SweepSphere<span class="sub">카메라 충돌 (SpringArm)</span></div>
+      </div>
+      <div class="note">"이 형상을 A→B로 이동시키면 뭐에 부딪히나?"</div>
+    </div>
+    <div class="section">
+      <div class="section-title">Overlap 사용처</div>
+      <div class="flow-row mb4">
+        <div class="node node-red" style="font-size:11px;">OverlapCapsuleWithMTD<span class="sub">끼임 복구</span></div>
+      </div>
+      <div class="note">"지금 뭐랑 겹쳐있나?" + 최소 탈출 거리 계산</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 5) FHitResult & 결과 사용 ═══════════ -->
+  <div class="section section-dashed">
+    <div class="section-title">FHitResult → 게임 로직 분기</div>
+    <div class="flow-row" style="align-items:flex-start;">
+
+      <div style="text-align:center; min-width:130px;">
+        <div class="node node-green" style="font-size:11px;">
+          FHitResult
+          <span class="sub">bHit, Distance,<br>ImpactPoint, Normal,<br>HitActor, HitComponent</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="font-size:26px; margin-top:12px;">→</div>
+
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div class="flow-row" style="margin:0;">
+          <div class="node node-blue" style="font-size:11px; padding:5px 10px;">무기</div>
+          <div class="arrow">→</div>
+          <div style="font-size:12px;">HitActor에 데미지 처리</div>
+        </div>
+        <div class="flow-row" style="margin:0;">
+          <div class="node node-blue" style="font-size:11px; padding:5px 10px;">이동</div>
+          <div class="arrow">→</div>
+          <div style="font-size:12px;">Location으로 위치 보정</div>
+        </div>
+        <div class="flow-row" style="margin:0;">
+          <div class="node node-blue" style="font-size:11px; padding:5px 10px;">바닥</div>
+          <div class="arrow">→</div>
+          <div style="font-size:12px;">ImpactNormal.Z > 0.7f → 착지</div>
+        </div>
+        <div class="flow-row" style="margin:0;">
+          <div class="node node-blue" style="font-size:11px; padding:5px 10px;">카메라</div>
+          <div class="arrow">→</div>
+          <div style="font-size:12px;">Distance로 카메라 당김</div>
+        </div>
+        <div class="flow-row" style="margin:0;">
+          <div class="node node-red" style="font-size:11px; padding:5px 10px;">끼임</div>
+          <div class="arrow">→</div>
+          <div style="font-size:12px;">MTD Normal × Depth로 위치 탈출</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════ 6) 래그돌 파이프라인 ═══════════ -->
+  <div class="section" style="background:#ffd0d0;">
+    <div class="section-title">래그돌 파이프라인 (5단계)</div>
+
+    <div class="flow-row" style="align-items:flex-start;">
+
+      <!-- 1단계 -->
+      <div style="text-align:center;">
+        <div class="node node-blue" style="min-width:150px;">
+          1단계: 에셋 인스턴스화
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          UPhysicsAsset<br>
+          → BodySetup별 FBodyInstance 생성<br>
+          → InitDynamic (Kinematic)<br>
+          → FConstraintInstance (D6Joint)<br>
+          <span style="color:#888;">SkeletalMeshComponent.cpp:872</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="font-size:26px; margin-top:8px;">→</div>
+
+      <!-- 2단계 -->
+      <div style="text-align:center;">
+        <div class="node node-orange" style="min-width:150px;">
+          2단계: 애니메이션 동기화
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          매 프레임 Tick에서<br>
+          BoneWorldTransform 읽기<br>
+          → setKinematicTarget(Pose)<br>
+          <span style="color:#888;">SyncBodiesFromAnimation():1043</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="font-size:26px; margin-top:8px;">→</div>
+
+      <!-- 3단계 -->
+      <div style="text-align:center;">
+        <div class="node node-red" style="min-width:160px;">
+          3단계: 래그돌 활성화
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          OnDeath() 호출 시<br>
+          Kinematic → Dynamic 전환<br>
+          eKINEMATIC = false<br>
+          Velocity 초기화<br>
+          Launch Force 적용<br>
+          <span style="color:#888;">SetPhysicsAnimationState():989</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="font-size:26px; margin-top:8px;">→</div>
+
+      <!-- 4단계 -->
+      <div style="text-align:center;">
+        <div class="node node-red" style="min-width:150px;">
+          4단계: 비동기 시뮬레이션
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          StepSimulation(dt)<br>
+          → Scene→simulate(dt)<br>
+          워커 스레드에서 실행<br>
+          <span style="color:#888;">PhysScene.cpp:602</span><br>
+          <br>
+          다음 프레임:<br>
+          WaitForSimulation()<br>
+          → fetchResults(true)<br>
+          <span style="color:#888;">PhysScene.cpp:628</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="font-size:26px; margin-top:8px;">→</div>
+
+      <!-- 5단계 -->
+      <div style="text-align:center;">
+        <div class="node node-green" style="min-width:150px;">
+          5단계: 본 위치 갱신
+        </div>
+        <div style="font-size:11px; margin-top:6px; line-height:1.5; color:#333;">
+          SCOPED_READ_LOCK<br>
+          Body→getGlobalPose()<br>
+          → SetBoneWorldTransform()<br>
+          <span style="color:#888;">SyncAnimationFromBodies():1071</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════ 7) 래그돌 상태 전이 ═══════════ -->
+  <div class="section" style="background:#ffe8e8;">
+    <div class="section-title">래그돌 상태 전이 (EPhysicsAnimationState)</div>
+    <div class="flow-row">
+      <div class="node node-blue">
+        AnimationDriven
+        <span class="sub" style="color:#ddd;">Kinematic = true<br>애니메이션이 본 제어<br>SyncBodiesFromAnimation()</span>
+      </div>
+      <div class="arrow" style="font-size:14px; min-width:100px;">
+        OnDeath() →
+      </div>
+      <div class="node node-red">
+        PhysicsDriven
+        <span class="sub" style="color:#ddd;">Kinematic = false<br>PhysX가 본 제어<br>SyncAnimationFromBodies()</span>
+      </div>
+    </div>
+    <div class="note">
+      전환 시: 현재 애니메이션 포즈로 Body 위치 동기화 → Kinematic 플래그 해제 → 속도 초기화 → Force 적용
+    </div>
+  </div>
+
+  <!-- ═══════════ 8) 충돌 필터링 ═══════════ -->
+  <div class="row">
+    <div class="section" style="background:#ffe0a0;">
+      <div class="section-title">자기 충돌 방지 (RagdollFilterShader)</div>
+      <div style="font-size:12.5px; line-height:1.7;">
+        FilterData.word0에 <b>OwnerID</b> 저장<br>
+        → word0가 같으면 같은 스켈레톤<br>
+        → 충돌 억제 (eSUPPRESS)<br>
+        <span style="color:#888;">PhysScene.cpp:441</span>
+      </div>
+    </div>
+    <div class="section" style="background:#ffe0a0;">
+      <div class="section-title">SCOPED_PHYSX_READ_LOCK을 거는 이유</div>
+      <div style="font-size:12.5px; line-height:1.7;">
+        Sweep은 <b>동기 호출</b>이지만<br>
+        래그돌이 <b>워커 스레드에서 비동기</b>로 돌 수 있음<br>
+        → 같은 PxScene 동시 접근 시 <b>데이터 레이스</b><br>
+        → <b>PhysX API가 락 없이 접근 시 에러</b>를 뱉음
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

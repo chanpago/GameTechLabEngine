@@ -1,0 +1,671 @@
+{
+  "BlockAnimPath" : "Data/FBX/Animation/Block_Loop_Seq.FBX_Unreal Take",
+  "ChargingAnimPath" : "Data/FBX/Animation/Power_Attack_Loop_Seq.FBX_Unreal Take",
+  "ChargingLoopDuration" : 0.500000,
+  "ChargingLoopTarget" : 1,
+  "ComboCount" : 0,
+  "ComboTransitionTime" : 0.350000,
+  "DashAttackAnimPath" : "Data/FBX/Animation/Dash_Air_Attack_Seq.FBX_Unreal Take",
+  "DashAttackCutEndTime" : 0.020000,
+  "DeathAnimPath" : "Data/FBX/Animation/Hit_Death_Seq.FBX_Unreal Take",
+  "DeathCutEndTime" : 0.000000,
+  "DodgeAnimPath_B" : "Data/FBX/Animation/Roll_Combat_B_180_Seq.FBX_Unreal Take",
+  "DodgeAnimPath_BL" : "Data/FBX/Animation/Roll_Combat_B_L_45_Seq.FBX_Unreal Take",
+  "DodgeAnimPath_BR" : "Data/FBX/Animation/Roll_Combat_B_R_45_Seq.FBX_Unreal Take",
+  "DodgeAnimPath_F" : "Data/FBX/Animation/Roll_Combat_F_0_Seq.FBX_Unreal Take",
+  "DodgeAnimPath_FL" : "Data/FBX/Animation/Walk_Combat_Loop_F_R_90_Seq.FBX_Unreal Take",
+  "DodgeAnimPath_FR" : "Data/FBX/Animation/Roll_Combat_to_Run_F_R_45_Seq.FBX_Unreal Take",
+  "DodgeAnimPath_L" : "Data/FBX/Animation/Roll_Combat_to_Run_L_Seq.FBX_Unreal Take",
+  "DodgeAnimPath_R" : "Data/FBX/Animation/Roll_Combat_to_Run_R_Seq.FBX_Unreal Take",
+  "DodgeAnimationCutEndTime" : 0.080000,
+  "GuardBreakAnimPath" : "Data/FBX/Animation/Block_Hit_Break_Seq.FBX_Unreal Take",
+  "GuardBreakCutEndTime" : 0.020000,
+  "HeavyAttackAnimPath" : "Data/FBX/Animation/Combo_Attack_Wave_05_04_Seq.FBX_Unreal Take",
+  "HeavyAttackCutEndTime" : 0.800000,
+  "HitAnimPath_B" : "Data/FBX/Animation/Hit_B_Seq.FBX_Unreal Take",
+  "HitAnimPath_F" : "Data/FBX/Animation/Hit_F_Seq.FBX_Unreal Take",
+  "HitAnimPath_L" : "Data/FBX/Animation/Hit_R_Seq.FBX_Unreal Take",
+  "HitAnimPath_R" : "Data/FBX/Animation/Hit_L_Seq.FBX_Unreal Take",
+  "HitCutEndTime" : 0.000000,
+  "IdleJumpDelayTime" : 0.500000,
+  "JumpDelayTime" : 0.210000,
+  "LandingCooldownTime" : 0.100000,
+  "LightAttackAnimPath" : "Data/FBX/Animation/Combo_Attack_Wave_05_03_Seq.FBX_Unreal Take",
+  "LightAttackCutEndTime" : 0.470000,
+  "MaxComboCount" : 3,
+  "MoveSpeed" : 500.000000,
+  "ObjectName" : "플레이어 캐릭터_0",
+  "OwnedComponents" : [{
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9168,
+      "ObjectName" : "UParticleSystemComponent_6",
+      "ParentId" : 9171,
+      "ParticleIndex" : 0,
+      "ParticleName" : "WeaponRibbon",
+      "RelativeLocation" : [-0.043833, -0.001290, 0.007330],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_SwordRibbonPlayer2.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "ObjectName" : "UCharacterMovementComponent_1",
+      "Type" : "UCharacterMovementComponent",
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bTickEnabled" : true
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9271,
+      "ObjectName" : "UParticleSystemComponent_5",
+      "ParentId" : 9171,
+      "ParticleIndex" : 0,
+      "ParticleName" : "WeaponRibbon",
+      "RelativeLocation" : [2.388424, 0.105524, 0.299700],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_SwordRibbonPlayer3.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9169,
+      "ObjectName" : "ParticleCharging",
+      "ParentId" : 9185,
+      "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UPrimitiveComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9170,
+      "ObjectName" : "UParticleSystemComponent_13",
+      "ParentId" : 9272,
+      "ParticleIndex" : 2,
+      "ParticleName" : "Charged",
+      "RelativeLocation" : [0.031548, -0.000000, 1.022077],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_Charging3.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "AngularDampingOverride" : 0.050000,
+      "BoxExtent" : [4.404629, 0.310638, 0.400278],
+      "CapsuleHalfHeight" : 0.400278,
+      "CapsuleRadius" : 2.202314,
+      "CollisionEnabled_Internal" : 2,
+      "CollisionOffset" : [0.000000, 0.000000, 0.000000],
+      "CollisionRotation" : [0.000000, 0.000000, 0.000000],
+      "CollisionType" : 1,
+      "FrictionCombineModeOverride" : 2,
+      "Id" : 9171,
+      "LinearDampingOverride" : 0.010000,
+      "MassOverride" : 10.000000,
+      "MaterialSlots" : [{
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+
+            },
+            "Vectors" : {
+              "EmissiveColor" : [1.000000, 0.599067, 0.362934, 1.000000]
+            }
+          },
+          "ParentPath" : "silver",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "AssetPath" : "handle",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "handle_wrap",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "handle",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "silver",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "wolf_under_blade",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "circle_and_under_handle",
+          "Type" : "UMaterial"
+        }],
+      "ObjectName" : "WeaponMeshComponent",
+      "ParentId" : 9185,
+      "PhysMaterialPreset" : 0,
+      "RelativeLocation" : [0.394518, 0.434058, 1.103885],
+      "RelativeRotationEuler" : [2.060880, -12.279350, -1.706857],
+      "RelativeScale" : [0.130000, 0.100000, 0.170000],
+      "RestitutionCombineModeOverride" : 2,
+      "SphereRadius" : 4.404629,
+      "StaticMesh" : "Data/Model/katana1.obj",
+      "Type" : "UStaticMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bEnableCollision" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bSimulatePhysics" : false,
+      "bTickEnabled" : true
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9175,
+      "ObjectName" : "UParticleSystemComponent_7",
+      "ParentId" : 9272,
+      "ParticleIndex" : 0,
+      "ParticleName" : "Charged",
+      "RelativeLocation" : [0.000075, 0.000000, 1.061076],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_Ember.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9176,
+      "ObjectName" : "UParticleSystemComponent_21",
+      "ParentId" : 9169,
+      "ParticleIndex" : 2,
+      "ParticleName" : "Charging",
+      "RelativeLocation" : [0.026000, -0.086000, 0.776000],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_Charging3.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9177,
+      "ObjectName" : "UParticleSystemComponent_3",
+      "ParentId" : 9171,
+      "ParticleIndex" : 0,
+      "ParticleName" : "WeaponRibbon",
+      "RelativeLocation" : [3.904436, -0.022154, 0.341266],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_SwordRibbonPlayer1.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9180,
+      "ObjectName" : "UParticleSystemComponent_8",
+      "ParentId" : 9272,
+      "ParticleIndex" : 1,
+      "ParticleName" : "Charged",
+      "RelativeLocation" : [-0.018986, 0.000000, 0.100286],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_Charging2.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CapsuleHalfHeight" : 1.000000,
+      "CapsuleRadius" : 0.200000,
+      "CollisionEnabled_Internal" : 0,
+      "Id" : 9179,
+      "ObjectName" : "WeaponCollider",
+      "ParentId" : 9171,
+      "RelativeLocation" : [1.500000, -0.200000, 0.100000],
+      "RelativeRotationEuler" : [1.620702, 86.801750, 1.715487],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UCapsuleComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : false,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bRegisterToPhysX" : false,
+      "bShapeHiddenInGame" : true,
+      "bShapeIsVisible" : true,
+      "bTickEnabled" : true
+    }, {
+      "BlockCostPerHit" : 20.000000,
+      "BlockDrainRate" : 25.000000,
+      "BlockMinRequired" : 20.000000,
+      "CurrentFocus" : 0.000000,
+      "CurrentHealth" : 100.000000,
+      "CurrentStamina" : 0.000000,
+      "DodgeCost" : 20.000000,
+      "FocusChargeRate" : 60.000000,
+      "HeavyAttackCost" : 30.000000,
+      "LightAttackCost" : 20.000000,
+      "MaxFocus" : 100.000000,
+      "MaxHealth" : 100.000000,
+      "MaxStamina" : 100.000000,
+      "ObjectName" : "UStatsComponent_1",
+      "ParryCost" : 10.000000,
+      "StaminaRegenDelay" : 1.000000,
+      "StaminaRegenRate" : 20.000000,
+      "Type" : "UStatsComponent",
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bTickEnabled" : true
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9182,
+      "ObjectName" : "UParticleSystemComponent_19",
+      "ParentId" : 9169,
+      "ParticleIndex" : 0,
+      "ParticleName" : "Charging",
+      "RelativeLocation" : [0.201000, -0.010000, 0.717000],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_Charging1.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9183,
+      "ObjectName" : "UParticleSystemComponent_20",
+      "ParentId" : 9169,
+      "ParticleIndex" : 1,
+      "ParticleName" : "Charging",
+      "RelativeLocation" : [0.204000, -0.339289, 0.208000],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Template" : "Data/Particle/G_Charging2.particle",
+      "Type" : "UParticleSystemComponent",
+      "bAutoActivate" : false,
+      "bAutoDestroy" : false,
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true,
+      "bUseAsyncSimulation" : true,
+      "bUseGpuInstancing" : false
+    }, {
+      "CapsuleHalfHeight" : 0.900000,
+      "CapsuleRadius" : 0.300000,
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9184,
+      "ObjectName" : "UCapsuleComponent_1",
+      "ParentId" : 0,
+      "RelativeLocation" : [10.959968, 4.248120, 2.452402],
+      "RelativeRotationEuler" : [0.000002, 0.282249, 0.000448],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UCapsuleComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bRegisterToPhysX" : true,
+      "bShapeHiddenInGame" : true,
+      "bShapeIsVisible" : true,
+      "bTickEnabled" : true
+    }, {
+      "AnimGraphPath" : "Data/Graphs/Shinobi.graph",
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9185,
+      "MaterialSlots" : [{
+          "Type" : "None"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/Eyes/T_EYES_BASECOLOR_PURPLE_02.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/Eyes/T_EYES_NORMAL.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_EYES_Brown",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/Eyes/T_EYES_BASECOLOR_PURPLE_02.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/Eyes/T_EYES_NORMAL.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_EYES_Brown_1",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_Teeth_BASECOLOR.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_TEETH_NORMAL.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "M_SHINOBIGIRL_Teeth",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_HEAD_BaseColor.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_HEAD_Normal.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_HEAD",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_LASHES_BASECOLOR.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "M_SHINOBIGIRL_LASHES",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "AssetPath" : "MI_SHINOBIGIRL_CARUNCLE_01",
+          "Type" : "UMaterial"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_ARMOR_BaseColor_01.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_ARMOR_Normal.PNG",
+              "2" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_ARMOR_OcclusionRoughnessMetallic.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_ARMOR_01",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_CLOTHES_BaseColor_01.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_CLOTHES_Normal.PNG",
+              "2" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_CLOTHES_OcclusionRoughnessMetallic.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_CLOTHES_01",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_BODY_BaseColor.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/T_SHINOBIGIRL_BODY_Normal.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_BODY",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/Hair/T_HAIR_WAVY_BaseColor_Black_Ombre.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/Hair/T_HAIR_WAVY_normal.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_Hair_13",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/ShinobiGirlAkane/Textures/Hair/T_HAIR_WAVY_BaseColor_Black_Ombre.PNG",
+              "1" : "Data/FBX/ShinobiGirlAkane/Textures/Hair/T_HAIR_WAVY_normal.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_SHINOBIGIRL_Hair_07",
+          "Type" : "UMaterialInstanceDynamic"
+        }],
+      "ObjectName" : "USkeletalMeshComponent_3",
+      "ParentId" : 9184,
+      "PhysicsAssetOverridePath" : "Data/Physics/Shinobi.phys",
+      "RelativeLocation" : [-0.000061, -0.000000, -0.860196],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "SkeletalMesh" : "Data/FBX/ShinobiGirlAkane/SK_AKANE_NoMask.FBX",
+      "Type" : "USkeletalMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true
+    }, {
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 9272,
+      "ObjectName" : "ParticleCharged",
+      "ParentId" : 9185,
+      "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UPrimitiveComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true
+    }, {
+      "AngularDampingOverride" : 0.050000,
+      "BoxExtent" : [3.432323, 0.090642, 0.364984],
+      "CapsuleHalfHeight" : 0.364984,
+      "CapsuleRadius" : 1.716161,
+      "CollisionEnabled_Internal" : 2,
+      "CollisionOffset" : [0.000000, 0.000000, 0.000000],
+      "CollisionRotation" : [0.000000, 0.000000, 0.000000],
+      "CollisionType" : 1,
+      "FrictionCombineModeOverride" : 2,
+      "Id" : 9273,
+      "LinearDampingOverride" : 0.010000,
+      "MassOverride" : 10.000000,
+      "MaterialSlots" : [{
+          "AssetPath" : "grab",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "silver",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "ornaments_on_sheath",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "ornaments_on_sheath",
+          "Type" : "UMaterial"
+        }, {
+          "AssetPath" : "ornaments_on_sheath",
+          "Type" : "UMaterial"
+        }],
+      "ObjectName" : "SubWeaponMeshComponent",
+      "ParentId" : 9185,
+      "PhysMaterialPreset" : 0,
+      "RelativeLocation" : [-0.126157, -0.424431, 1.140013],
+      "RelativeRotationEuler" : [-165.859161, -1.739909, 179.597656],
+      "RelativeScale" : [0.150000, 0.100000, 0.100000],
+      "RestitutionCombineModeOverride" : 2,
+      "SphereRadius" : 3.432323,
+      "StaticMesh" : "Data/Model/katana2.obj",
+      "Type" : "UStaticMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bEnableCollision" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bSimulatePhysics" : false,
+      "bTickEnabled" : true
+    }],
+  "ParryWindowDuration" : 0.200000,
+  "PotionAnimPath" : "Data/FBX/Animation/Drinking_Anim1.FBX_Unreal Take",
+  "RootComponentId" : 9184,
+  "RotationSpeed" : 10.000000,
+  "SubWeaponBoneName" : "hand_l",
+  "SubWeaponOffset" : [0.040000, 0.040000, 0.100000],
+  "SubWeaponRotationOffset" : [6.500000, -75.599998, 51.900002],
+  "Tag" : "",
+  "Type" : "APlayerCharacter",
+  "UltimateAttackAnimPath" : "Data/FBX/Animation/Power_Attack_End_Seq.FBX_Unreal Take",
+  "UltimateAttackCutEndTime" : 0.020000,
+  "UpperBodyRootBoneName" : "spine_01",
+  "WeaponBoneName" : "hand_r",
+  "WeaponOffset" : [0.050000, 0.080000, 0.400000],
+  "WeaponRotationOffset" : [-144.800003, -90.300003, -169.100006],
+  "WeaponTraceLength" : 0.800000,
+  "WeaponTraceRadius" : 1.000000,
+  "bActorHiddenInGame" : false,
+  "bActorIsActive" : true,
+  "bDrawWeaponDebug" : true,
+  "bEnableDashAttackRootMotion" : true,
+  "bEnableDeathRootMotion" : true,
+  "bEnableDodgeRootMotion" : true,
+  "bEnableGuardBreakRootMotion" : true,
+  "bEnableHeavyAttackRootMotion" : true,
+  "bEnableHitRootMotion" : true,
+  "bEnableLightAttackRootMotion" : true,
+  "bEnableUltimateAttackRootMotion" : true,
+  "bIsBlocking" : false,
+  "bIsInvincible" : false,
+  "bIsParrying" : false
+}

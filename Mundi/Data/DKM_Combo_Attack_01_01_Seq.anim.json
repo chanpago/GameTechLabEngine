@@ -1,0 +1,32 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Enable",
+      "TriggerTime" : 0.000000
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Disable",
+      "TriggerTime" : 0.333160
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks10_679.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_679.wav",
+      "TriggerTime" : 0.125347
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

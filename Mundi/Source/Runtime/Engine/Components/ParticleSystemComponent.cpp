@@ -1,0 +1,1724 @@
+#include "pch.h"
+#include "ParticleSystemComponent.h"
+
+#include "BoxComponent.h"
+#include "BVHierarchy.h"
+#include "CameraActor.h"
+#include "CapsuleComponent.h"
+#include "Collision.h"
+#include "MeshBatchElement.h"
+#include "PlatformTime.h"
+#include "PlayerCameraManager.h"
+#include "RenderManager.h"
+#include "SceneView.h"
+#include "SphereComponent.h"
+#include "WorldPartitionManager.h"
+#include "Source/Runtime/Engine/Particle/DynamicEmitterDataBase.h"
+#include "Source/Runtime/Engine/Particle/ParticleEmitterInstance.h"
+#include "Source/Runtime/Engine/Particle/ParticleLODLevel.h"
+#include "Source/Runtime/Engine/Particle/ParticleStats.h"
+#include "Source/Runtime/Engine/Particle/Modules/ParticleModuleMesh.h"
+#include "Source/Runtime/Engine/Particle/Modules/ParticleModuleLocation.h"
+#include "Source/Runtime/Engine/Particle/Modules/ParticleModuleRibbon.h"
+#include "Source/Runtime/Engine/Particle/Modules/ParticleModuleSubUV.h"
+// ============================================================================
+// Constructor & Destructor
+// ============================================================================
+
+UParticleSystemComponent::UParticleSystemComponent()
+{
+    SetActive(true);
+    bTickInEditor = true;
+    bCanEverTick = true;  // 파티클 시스템은 매 프레임 Tick 필요
+    bAutoActivate = true;
+}
+
+UParticleSystemComponent::~UParticleSystemComponent()
+{
+    UParticleSystemComponent::DestroyParticles();
+    ReleaseParticleBuffers();
+    ReleaseInstanceBuffers();
+    ReleaseRibbonBuffers();
+    ReleaseBeamBuffers();
+}
+
+// ============================================================================
+// Initialization & Lifecycle
+// ============================================================================
+
+void UParticleSystemComponent::InitParticles()
+{
+    DestroyParticles();
+
+    if (!Template)
+    {
+        //UE_LOG("[ParticleSystemComponent::InitParticles] Template is NULL!");
+        return;
+    }
+
+    // 에셋에 정의된 이미터 개수만큼 인스턴스 생성
+    for (int32 i = 0; i < Template->Emitters.Num(); i++)
+    {
+        UParticleEmitter* EmitterAsset = Template->Emitters[i];
+
+        if (EmitterAsset)
+        {
+            UE_LOG("[ParticleSystemComponent::InitParticles] Creating instance for Emitter[%d]: %s",
+                   i, EmitterAsset->GetName().c_str());
+            FParticleEmitterInstance* NewInst = new FParticleEmitterInstance();
+            NewInst->Init(EmitterAsset, this);
+            EmitterInstances.Add(NewInst);
+        }
+        else
+        {
+            UE_LOG("[ParticleSystemComponent::InitParticles] Emitter[%d] is NULL!", i);
+        }
+    }
+
+    AsyncUpdater.ResetStats();
+    if (bAutoActivate) { ActivateSystem(); }
+    UE_LOG("[ParticleSystemComponent::InitParticles] Completed. EmitterInstances: %d", EmitterInstances.Num());
+}
+
+void UParticleSystemComponent::DestroyParticles()
+{
+    // 삭제하기 전에 비동기 작업이 끝날 때까지 기다림
+    AsyncUpdater.EnsureCompletion();
+    
+    for (FParticleEmitterInstance* Inst : EmitterInstances)
+    {
+        if (Inst)
+        {
+            Inst->FreeParticleMemory();
+            delete Inst;
+        }
+    }
+    EmitterInstances.Empty();
+}
+
+void UParticleSystemComponent::BeginPlay()
+{
+    Super::BeginPlay();
+    InitParticles();
+}
+
+void UParticleSystemComponent::EndPlay()
+{
+    DestroyParticles();
+    ReleaseParticleBuffers();
+    ReleaseInstanceBuffers();
+    ReleaseRibbonBuffers();
+    ReleaseBeamBuffers();
+    Super::EndPlay();
+}
+
+// ============================================================================
+// Update
+// ============================================================================
+void UParticleSystemComponent::TickComponent(float DeltaTime)
+{
+    Super::TickComponent(DeltaTime);
+
+    if (!Template) return;
+
+    AccumulatedDeltaTime += DeltaTime;
+    
+    // [Main Thread] 비동기 관리자에게 작업 요청 & 결과 동기화
+    FParticleSimulationContext Context;
+    Context.DeltaTime = AccumulatedDeltaTime;
+    Context.ComponentLocation = GetWorldLocation();
+    Context.ComponentRotation = GetWorldRotation();
+    Context.bIsActive = bIsActive;
+    Context.bSuppressSpawning = bSuppressSpawning;
+    Context.ComponentWorldMatrix = GetWorldMatrix();
+    
+    UCameraComponent* Camera = GWorld->GetWorldCamera();
+    Context.CameraLocation = Camera ? Camera->GetWorldLocation() : FVector();
+    Context.CameraRotation = Camera ? Camera->GetWorldRotation() : FQuat();
+
+    if (GetWorld() && GetWorld()->GetPartitionManager())
+    {
+        float SearchRadius = 1000.0f; // 이거 나중에 ParticleSystem Asset에 정보 추가!!!!!!! 
+        FVector Center = GetWorldLocation();
+        
+        FAABB QueryBox;
+        QueryBox.Min = Center - FVector(SearchRadius, SearchRadius, SearchRadius);
+        QueryBox.Max = Center + FVector(SearchRadius, SearchRadius, SearchRadius);
+
+        TArray<UPrimitiveComponent*> Candidates = GetWorld()->GetPartitionManager()->GetBVH()->QueryIntersectedComponents(QueryBox);
+        Context.WorldColliders.Reserve(Candidates.Num());
+
+        for (UPrimitiveComponent* Prim : Candidates)
+        {
+            UShapeComponent* ShapeComponent = Cast<UShapeComponent>(Prim);
+            if (!ShapeComponent) continue;
+
+            const FTransform& TF = ShapeComponent->GetWorldTransform();
+            FVector WorldLoc = TF.Translation;
+            FQuat WorldRot = TF.Rotation;
+            FVector Scale = TF.Scale3D;
+
+            FColliderProxy Proxy;
+            // [BOX]
+            if (UBoxComponent* BoxComp = Cast<UBoxComponent>(ShapeComponent))
+            {
+                Proxy.Type = EShapeKind::Box;
+                FShape Shape; BoxComp->GetShape(Shape);
+                FOBB OBB; Collision::BuildOBB(Shape, TF, OBB);
+                Proxy.Box = OBB;
+            }
+            // [SPHERE]
+            else if (USphereComponent* SphereComp = Cast<USphereComponent>(ShapeComponent))
+            {
+                Proxy.Type = EShapeKind::Sphere;
+                Proxy.Sphere.Center = WorldLoc;
+                // 가장 큰 축의 스케일을 적용
+                float MaxScale = Scale.GetMaxValue();
+                Proxy.Sphere.Radius = SphereComp->SphereRadius * MaxScale;
+            }
+            // [CAPSULE]
+            else if (UCapsuleComponent* CapsuleComp = Cast<UCapsuleComponent>(ShapeComponent))
+            {
+                Proxy.Type = EShapeKind::Capsule;
+                float UnscaledRadius = CapsuleComp->CapsuleRadius;
+                float ScaledRadius = UnscaledRadius * FMath::Max(FMath::Abs(Scale.X), FMath::Abs(Scale.Y));
+                float UnscaledHalfHeight = CapsuleComp->CapsuleHalfHeight;
+                float ScaledHalfHeight = UnscaledHalfHeight * FMath::Abs(Scale.Z);
+
+                float CylHalfHeight = FMath::Max(0.0f, ScaledHalfHeight - ScaledRadius);
+
+                FVector UpAxis = WorldRot.RotateVector(FVector{0, 0, 1});
+                Proxy.Capsule.Radius = ScaledRadius;
+                Proxy.Capsule.PosA = WorldLoc - (UpAxis * CylHalfHeight);
+                Proxy.Capsule.PosB = WorldLoc + (UpAxis * CylHalfHeight);
+            }
+
+            Context.WorldColliders.Add(Proxy);
+        }
+    }
+    
+    if (bUseAsyncSimulation)
+    {
+        if (!AsyncUpdater.IsBusy())
+        {
+            if (EmitterInstances.Num() != Template->Emitters.Num())
+            {
+                InitParticles();
+            }
+            // 워커가 놀고 있으면 누적된 시간만큼 일 시킴
+            AsyncUpdater.KickOff(EmitterInstances, Context);
+            AccumulatedDeltaTime = 0;
+        }
+    }
+    else
+    {
+        if (EmitterInstances.Num() != Template->Emitters.Num())
+        {
+            InitParticles();
+        }
+        AsyncUpdater.KickOffSync(EmitterInstances, Context);
+        AccumulatedDeltaTime = 0;
+    }
+
+    // [Main Thread] 캐싱된 통계 데이터 사용
+    const FParticleFrameStats& Stats = AsyncUpdater.LastFrameStats;
+    FParticleStatManager::GetInstance().AddParticleCount(Stats.TotalActiveParticles);
+
+    // 종료 처리
+    if (bIsActive && Stats.bAllEmittersComplete)
+    {
+        OnParticleSystemFinished.Broadcast(this);
+        DeactivateSystem(); 
+    }
+
+    if (!bIsActive && !Stats.bHasActiveParticles)
+    {
+        if (bAutoDestroy) 
+        { 
+            GetOwner()->Destroy(); 
+        } 
+    }
+}
+
+// ============================================================================
+// Rendering
+// ============================================================================
+void UParticleSystemComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
+{
+    if (!IsVisible())
+    {
+        return;
+    }
+    TIME_PROFILE(Particle_CollectBatches)
+
+    AsyncUpdater.TrySync();
+    // EmitterInstance -> DynamicEmitterReplayDatabase
+    TArray<FDynamicEmitterDataBase*>& CurrentData = AsyncUpdater.RenderData;
+    if (CurrentData.IsEmpty()) return;
+
+    // DynamicEmitterReplayDatabase -> MeshBatchElement
+    BuildSpriteParticleBatch(CurrentData, OutMeshBatchElements, View);
+    BuildMeshParticleBatch(CurrentData, OutMeshBatchElements, View);
+    BuildBeamParticleBatch(CurrentData, OutMeshBatchElements, View);
+    BuildRibbonParticleBatch(CurrentData, OutMeshBatchElements, View);
+}
+
+void UParticleSystemComponent::DuplicateSubObjects()
+{
+    Super::DuplicateSubObjects();
+    EmitterInstances.Empty();
+    ParticleVertexBuffer = nullptr;
+    ParticleIndexBuffer = nullptr;
+    MeshInstanceBuffer = nullptr;
+    
+    RibbonVertexBuffer = nullptr;
+    RibbonIndexBuffer = nullptr;
+
+    for (auto& Beam : PerFrameBeamBuffers)
+    {
+        Beam = nullptr;
+    }
+    PerFrameBeamBuffers.clear();
+    // TODO Release
+}
+
+void UParticleSystemComponent::BuildSpriteParticleBatch(TArray<FDynamicEmitterDataBase*>& EmitterRenderData, TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
+{
+    if (EmitterRenderData.IsEmpty())
+        return;
+
+    // 1) 총 파티클 개수 계산
+    uint32 TotalParticles = 0;
+    for (FDynamicEmitterDataBase* Base : EmitterRenderData)
+    {
+        if (!Base || Base->EmitterType != EParticleType::Sprite) continue;
+
+        const auto* Src = static_cast<const FDynamicSpriteEmitterReplayData*>(Base->GetSource());
+        if (Src)
+        {
+            TotalParticles += static_cast<uint32>(Src->ActiveParticleCount);
+        }
+    }
+    if (TotalParticles == 0) return;
+
+    const uint32 ClampedCount = MaxDebugParticles > 0
+        ? std::min<uint32>(TotalParticles, (uint32)MaxDebugParticles)
+        : TotalParticles;
+
+    const FVector ViewOrigin = View ? View->ViewLocation : FVector::Zero();
+    const FVector ViewDir = View
+        ? View->ViewRotation.RotateVector(FVector(1, 0, 0)).GetSafeNormal()
+        : FVector(1, 0, 0);
+
+    
+    if (!EnsureParticleBuffers(ClampedCount)) return;
+
+    D3D11RHI* RHIDevice = GEngine.GetRHIDevice();
+    ID3D11DeviceContext* Context = RHIDevice ? RHIDevice->GetDeviceContext() : nullptr;
+    if (!Context) return;
+
+    D3D11_MAPPED_SUBRESOURCE Mapped = {};
+    if (FAILED(Context->Map(ParticleVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+        return;
+
+    struct FSpriteBatchCommand
+    {
+        FDynamicSpriteEmitterData* SpriteData = nullptr;
+        uint32 StartParticle = 0;
+        uint32 ParticleCount = 0;
+        int SortPriority = -1;
+    };
+
+    TArray<FSpriteBatchCommand> SpriteBatchCommands;
+    FParticleSpriteVertex* Vertices = reinterpret_cast<FParticleSpriteVertex*>(Mapped.pData);
+
+    static const FVector2D CornerOffsets[4] = {
+        FVector2D(-1.0f, -1.0f), FVector2D(1.0f, -1.0f),
+        FVector2D(1.0f,  1.0f),  FVector2D(-1.0f,  1.0f)
+    };
+
+    uint32 VertexCursor = 0;
+    uint32 WrittenParticles = 0;
+
+    for (FDynamicEmitterDataBase* Base : EmitterRenderData)
+    {
+        if (!Base || Base->EmitterType != EParticleType::Sprite) continue;
+
+        auto* SpriteData = static_cast<FDynamicSpriteEmitterData*>(Base);
+        const auto* Src = static_cast<const FDynamicSpriteEmitterReplayData*>(SpriteData->GetSource());
+        if (!Src || Src->ActiveParticleCount <= 0) continue;
+
+        const uint32 StartParticle = WrittenParticles;
+        for (int32 LocalIdx = 0; LocalIdx < Src->ActiveParticleCount; ++LocalIdx)
+        {
+            if (WrittenParticles >= ClampedCount) break;
+
+            const int32 ParticleIdx = Base->AsyncSortedIndices[LocalIdx];
+            const FBaseParticle* Particle = SpriteData->GetParticle(ParticleIdx);
+            if (!Particle) continue;
+
+            FVector WorldPos = Particle->Location;
+            if (SpriteData->bUseLocalSpace)
+                WorldPos = GetWorldMatrix().TransformPosition(WorldPos);
+
+            // SubImageIndex 추출 (SubUV 모듈이 있을 때)
+            float SubImageIndex = 0.0f;
+            if (Src->SubUVModule && Src->SubUVPayloadOffset >= 0)
+            {
+                const uint8* ParticleBase = reinterpret_cast<const uint8*>(Particle);
+                SubImageIndex = *reinterpret_cast<const float*>(ParticleBase + Src->SubUVPayloadOffset);
+            }
+
+            const FVector2D Size = FVector2D(Particle->Size.X, Particle->Size.Y);
+            const FLinearColor Color = Particle->Color;
+            const float Rotation = Particle->Rotation.X;
+            const FVector Velocity = Particle->Velocity;
+
+            // 4개 코너 버텍스 생성
+            for (int32 CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
+            {
+                FParticleSpriteVertex& Vertex = Vertices[VertexCursor++];
+                Vertex.Position = WorldPos;
+                Vertex.Corner = CornerOffsets[CornerIndex];
+                Vertex.Size = Size;
+                Vertex.Color = Color;
+                Vertex.Rotation = Rotation;
+                Vertex.SubImageIndex = SubImageIndex;
+                Vertex.Velocity = Velocity;
+            }
+
+            ++WrittenParticles;
+        }
+
+        if (WrittenParticles > StartParticle)
+        {
+            FSpriteBatchCommand Cmd;
+            Cmd.SpriteData = SpriteData;
+            Cmd.StartParticle = StartParticle;
+            Cmd.ParticleCount = WrittenParticles - StartParticle;
+            Cmd.SortPriority = Src->RequiredModule ? Src->RequiredModule->SortPriority : -1;
+            SpriteBatchCommands.Add(Cmd);
+        }
+
+        if (WrittenParticles >= ClampedCount) break;
+    }
+
+    Context->Unmap(ParticleVertexBuffer, 0);
+
+    if (SpriteBatchCommands.IsEmpty()) return;
+
+    // 쉐이더 준비
+    if (!FallbackMaterial)
+        FallbackMaterial = UResourceManager::GetInstance().Load<UMaterial>("Shaders/Effects/ParticleSprite.hlsl");
+
+    if (!FallbackMaterial || !FallbackMaterial->GetShader())
+        return;
+
+    TArray<FShaderMacro> ShaderMacros;
+    if (View)
+        ShaderMacros = View->ViewShaderMacros;
+    ShaderMacros.Append(FallbackMaterial->GetShaderMacros());
+
+    FShaderVariant* ShaderVariant = FallbackMaterial->GetShader()
+        ->GetOrCompileShaderVariant(ShaderMacros);
+    if (!ShaderVariant) return;
+
+    // 배치 생성
+    for (const FSpriteBatchCommand& Cmd : SpriteBatchCommands)
+    {
+        if (Cmd.ParticleCount == 0) continue;
+
+        FMeshBatchElement& Batch = OutMeshBatchElements[OutMeshBatchElements.Add(FMeshBatchElement())];
+
+        Batch.VertexShader = ShaderVariant->VertexShader;
+        Batch.PixelShader = ShaderVariant->PixelShader;
+        Batch.InputLayout = ShaderVariant->InputLayout;
+        Batch.Material = ResolveEmitterMaterial(*Cmd.SpriteData);
+
+        Batch.VertexBuffer = ParticleVertexBuffer;
+        Batch.IndexBuffer = ParticleIndexBuffer;
+        Batch.VertexStride = sizeof(FParticleSpriteVertex);
+        Batch.IndexCount = Cmd.ParticleCount * 6;
+        Batch.StartIndex = Cmd.StartParticle * 6;
+        Batch.BaseVertexIndex = 0;
+        Batch.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        Batch.WorldMatrix = GetWorldMatrix();
+        Batch.ObjectID = InternalIndex;
+        Batch.SortPriority = Cmd.SortPriority;
+        Batch.ScreenAlignment = Cmd.SpriteData->Alignment;
+        Batch.ParticleBlendMode = Cmd.SpriteData ? Cmd.SpriteData->BlendMode : EMaterialBlendMode::Translucent;
+        Batch.bIsDepthWrite = (Batch.ParticleBlendMode == EMaterialBlendMode::Opaque);
+
+        // SubUV 파라미터 설정
+        const FDynamicSpriteEmitterReplayData* SrcData =
+            static_cast<const FDynamicSpriteEmitterReplayData*>(Cmd.SpriteData->GetSource());
+        if (SrcData && SrcData->RequiredModule)
+        {
+            Batch.SubImages_Horizontal = SrcData->RequiredModule->SubImages_Horizontal;
+            Batch.SubImages_Vertical = SrcData->RequiredModule->SubImages_Vertical;
+        }
+        if (SrcData && SrcData->SubUVModule)
+        {
+            Batch.SubUV_InterpMethod = static_cast<int32>(SrcData->SubUVModule->InterpMethod);
+        }
+    }
+}
+
+void UParticleSystemComponent::BuildMeshParticleBatch(TArray<FDynamicEmitterDataBase*>& EmitterRenderData, TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
+{
+	if (EmitterRenderData.IsEmpty())
+		return;
+
+    uint32 TotalParticles = 0;
+    for (FDynamicEmitterDataBase* Base : EmitterRenderData)
+    {
+        if (!Base || Base->EmitterType != EParticleType::Mesh)
+            continue;
+
+        const auto* Src = static_cast<const FDynamicMeshEmitterReplayData*>(Base->GetSource());
+        if (Src)
+        {
+            TotalParticles += static_cast<uint32>(Src->ActiveParticleCount);
+        }
+    }
+
+    if (TotalParticles == 0)
+    {
+        return;
+    }
+
+    const uint32 ClampedCount = MaxDebugParticles > 0
+        ? std::min<uint32>(TotalParticles, static_cast<uint32>(MaxDebugParticles))
+        : TotalParticles;
+
+    if (!EnsureMeshBuffer(ClampedCount))
+    {
+        return;
+    }
+
+    D3D11RHI* RHIDevice = GEngine.GetRHIDevice();
+    ID3D11DeviceContext* Context = RHIDevice ? RHIDevice->GetDeviceContext() : nullptr;
+    if (!Context)
+    {
+        return;
+    }
+
+    D3D11_MAPPED_SUBRESOURCE Mapped = {};
+    if (FAILED(Context->Map(MeshInstanceBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &Mapped)))
+    {
+        return;
+    }
+
+    FMeshParticleInstanceData* Instances = reinterpret_cast<FMeshParticleInstanceData*>(Mapped.pData);
+
+    struct FMeshInstancedCommand
+    {
+        FDynamicMeshEmitterData* MeshData = nullptr;
+        UStaticMesh* StaticMesh = nullptr;
+        FShaderVariant* ShaderVariant = nullptr;
+        UMaterialInterface* Material = nullptr;
+        uint32 StartInstance = 0;
+        uint32 InstanceCount = 0;
+        int SortPriority = -1;
+    };
+
+    TArray<FMeshInstancedCommand> Commands;
+    uint32 WrittenInstances = 0;
+    const FMatrix ComponentWorld = GetWorldMatrix();
+    const FVector ViewOrigin = View ? View->ViewLocation : FVector::Zero();
+    FVector ViewDir = FVector(1, 0, 0);
+    if (View)
+    {
+        ViewDir = View->ViewRotation.RotateVector(FVector(1, 0, 0)).GetSafeNormal();
+    }
+
+    for (FDynamicEmitterDataBase* Base : EmitterRenderData)
+    {
+        if (!Base || Base->EmitterType != EParticleType::Mesh)
+            continue;
+
+        auto* MeshData = static_cast<FDynamicMeshEmitterData*>(Base);
+        const auto* Src = static_cast<const FDynamicMeshEmitterReplayData*>(MeshData->GetSource());
+        if (!Src || !Src->Mesh || Src->ActiveParticleCount <= 0)
+            continue;
+
+        UStaticMesh* StaticMesh = Src->Mesh;
+        ID3D11Buffer* MeshVB = StaticMesh->GetVertexBuffer();
+        ID3D11Buffer* MeshIB = StaticMesh->GetIndexBuffer();
+        const uint32 MeshIndexCount = StaticMesh->GetIndexCount();
+        const uint32 MeshVertexStride = StaticMesh->GetVertexStride();
+        if (!MeshVB || !MeshIB || MeshIndexCount == 0)
+        {
+            UE_LOG("[BuildMeshParticleBatch] Mesh %s has invalid buffers",
+                StaticMesh->GetName().c_str());
+            continue;
+        }
+
+        TArray<FShaderMacro> ShaderMacros = View ? View->ViewShaderMacros : TArray<FShaderMacro>();
+        ShaderMacros.Add(FShaderMacro("PARTICLE_LIGHTING", Src->bLighting ? "1" : "0"));
+
+        UMaterial* ParticleMeshMaterial = UResourceManager::GetInstance().Load<UMaterial>("Shaders/Effects/ParticleMesh.hlsl");
+        if (!ParticleMeshMaterial || !ParticleMeshMaterial->GetShader())
+        {
+            UE_LOG("[BuildMeshParticleBatch] Failed to load ParticleMesh shader");
+            continue;
+        }
+        ShaderMacros.Append(ParticleMeshMaterial->GetShaderMacros());
+        FShaderVariant* ShaderVariant = ParticleMeshMaterial->GetShader()->GetOrCompileShaderVariant(ShaderMacros);
+        if (!ShaderVariant)
+        {
+            UE_LOG("[BuildMeshParticleBatch] Failed to compile ParticleMesh shader variant");
+            continue;
+        }
+
+        UMaterialInterface* Material = ResolveEmitterMaterial(*MeshData);
+        const uint32 StartInstance = WrittenInstances;
+
+        for (int32 LocalIdx = 0; LocalIdx < Src->ActiveParticleCount; ++LocalIdx)
+        {
+            if (WrittenInstances >= ClampedCount)
+            {
+                break;
+            }
+            const int32 ParticleIdx = Base->AsyncSortedIndices[LocalIdx];
+            const FBaseParticle* Particle = MeshData->GetParticle(ParticleIdx);
+            if (!Particle)
+            {
+                continue;
+            }
+
+            FMeshParticleInstanceData& Instance = Instances[WrittenInstances++];
+
+            FQuat RotationQuatZ = FQuat::FromAxisAngle(FVector(0.0f, 0.0f, 1.0f), Particle->Rotation.Z);
+            FQuat RotationQuatY = FQuat::FromAxisAngle(FVector(0.0f, 1.0f, 0.0f), Particle->Rotation.Y);
+            FQuat RotationQuatX = FQuat::FromAxisAngle(FVector(1.0f, 0.0f, 0.0f), Particle->Rotation.X);
+
+            FTransform ParticleTransform(Particle->Location, RotationQuatX* RotationQuatY* RotationQuatZ, Particle->Size);
+            FMatrix ParticleWorld = ParticleTransform.ToMatrix();
+            if (MeshData->bUseLocalSpace)
+            {
+                ParticleWorld = ParticleWorld * ComponentWorld;
+            }
+
+            Instance.WorldMatrix = ParticleWorld;
+            Instance.WorldInverseTranspose = ParticleWorld.InverseAffine().Transpose();
+            Instance.Color = Particle->Color;
+        }
+
+        const uint32 InstancesWritten = WrittenInstances - StartInstance;
+        if (InstancesWritten > 0)
+        {
+            FMeshInstancedCommand Cmd;
+            Cmd.MeshData = MeshData;
+            Cmd.StaticMesh = StaticMesh;
+            Cmd.ShaderVariant = ShaderVariant;
+            Cmd.Material = Material;
+            Cmd.StartInstance = StartInstance;
+            Cmd.InstanceCount = InstancesWritten;
+            Cmd.SortPriority = MeshData->SortPriority;
+            Commands.Add(Cmd);
+        }
+
+        if (WrittenInstances >= ClampedCount)
+        {
+            break;
+        }
+    }
+
+    Context->Unmap(MeshInstanceBuffer, 0);
+
+    if (Commands.IsEmpty())
+    {
+        return;
+    }
+
+    for (const FMeshInstancedCommand& Cmd : Commands)
+    {
+        if (!Cmd.ShaderVariant || !Cmd.StaticMesh)
+        {
+            continue;
+        }
+
+        ID3D11Buffer* MeshVB = Cmd.StaticMesh->GetVertexBuffer();
+        ID3D11Buffer* MeshIB = Cmd.StaticMesh->GetIndexBuffer();
+        const uint32 MeshIndexCount = Cmd.StaticMesh->GetIndexCount();
+        const uint32 MeshVertexStride = Cmd.StaticMesh->GetVertexStride();
+        if (!MeshVB || !MeshIB || MeshIndexCount == 0)
+        {
+            continue;
+        }
+
+        FMeshBatchElement& Batch = OutMeshBatchElements[OutMeshBatchElements.Add(FMeshBatchElement())];
+        Batch.VertexShader = Cmd.ShaderVariant->VertexShader;
+        Batch.PixelShader = Cmd.ShaderVariant->PixelShader;
+        Batch.InputLayout = Cmd.ShaderVariant->InputLayout;
+        Batch.Material = Cmd.Material;
+
+        Batch.VertexBuffer = MeshVB;
+        Batch.VertexStride = MeshVertexStride;
+        Batch.IndexBuffer = MeshIB;
+        Batch.IndexCount = MeshIndexCount;
+
+        Batch.StartIndex = 0;
+        Batch.BaseVertexIndex = 0;
+        Batch.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        Batch.WorldMatrix = FMatrix::Identity();
+        Batch.ObjectID = InternalIndex;
+        Batch.SortPriority = Cmd.SortPriority;
+        Batch.ParticleBlendMode = Cmd.MeshData ? Cmd.MeshData->BlendMode : EMaterialBlendMode::Translucent;
+        Batch.bIsDepthWrite = (Batch.ParticleBlendMode == EMaterialBlendMode::Opaque);
+        Batch.bInstancedDraw = true;
+        Batch.InstanceVertexBuffer = MeshInstanceBuffer;
+        Batch.InstanceStride = sizeof(FMeshParticleInstanceData);
+        Batch.InstanceCount = Cmd.InstanceCount;
+        Batch.InstanceStart = Cmd.StartInstance;
+    }
+}
+
+void UParticleSystemComponent::BuildRibbonParticleBatch(TArray<FDynamicEmitterDataBase*>& EmitterRenderData, TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
+{
+    if (EmitterRenderData.IsEmpty())
+        return;
+
+    const FMatrix ComponentWorld = GetWorldMatrix();
+
+    uint32 TotalSpinePoints = 0;
+    for (FDynamicEmitterDataBase* Base : EmitterRenderData)
+    {
+        if (!Base || Base->EmitterType != EParticleType::Ribbon)
+            continue;
+
+        const auto* Src = static_cast<const FDynamicRibbonEmitterReplayData*>(Base->GetSource());
+        if (Src && Src->ActiveParticleCount >= 2)
+        {
+            const uint32 Tess = FMath::Max(1, static_cast<uint32>(Src->TessellationFactor));
+            TotalSpinePoints += static_cast<uint32>(Src->ActiveParticleCount) * Tess;
+        }
+    }
+
+    if (TotalSpinePoints < 2)
+        return;
+
+    // 2) 리본 버퍼 확보 (spine point 기준)
+    if (!EnsureRibbonBuffers(TotalSpinePoints))
+        return;
+
+    // 3) GPU 매핑
+    D3D11RHI* RHIDevice = GEngine.GetRHIDevice();
+    ID3D11DeviceContext* Context = RHIDevice ? RHIDevice->GetDeviceContext() : nullptr;
+    if (!Context)
+        return;
+
+    D3D11_MAPPED_SUBRESOURCE VMap = {};
+    if (FAILED(Context->Map(RibbonVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &VMap)))
+        return;
+
+    FParticleSpriteVertex* Vertices = reinterpret_cast<FParticleSpriteVertex*>(VMap.pData);
+
+    D3D11_MAPPED_SUBRESOURCE IMap = {};
+    if (FAILED(Context->Map(RibbonIndexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &IMap)))
+    {
+        Context->Unmap(RibbonVertexBuffer, 0);
+        return;
+    }
+    uint32* IndicesPtr = reinterpret_cast<uint32*>(IMap.pData);
+
+    const FVector ViewOrigin = View ? View->ViewLocation : FVector::Zero();
+
+    uint32 VertexCursor = 0;
+    uint32 IndexCursor = 0;
+
+    struct FRibbonBatchCommand
+    {
+        FDynamicRibbonEmitterData* RibbonData = nullptr;
+        uint32 StartIndex = 0;
+        uint32 IndexCount = 0;
+        int32 SortPriority = 0;
+    };
+    TArray<FRibbonBatchCommand> RibbonCommands;
+
+    auto SampleCatmullPosition = [](const FVector& P0, const FVector& P1, const FVector& P2, const FVector& P3, float T)
+    {
+        const float T2 = T * T;
+        const float T3 = T2 * T;
+        return  ( (P1* 2.0f) +
+            (-P0 + P2) * T +
+            (P0* 2.0f - P1* 5.0f + P2* 4.0f - P3) * T2 +
+            (-P0 + P1 * 3.0f - P2 * 3.0f + P3) * T3) * 0.5f;
+    };
+
+    auto SampleCatmullTangent = [](const FVector& P0, const FVector& P1, const FVector& P2, const FVector& P3, float T)
+    {
+        const float T2 = T * T;
+        return ((-P0 + P2) +
+            ((P0 * 2.0f - P1* 5.0f + P2* 4.0f - P3)* 2.0f) * T +
+            ((-P0 + P1* 3.0f - P2* 3.0f + P3)* 3.0f) * T2) * 0.5f;
+    };
+
+    auto ComputeRightVector = [&](const FVector& SamplePos, const FVector& Tangent, bool bUseCameraFacing)
+    {
+        FVector RightVector;
+        if (bUseCameraFacing)
+        {
+            FVector ToCam = (ViewOrigin - SamplePos).GetSafeNormal();
+            RightVector = FVector::Cross(ToCam, Tangent).GetSafeNormal();
+        }
+        else
+        {
+            RightVector = FVector::Cross(FVector(0, 0, 1), Tangent).GetSafeNormal();
+        }
+        
+        if (RightVector.Size() < KINDA_SMALL_NUMBER)
+        {
+            RightVector = FVector::Cross(FVector(0, 1, 0), Tangent).GetSafeNormal();
+        }
+        return RightVector;
+    };
+
+    for (FDynamicEmitterDataBase* Base : EmitterRenderData)
+    {
+        if (!Base || Base->EmitterType != EParticleType::Ribbon)
+            continue;
+
+        auto* RibbonData = static_cast<FDynamicRibbonEmitterData*>(Base);
+        const auto* Src = &RibbonData->Source;
+
+        const int32 TrailCount = Src->TrailCount;
+        const TArray<int32>& TrailHeads = Src->TrailHeads;
+        const float Width = Src->Width;
+        const float TilingDistance = Src->TilingDistance;
+        const bool bUseCameraFacing = Src->bUseCameraFacing;
+        const int32 TessFactor = FMath::Max(1, Src->TessellationFactor);
+
+        auto GetWorldPosFromParticle = [&](int32 ParticleIndex) -> FVector
+        {
+            FVector LocalPos = RibbonData->GetParticlePosition(ParticleIndex);
+            return RibbonData->bUseLocalSpace ? ComponentWorld.TransformPosition(LocalPos) : LocalPos;
+        };
+
+        auto GetParticleColor = [&](int32 ParticleIndex) -> FLinearColor
+        {
+            if (const FBaseParticle* Particle = RibbonData->GetParticle(ParticleIndex))
+            {
+                return Particle->Color;
+            }
+            return FLinearColor(1.0, 1.0, 1.0, 1.0);
+        };
+
+        auto GetParticleSubImage = [&](int32 ParticleIndex) -> float
+        {
+            if (Src->SubUVModule && Src->SubUVPayloadOffset >= 0)
+            {
+                if (const FBaseParticle* Particle = RibbonData->GetParticle(ParticleIndex))
+                {
+                    const uint8* ParticleBase = reinterpret_cast<const uint8*>(Particle);
+                    return *reinterpret_cast<const float*>(ParticleBase + Src->SubUVPayloadOffset);
+                }
+            }
+            return 0.0f;
+        };
+
+        auto GetClampedWorldPos = [&](const TArray<int32>& Chain, int32 Index) -> FVector
+        {
+            const int32 ClampedIndex = FMath::Clamp(Index, 0, Chain.Num() - 1);
+            return GetWorldPosFromParticle(Chain[ClampedIndex]);
+        };
+
+        if (!Src->DataContainer.ParticleData || TrailCount <= 0)
+        {
+            continue;
+        }
+
+        // 이 emitter에서 처음으로 쓰는 인덱스 위치
+        const uint32 EmitterBaseIndexStart = IndexCursor;
+
+        // trail 별로 별도 체인 생성
+        for (int32 TrailIdx = 0; TrailIdx < TrailCount; ++TrailIdx)
+        {
+            // 4-1) 이 trail의 head부터 NextIndex 따라가며 체인 구성
+            // TODO : TrailIdx && TrailHeads 생명주기 제대로 관리
+            if (TrailIdx < 0 || TrailIdx >= static_cast<int32>(TrailHeads.size()))
+            {
+                continue;
+            }
+
+            TArray<int32> Chain;
+            int32 Current = TrailHeads[TrailIdx];
+            int32 Safety = 0;
+            while (Current != INDEX_NONE && Safety < Src->ActiveParticleCount)
+            {
+                ++Safety;
+                Chain.Add(Current);
+
+                const uint8* BasePtr = Src->DataContainer.ParticleData + Src->ParticleStride * Current;
+                const FBaseParticle* ChainParticle = reinterpret_cast<const FBaseParticle*>(BasePtr);
+                if (!ChainParticle)
+                    break;
+
+                Current = ChainParticle->NextIndex;
+            }
+
+            if (Chain.Num() < 2)
+            {
+                continue;
+            }
+
+            struct FRibbonSample
+            {
+                FVector Position;
+                FVector Tangent;
+                FLinearColor Color;
+                float Age = 0.0f;
+                float SubImage = 0.0f;
+            };
+            TArray<FRibbonSample> Samples;
+            Samples.Reserve(Chain.Num() * TessFactor);
+
+            for (int32 ci = 0; ci < Chain.Num(); ++ci)
+            {
+                const int32 ParticleIndex = Chain[ci];
+                const FVector ParticleWorldPos = GetWorldPosFromParticle(ParticleIndex);
+                // Tangent: 체인 기준 이전/다음 점으로 계산
+                FVector Tangent;
+                if (ci == 0)
+                {
+                    const FVector NextPos = GetWorldPosFromParticle(Chain[ci + 1]);
+                    Tangent = (NextPos - ParticleWorldPos).GetSafeNormal();
+                }
+                else if (ci == Chain.Num() - 1)
+                {
+                    const FVector PrevPos = GetWorldPosFromParticle(Chain[ci - 1]);
+                    Tangent = (ParticleWorldPos - PrevPos).GetSafeNormal();
+                }
+                else
+                {
+                    const FVector PrevPos = GetWorldPosFromParticle(Chain[ci - 1]);
+                    const FVector NextPos = GetWorldPosFromParticle(Chain[ci + 1]);
+                    Tangent = (NextPos - PrevPos).GetSafeNormal();
+                }
+
+                FRibbonSample Sample;
+                Sample.Position = ParticleWorldPos;
+                Sample.Tangent = Tangent;
+                Sample.Color = GetParticleColor(ParticleIndex);
+                Sample.Age = RibbonData->GetParticleAge(ParticleIndex);
+                Sample.SubImage = GetParticleSubImage(ParticleIndex);
+                Samples.Add(Sample);
+
+                if (TessFactor > 1 && ci < Chain.Num() - 1)
+                {
+                    const FVector P0 = GetClampedWorldPos(Chain, ci - 1);
+                    const FVector P1 = ParticleWorldPos;
+                    const FVector P2 = GetWorldPosFromParticle(Chain[ci + 1]);
+                    const FVector P3 = GetClampedWorldPos(Chain, ci + 2);
+
+                    const FLinearColor ColorNext = GetParticleColor(Chain[ci + 1]);
+                    const float AgeNext = RibbonData->GetParticleAge(Chain[ci + 1]);
+                    const float SubNext = GetParticleSubImage(Chain[ci + 1]);
+
+                    for (int32 tess = 1; tess < TessFactor; ++tess)
+                    {
+                        const float Alpha = static_cast<float>(tess) / static_cast<float>(TessFactor);
+                        FRibbonSample SubSample;
+                        SubSample.Position = SampleCatmullPosition(P0, P1, P2, P3, Alpha);
+                        SubSample.Tangent = SampleCatmullTangent(P0, P1, P2, P3, Alpha).GetSafeNormal();
+                        SubSample.Color = FMath::Lerp(Sample.Color, ColorNext, Alpha);
+                        SubSample.Age = FMath::Lerp(Sample.Age, AgeNext, Alpha);
+                        SubSample.SubImage = FMath::Lerp(Sample.SubImage, SubNext, Alpha);
+                        Samples.Add(SubSample);
+                    }
+                }
+            }
+
+            if (Samples.Num() < 2)
+            {
+                continue;
+            }
+
+            const uint32 BaseVertexIndex = VertexCursor;
+            const uint32 BaseIndexIndex = IndexCursor;
+
+            float CurrentDistance = 0.0f;
+            for (int32 sampleIdx = 0; sampleIdx < Samples.Num(); ++sampleIdx)
+            {
+                FRibbonSample& Sample = Samples[sampleIdx];
+                if (sampleIdx > 0)
+                {
+                    CurrentDistance += FVector::Distance(Sample.Position, Samples[sampleIdx - 1].Position);
+                }
+
+                FVector Tangent = Sample.Tangent;
+                if (Tangent.Size() < KINDA_SMALL_NUMBER && sampleIdx + 1 < Samples.Num())
+                {
+                    Tangent = (Samples[sampleIdx + 1].Position - Sample.Position).GetSafeNormal();
+                }
+                if (Tangent.Size() < KINDA_SMALL_NUMBER)
+                {
+                    Tangent = FVector(1, 0, 0);
+                }
+                const FVector RightVector = ComputeRightVector(Sample.Position, Tangent, bUseCameraFacing);
+
+                const float FadeFactor = 1.0f - FMath::Clamp(Sample.Age, 0.0f, 1.0f);
+                const float WidthScale = FMath::Max(0.01f, Width * FadeFactor);
+                FLinearColor FinalColor = Sample.Color;
+                FinalColor.A *= FadeFactor;
+
+                float VCoord = 0.0f;
+                if (TilingDistance > 0.0f)
+                {
+                    VCoord = CurrentDistance / TilingDistance;
+                }
+                else
+                {
+                    VCoord = static_cast<float>(sampleIdx) / static_cast<float>(Samples.Num() - 1);
+                }
+
+                // Top vertex (U = 0)
+                FParticleSpriteVertex& V0 = Vertices[VertexCursor++];
+                V0.Position = Sample.Position + (RightVector * WidthScale * 0.5f);
+                V0.Corner = FVector2D(0.0f, VCoord);
+                V0.Color = FinalColor;
+                V0.Size = FVector2D(WidthScale, 0.0f);
+                V0.Rotation = 0.0f;
+                V0.SubImageIndex = Sample.SubImage;
+
+                // Bottom vertex (U = 1)
+                FParticleSpriteVertex& V1 = Vertices[VertexCursor++];
+                V1.Position = Sample.Position - (RightVector * WidthScale * 0.5f);
+                V1.Corner = FVector2D(1.0f, VCoord);
+                V1.Color = FinalColor;
+                V1.Size = FVector2D(WidthScale, 0.0f);
+                V1.Rotation = 0.0f;
+                V1.SubImageIndex = Sample.SubImage;
+            }
+
+            for (int32 sampleIdx = 0; sampleIdx < Samples.Num() - 1; ++sampleIdx)
+            {
+                const uint32 V_TopLeft = BaseVertexIndex + (sampleIdx * 2);
+                const uint32 V_BottomLeft = BaseVertexIndex + (sampleIdx * 2) + 1;
+                const uint32 V_TopRight = BaseVertexIndex + ((sampleIdx + 1) * 2);
+                const uint32 V_BottomRight = BaseVertexIndex + ((sampleIdx + 1) * 2) + 1;
+
+                // 삼각형 1: TL - BL - TR  (CCW)
+                IndicesPtr[IndexCursor++] = V_TopLeft;
+                IndicesPtr[IndexCursor++] = V_BottomLeft;
+                IndicesPtr[IndexCursor++] = V_TopRight;
+
+                // 삼각형 2: BL - BR - TR  (CCW)
+                IndicesPtr[IndexCursor++] = V_BottomLeft;
+                IndicesPtr[IndexCursor++] = V_BottomRight;
+                IndicesPtr[IndexCursor++] = V_TopRight;
+            }
+
+            FRibbonBatchCommand Cmd;
+            Cmd.RibbonData = RibbonData;
+            Cmd.StartIndex = BaseIndexIndex;
+            Cmd.IndexCount = (Samples.Num() - 1) * 6;
+            Cmd.SortPriority = RibbonData->SortPriority;
+            RibbonCommands.Add(Cmd);
+        }
+
+        (void)EmitterBaseIndexStart;
+    }
+
+    Context->Unmap(RibbonVertexBuffer, 0);
+    Context->Unmap(RibbonIndexBuffer, 0);
+
+    if (RibbonCommands.IsEmpty())
+        return;
+
+    // 5) 리본 전용 쉐이더 준비
+    static UMaterial* RibbonMaterial = nullptr;
+    if (!RibbonMaterial)
+    {
+        RibbonMaterial = UResourceManager::GetInstance().Load<UMaterial>("Shaders/Effects/ParticleRibbon.hlsl");
+    }
+    if (!RibbonMaterial || !RibbonMaterial->GetShader())
+        return;
+
+    TArray<FShaderMacro> ShaderMacros = View ? View->ViewShaderMacros : TArray<FShaderMacro>();
+    ShaderMacros.Append(RibbonMaterial->GetShaderMacros());
+
+    FShaderVariant* ShaderVariant = RibbonMaterial->GetShader()->GetOrCompileShaderVariant(ShaderMacros);
+    if (!ShaderVariant)
+        return;
+        
+    // 6) Batch 생성 (trail 단위로 draw call)
+    for (const FRibbonBatchCommand& Cmd : RibbonCommands)
+    {
+        if (!Cmd.RibbonData || Cmd.IndexCount == 0)
+        {
+            continue;
+        }
+
+        FMeshBatchElement Batch = {};
+
+        Batch.VertexShader = ShaderVariant->VertexShader;
+        Batch.PixelShader = ShaderVariant->PixelShader;
+        Batch.InputLayout = ShaderVariant->InputLayout;
+        Batch.Material = ResolveEmitterMaterial(*Cmd.RibbonData);
+
+        Batch.VertexBuffer = RibbonVertexBuffer;
+        Batch.IndexBuffer = RibbonIndexBuffer;
+        Batch.VertexStride = sizeof(FParticleSpriteVertex);
+        Batch.IndexCount = Cmd.IndexCount;
+        Batch.StartIndex = Cmd.StartIndex;
+        Batch.BaseVertexIndex = 0;
+        Batch.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        Batch.WorldMatrix = ComponentWorld;
+        Batch.ObjectID = InternalIndex;
+        Batch.SortPriority = Cmd.SortPriority;
+        Batch.ParticleBlendMode = Cmd.RibbonData ? Cmd.RibbonData->BlendMode : EMaterialBlendMode::Translucent;
+        Batch.bIsDepthWrite = (Batch.ParticleBlendMode == EMaterialBlendMode::Opaque);
+
+        OutMeshBatchElements.Add(Batch);
+    }
+}
+
+// ============================================================================
+// Material Resolution
+// ============================================================================
+UMaterialInterface* UParticleSystemComponent::ResolveEmitterMaterial(const FDynamicEmitterDataBase& DynData) const
+{
+    UParticleEmitter* SourceEmitter = nullptr;
+    UParticleModuleRequired* RequiredModule = nullptr;
+    UParticleModuleMesh* MeshModule = nullptr;
+    
+    if (Template &&
+        DynData.EmitterIndex >= 0 &&
+        DynData.EmitterIndex < Template->Emitters.Num())
+    {
+        SourceEmitter = Template->Emitters[DynData.EmitterIndex];
+        if (SourceEmitter && !SourceEmitter->LODLevels.IsEmpty())
+        {
+            if (auto* LOD0 = SourceEmitter->LODLevels[0])
+            {
+                RequiredModule = LOD0->RequiredModule;
+                MeshModule = Cast<UParticleModuleMesh>(LOD0->TypeDataModule);
+            }
+        }
+    }
+    
+
+    // 만약 MeshEmitter + bUseMeshMaterials -> StaticMesh 재질
+    if (DynData.EmitterType == EParticleType::Mesh && MeshModule)
+    {
+        // Override Material 사용 (bUseMeshMaterials = false)
+        if (!MeshModule->bUseMeshMaterials && MeshModule->OverrideMaterial)
+        {
+            return MeshModule->OverrideMaterial;
+        }
+
+        // Mesh 기본 Material 사용 (bUseMeshMaterials = true)
+        if (MeshModule->bUseMeshMaterials && MeshModule->Mesh)
+        {
+            const auto& Groups = MeshModule->Mesh->GetMeshGroupInfo();
+            if (!Groups.IsEmpty())
+            {
+                const FString& MatName = Groups[0].InitialMaterialName;
+                if (!MatName.empty())
+                    if (auto* M = UResourceManager::GetInstance().Load<UMaterial>(MatName))
+                        return M;
+            }
+        }
+    }
+
+    if (RequiredModule && RequiredModule->Material)
+    {
+        return RequiredModule->Material;
+    }
+    
+    return FallbackMaterial;
+}
+
+// ============================================================================
+// Resource Management
+// ============================================================================
+bool UParticleSystemComponent::EnsureParticleBuffers(uint32 ParticleCapacity)
+{
+    if (ParticleCapacity == 0) return false;
+
+    if (ParticleVertexBuffer && ParticleIndexBuffer &&
+        ParticleCapacity <= ParticleVertexCapacity)
+    {
+        return true;
+    }
+
+    ReleaseParticleBuffers();
+    ParticleVertexCapacity = ParticleCapacity;
+    ParticleIndexCount = ParticleCapacity * 6;
+
+    D3D11RHI* RHIDevice = GEngine.GetRHIDevice();
+    ID3D11Device* Device = RHIDevice ? RHIDevice->GetDevice() : nullptr;
+    if (!Device)
+    {
+        ParticleVertexCapacity = 0;
+        ParticleIndexCount = 0;
+        return false;
+    }
+
+    // 버텍스 버퍼 생성
+    D3D11_BUFFER_DESC VertexDesc = {};
+    VertexDesc.ByteWidth = ParticleVertexCapacity * 4 * sizeof(FParticleSpriteVertex);
+    VertexDesc.Usage = D3D11_USAGE_DYNAMIC;
+    VertexDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    VertexDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    if (FAILED(Device->CreateBuffer(&VertexDesc, nullptr, &ParticleVertexBuffer)))
+    {
+        ReleaseParticleBuffers();
+        return false;
+    }
+
+    // 인덱스 버퍼 생성 (Quad 인덱스)
+    TArray<uint32> Indices;
+    Indices.SetNum(static_cast<int32>(ParticleCapacity * 6));
+    for (uint32 i = 0; i < ParticleCapacity; ++i)
+    {
+        const uint32 VertexBase = i * 4;
+        const uint32 IndexBase = i * 6;
+        Indices[IndexBase + 0] = VertexBase + 2;
+        Indices[IndexBase + 1] = VertexBase + 1;
+        Indices[IndexBase + 2] = VertexBase + 0;
+        Indices[IndexBase + 3] = VertexBase + 3;
+        Indices[IndexBase + 4] = VertexBase + 2;
+        Indices[IndexBase + 5] = VertexBase + 0;
+    }
+
+    D3D11_BUFFER_DESC IndexDesc = {};
+    IndexDesc.ByteWidth = static_cast<UINT>(Indices.Num() * sizeof(uint32));
+    IndexDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    IndexDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA IndexData = {};
+    IndexData.pSysMem = Indices.GetData();
+
+    if (FAILED(Device->CreateBuffer(&IndexDesc, &IndexData, &ParticleIndexBuffer)))
+    {
+        ReleaseParticleBuffers();
+        return false;
+    }
+
+    return true;
+}
+
+bool UParticleSystemComponent::EnsureRibbonBuffers(uint32 MaxSpinePoints)
+{
+    if (MaxSpinePoints < 2) return false;
+
+    uint32 RequiredVertexCount = MaxSpinePoints * 2;
+    uint32 RequiredIndexCount = (MaxSpinePoints - 1) * 6;
+
+    if (RibbonVertexBuffer && RibbonIndexBuffer &&
+        RequiredVertexCount <= RibbonVertexCapacity &&
+        RequiredIndexCount <= RibbonIndexCapacity)
+    {
+        return true;
+    }
+
+    RibbonVertexCapacity = RequiredVertexCount;
+    RibbonIndexCapacity = RequiredIndexCount;
+
+    D3D11RHI* RHIDevice = GEngine.GetRHIDevice();
+    ID3D11Device* Device = RHIDevice ? RHIDevice->GetDevice() : nullptr;
+    if (!Device) return false;
+
+    // --------------------------------------------------------
+    // A. 리본 버텍스 버퍼 생성 (DYNAMIC)
+    // --------------------------------------------------------
+    D3D11_BUFFER_DESC VertexDesc = {};
+    VertexDesc.ByteWidth = RibbonVertexCapacity * sizeof(FParticleSpriteVertex);
+    VertexDesc.Usage = D3D11_USAGE_DYNAMIC;        // CPU Write
+    VertexDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    VertexDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    if (FAILED(Device->CreateBuffer(&VertexDesc, nullptr, &RibbonVertexBuffer)))
+    {
+        ReleaseRibbonBuffers();
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // B. 리본 인덱스 버퍼 생성 (DYNAMIC) - 중요!
+    // 스프라이트와 달리 리본은 인덱스 패턴이 가변적이므로 Dynamic이어야 함
+    // --------------------------------------------------------
+    D3D11_BUFFER_DESC IndexDesc = {};
+    IndexDesc.ByteWidth = RibbonIndexCapacity * sizeof(uint32);
+    IndexDesc.Usage = D3D11_USAGE_DYNAMIC;         // CPU Write (매 프레임 갱신)
+    IndexDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    IndexDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    if (FAILED(Device->CreateBuffer(&IndexDesc, nullptr, &RibbonIndexBuffer)))
+    {
+        ReleaseRibbonBuffers();
+        return false;
+    }
+
+    return true;
+}
+
+bool UParticleSystemComponent::EnsureMeshBuffer(uint32 InstanceCount)
+{
+    if (InstanceCount == 0)
+        return false;
+
+    if (MeshInstanceBuffer && InstanceCount <= MeshInstanceCapacity)
+        return true;
+
+    if (MeshInstanceBuffer) { MeshInstanceBuffer->Release(); MeshInstanceBuffer = nullptr; }
+    MeshInstanceCapacity = 0;
+
+    D3D11RHI* RHIDevice = GEngine.GetRHIDevice();
+    ID3D11Device* Device = RHIDevice ? RHIDevice->GetDevice() : nullptr;
+    if (!Device) return false;
+
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = sizeof(FMeshParticleInstanceData) * InstanceCount;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.StructureByteStride = 0;
+
+    if (FAILED(Device->CreateBuffer(&desc, nullptr, &MeshInstanceBuffer)))
+        return false;
+
+    MeshInstanceCapacity = InstanceCount;
+    return true;
+}
+
+void UParticleSystemComponent::ReleaseParticleBuffers()
+{
+    if (ParticleVertexBuffer)
+    {
+        ParticleVertexBuffer->Release();
+        ParticleVertexBuffer = nullptr;
+    }
+
+    if (ParticleIndexBuffer)
+    {
+        ParticleIndexBuffer->Release();
+        ParticleIndexBuffer = nullptr;
+    }
+
+    ParticleVertexCapacity = 0;
+    ParticleIndexCount = 0;
+}
+
+void UParticleSystemComponent::ReleaseInstanceBuffers()
+{
+    if (MeshInstanceBuffer)
+    {
+        MeshInstanceBuffer->Release();
+        MeshInstanceBuffer = nullptr;
+    }
+    MeshInstanceCapacity = 0;
+}
+
+void UParticleSystemComponent::ReleaseRibbonBuffers()
+{
+    if (RibbonVertexBuffer)
+    {
+        RibbonVertexBuffer->Release();
+        RibbonVertexBuffer = nullptr;
+    }
+    if (RibbonIndexBuffer)
+    {
+        RibbonIndexBuffer->Release();
+        RibbonIndexBuffer = nullptr;
+    }
+
+    RibbonVertexCapacity = 0;
+    RibbonIndexCapacity = 0;
+}
+
+void UParticleSystemComponent::ReleaseBeamBuffers()
+{
+    for (ID3D11Buffer* Buffer : PerFrameBeamBuffers)
+    {
+        if (Buffer)
+        {
+            Buffer->Release();
+            Buffer = nullptr;
+        }
+    }
+    PerFrameBeamBuffers.clear();
+}
+
+void UParticleSystemComponent::RenderDebugVolume(URenderer* Renderer) const
+{
+    if (!Template) return;
+
+    const FTransform WorldTransform = GetWorldTransform();
+    TArray<FVector> StartPoints;
+    TArray<FVector> EndPoints;
+    TArray<FVector4> Colors;
+
+    // 각 Emitter의 Location 모듈 찾아서 범위 그리기
+    for (const auto* Emitter : Template->Emitters)
+    {
+        if (!Emitter || Emitter->LODLevels.IsEmpty()) continue;
+
+        const UParticleLODLevel* LOD = Emitter->LODLevels[0];
+        if (!LOD) continue;
+
+        // Location 모듈 찾기
+        UParticleModuleLocation* LocationModule = nullptr;
+        for (auto* Module : LOD->AllModulesCache)
+        {
+            if (auto* LocMod = Cast<UParticleModuleLocation>(Module))
+            {
+                LocationModule = LocMod;
+                break;
+            }
+        }
+
+        if (!LocationModule) continue;
+
+        const FVector4 DebugColor(0.0f, 1.0f, 0.0f, 1.0f); // 초록색
+
+        switch (LocationModule->DistributionType)
+        {
+        case ELocationDistributionType::Box:
+        {
+            // Box 8개 꼭지점
+            const FVector Extent = LocationModule->BoxExtent;
+            FVector LocalCorners[8] = {
+                {-Extent.X, -Extent.Y, -Extent.Z}, {+Extent.X, -Extent.Y, -Extent.Z},
+                {-Extent.X, +Extent.Y, -Extent.Z}, {+Extent.X, +Extent.Y, -Extent.Z},
+                {-Extent.X, -Extent.Y, +Extent.Z}, {+Extent.X, -Extent.Y, +Extent.Z},
+                {-Extent.X, +Extent.Y, +Extent.Z}, {+Extent.X, +Extent.Y, +Extent.Z},
+            };
+
+            FVector WorldCorners[8];
+            for (int i = 0; i < 8; i++)
+            {
+                WorldCorners[i] = WorldTransform.TransformPosition(LocalCorners[i]);
+            }
+
+            // 12개 엣지
+            static const int Edges[12][2] = {
+                {0,1},{1,3},{3,2},{2,0}, // bottom
+                {4,5},{5,7},{7,6},{6,4}, // top
+                {0,4},{1,5},{2,6},{3,7}  // verticals
+            };
+
+            for (int i = 0; i < 12; ++i)
+            {
+                StartPoints.Add(WorldCorners[Edges[i][0]]);
+                EndPoints.Add(WorldCorners[Edges[i][1]]);
+                Colors.Add(DebugColor);
+            }
+        }
+        break;
+
+        case ELocationDistributionType::Sphere:
+        {
+            // Sphere를 원으로 표현 (3개 원: XY, YZ, XZ 평면)
+            const float Radius = LocationModule->SphereRadius;
+            const int Segments = 32;
+
+            // XY 평면 원
+            for (int i = 0; i < Segments; ++i)
+            {
+                float angle1 = (float)i / Segments * 2.0f * PI;
+                float angle2 = (float)(i + 1) / Segments * 2.0f * PI;
+
+                FVector p1(Radius * cosf(angle1), Radius * sinf(angle1), 0.0f);
+                FVector p2(Radius * cosf(angle2), Radius * sinf(angle2), 0.0f);
+
+                StartPoints.Add(WorldTransform.TransformPosition(p1));
+                EndPoints.Add(WorldTransform.TransformPosition(p2));
+                Colors.Add(DebugColor);
+            }
+
+            // YZ 평면 원
+            for (int i = 0; i < Segments; ++i)
+            {
+                float angle1 = (float)i / Segments * 2.0f * PI;
+                float angle2 = (float)(i + 1) / Segments * 2.0f * PI;
+
+                FVector p1(0.0f, Radius * cosf(angle1), Radius * sinf(angle1));
+                FVector p2(0.0f, Radius * cosf(angle2), Radius * sinf(angle2));
+
+                StartPoints.Add(WorldTransform.TransformPosition(p1));
+                EndPoints.Add(WorldTransform.TransformPosition(p2));
+                Colors.Add(DebugColor);
+            }
+
+            // XZ 평면 원
+            for (int i = 0; i < Segments; ++i)
+            {
+                float angle1 = (float)i / Segments * 2.0f * PI;
+                float angle2 = (float)(i + 1) / Segments * 2.0f * PI;
+
+                FVector p1(Radius * cosf(angle1), 0.0f, Radius * sinf(angle1));
+                FVector p2(Radius * cosf(angle2), 0.0f, Radius * sinf(angle2));
+
+                StartPoints.Add(WorldTransform.TransformPosition(p1));
+                EndPoints.Add(WorldTransform.TransformPosition(p2));
+                Colors.Add(DebugColor);
+            }
+        }
+        break;
+
+        case ELocationDistributionType::Cylinder:
+        {
+            // Cylinder: 상단/하단 원 + 수직선
+            const float Radius = LocationModule->CylinderRadius;
+            const float HalfHeight = LocationModule->CylinderHeight * 0.5f;
+            const int Segments = 32;
+
+            // 상단 원 (Z = +HalfHeight)
+            for (int i = 0; i < Segments; ++i)
+            {
+                float angle1 = (float)i / Segments * 2.0f * PI;
+                float angle2 = (float)(i + 1) / Segments * 2.0f * PI;
+
+                FVector p1(Radius * cosf(angle1), Radius * sinf(angle1), HalfHeight);
+                FVector p2(Radius * cosf(angle2), Radius * sinf(angle2), HalfHeight);
+
+                StartPoints.Add(WorldTransform.TransformPosition(p1));
+                EndPoints.Add(WorldTransform.TransformPosition(p2));
+                Colors.Add(DebugColor);
+            }
+
+            // 하단 원 (Z = -HalfHeight)
+            for (int i = 0; i < Segments; ++i)
+            {
+                float angle1 = (float)i / Segments * 2.0f * PI;
+                float angle2 = (float)(i + 1) / Segments * 2.0f * PI;
+
+                FVector p1(Radius * cosf(angle1), Radius * sinf(angle1), -HalfHeight);
+                FVector p2(Radius * cosf(angle2), Radius * sinf(angle2), -HalfHeight);
+
+                StartPoints.Add(WorldTransform.TransformPosition(p1));
+                EndPoints.Add(WorldTransform.TransformPosition(p2));
+                Colors.Add(DebugColor);
+            }
+
+            // 수직선 4개 (상단-하단 연결)
+            for (int i = 0; i < 4; ++i)
+            {
+                float angle = (float)i / 4.0f * 2.0f * PI;
+                FVector pTop(Radius * cosf(angle), Radius * sinf(angle), HalfHeight);
+                FVector pBottom(Radius * cosf(angle), Radius * sinf(angle), -HalfHeight);
+
+                StartPoints.Add(WorldTransform.TransformPosition(pTop));
+                EndPoints.Add(WorldTransform.TransformPosition(pBottom));
+                Colors.Add(DebugColor);
+            }
+        }
+        break;
+
+        case ELocationDistributionType::Point:
+            // Point는 범위가 없으므로 그리지 않음
+            break;
+        }
+    }
+
+    if (!StartPoints.IsEmpty())
+    {
+        Renderer->AddLines(StartPoints, EndPoints, Colors);
+    }
+}
+
+void UParticleSystemComponent::BuildBeamParticleBatch(TArray<FDynamicEmitterDataBase*>& EmitterRenderData, TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
+{
+    if (EmitterRenderData.IsEmpty() || !View) return;
+
+    D3D11RHI* RHIDevice = GEngine.GetRHIDevice();
+    ID3D11Device* Device = RHIDevice ? RHIDevice->GetDevice() : nullptr;
+    if (!Device) return;
+
+    ReleaseBeamBuffers();
+    
+    const FVector ViewOrigin = View ? View->ViewLocation : FVector::Zero();
+    const FVector ViewForward = View ? View->ViewRotation.GetForwardVector() : FVector(1, 0, 0);
+
+    // [중요] 이미터 단위로 루프를 돕니다. (이미터마다 재질이 다를 수 있으므로)
+    for (FDynamicEmitterDataBase* Base : EmitterRenderData)
+    {
+        if (!Base || Base->EmitterType != EParticleType::Beam) continue;
+
+        auto* BeamData = static_cast<FDynamicBeamEmitterData*>(Base);
+        const auto* Src = static_cast<const FDynamicBeamEmitterReplayData*>(BeamData->GetSource());
+        if (!Src || Src->ActiveParticleCount <= 0) continue;
+
+        // -------------------------------------------------------
+        // 1. 이 이미터(BeamData)에 속한 모든 파티클을 하나로 합칩니다.
+        // -------------------------------------------------------
+        TArray<FParticleBeamVertex> EmitterVertices;
+        TArray<uint32> EmitterIndices;
+
+        const int32 TessellationFactor = FMath::Max(1, Src->TessellationFactor);
+        const uint32 SegmentCount = static_cast<uint32>(TessellationFactor);
+        const float InvSegmentCount = 1.0f / static_cast<float>(SegmentCount);
+        const float BeamWidth = FMath::Max(0.01f, Src->BeamWidth);
+
+        // 파티클 루프 (Accumulate)
+        for (int32 LocalIdx = 0; LocalIdx < Src->ActiveParticleCount; ++LocalIdx)
+        {
+            const FBaseParticle* Particle = BeamData->GetParticle(LocalIdx);
+            if (!Particle) continue;
+
+            // ... (Payload 해석 및 위치 계산 코드는 기존과 동일) ...
+            const uint8* ParticleBase = reinterpret_cast<const uint8*>(Particle);
+            const int32 PayloadOffset = sizeof(FBaseParticle);
+            const FVector* BeamSource = reinterpret_cast<const FVector*>(ParticleBase + PayloadOffset);
+            const FVector* BeamTarget = reinterpret_cast<const FVector*>(ParticleBase + PayloadOffset + sizeof(FVector));
+            const float* BeamRandomSeed = reinterpret_cast<const float*>(ParticleBase + PayloadOffset + sizeof(FVector) * 2);
+
+            FVector Start = *BeamSource;
+            FVector End = *BeamTarget;
+            float RandomSeed = *BeamRandomSeed;
+
+            const FMatrix& WorldMatrix = GetWorldMatrix();
+            Start = WorldMatrix.TransformPosition(Start);
+            End = WorldMatrix.TransformPosition(End);
+            /*if (BeamData->bUseLocalSpace)
+            {
+                
+            }*/
+
+            FVector BeamDir = (End - Start).GetSafeNormal();
+            if (BeamDir.IsZero()) continue;
+
+            FVector ToCam = (ViewOrigin - Start).GetSafeNormal();
+            FVector NoiseRight = FVector::Cross(BeamDir, ToCam).GetSafeNormal();
+            if (NoiseRight.IsZero())
+            {
+                NoiseRight = FVector::Cross(BeamDir, FVector(0, 0, 1)).GetSafeNormal();
+                if (NoiseRight.IsZero()) NoiseRight = FVector::Cross(BeamDir, FVector(0, 1, 0)).GetSafeNormal();
+            }
+            FVector NoiseUp = FVector::Cross(NoiseRight, BeamDir).GetSafeNormal();
+
+            // [인덱스 오프셋] 현재까지 쌓인 정점 개수를 더해줘야 합니다.
+            uint32 BaseVertexIndex = EmitterVertices.Num();
+            FVector PrevPosition = Start;
+            bool bHasPrevPosition = false;
+
+            // 정점 생성
+            for (uint32 i = 0; i <= SegmentCount; ++i)
+            {
+                float t = i * InvSegmentCount;
+                FVector Position = FVector::Lerp(Start, End, t);
+
+                if (i > 0 && i < SegmentCount && Src->NoiseAmplitude > 0.0f)
+                {
+                    float NoisePhase = t * Src->NoiseFrequency * 6.28318f + RandomSeed;
+                    float NoiseValue1 = sin(NoisePhase) * 0.5f + sin(NoisePhase * 2.3f) * 0.3f;
+                    float NoiseValue2 = cos(NoisePhase * 1.3f) * 0.5f + cos(NoisePhase * 3.7f) * 0.3f;
+                    float FallOff = sin(t * 3.14159f);
+                    Position += NoiseRight * NoiseValue1 * Src->NoiseAmplitude * FallOff;
+                    Position += NoiseUp * NoiseValue2 * Src->NoiseAmplitude * FallOff;
+                }
+
+                FVector SegmentTangent = BeamDir;
+                if (bHasPrevPosition)
+                {
+                    SegmentTangent = (Position - PrevPosition).GetSafeNormal();
+                    if (SegmentTangent.IsZero()) SegmentTangent = BeamDir;
+                }
+
+                FVector ToCamSegment = (ViewOrigin - Position).GetSafeNormal();
+                if (ToCamSegment.IsZero()) ToCamSegment = ViewForward;
+
+                FVector FacingRight = FVector::Cross(SegmentTangent, ToCamSegment).GetSafeNormal();
+                if (FacingRight.IsZero())
+                {
+                    FacingRight = FVector::Cross(SegmentTangent, FVector(0, 0, 1)).GetSafeNormal();
+                    if (FacingRight.IsZero()) FacingRight = FVector::Cross(SegmentTangent, FVector(0, 1, 0)).GetSafeNormal();
+                }
+
+                FVector LeftPos = Position - FacingRight * BeamWidth * 0.5f;
+                FVector RightPos = Position + FacingRight * BeamWidth * 0.5f;
+
+                FParticleBeamVertex V1, V2;
+                V1.Position = LeftPos;  V1.UV = FVector2D(0.0f, t); V1.Color = Particle->Color;
+                V2.Position = RightPos; V2.UV = FVector2D(1.0f, t); V2.Color = Particle->Color;
+
+                EmitterVertices.Add(V1);
+                EmitterVertices.Add(V2);
+
+                PrevPosition = Position;
+                bHasPrevPosition = true;
+            }
+
+            // 인덱스 생성
+            for (uint32 i = 0; i < SegmentCount; ++i)
+            {
+                uint32 LocalBase = BaseVertexIndex + (i * 2);
+                EmitterIndices.Add(LocalBase + 0); EmitterIndices.Add(LocalBase + 1); EmitterIndices.Add(LocalBase + 2);
+                EmitterIndices.Add(LocalBase + 1); EmitterIndices.Add(LocalBase + 3); EmitterIndices.Add(LocalBase + 2);
+            }
+        } // End Particle Loop
+
+        if (EmitterVertices.IsEmpty()) continue;
+
+        // -------------------------------------------------------
+        // 2. 버퍼 생성 (이미터마다 별도로 생성해야 안전함)
+        // -------------------------------------------------------
+        ID3D11Buffer* CurrentVB;
+        ID3D11Buffer* CurrentIB;
+
+        {
+            D3D11_BUFFER_DESC VBDesc = {};
+            VBDesc.ByteWidth = EmitterVertices.Num() * sizeof(FParticleBeamVertex);
+            VBDesc.Usage = D3D11_USAGE_IMMUTABLE; // 이번 프레임에 쓰고 버릴 거면 IMMUTABLE도 괜찮음 (Map 불필요시)
+            VBDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+            D3D11_SUBRESOURCE_DATA VBData = { EmitterVertices.GetData(), 0, 0 };
+            if (FAILED(Device->CreateBuffer(&VBDesc, &VBData, &CurrentVB))) continue;
+
+            D3D11_BUFFER_DESC IBDesc = {};
+            IBDesc.ByteWidth = EmitterIndices.Num() * sizeof(uint32);
+            IBDesc.Usage = D3D11_USAGE_IMMUTABLE;
+            IBDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+            D3D11_SUBRESOURCE_DATA IBData = { EmitterIndices.GetData(), 0, 0 };
+            if (FAILED(Device->CreateBuffer(&IBDesc, &IBData, &CurrentIB))) continue;
+        }
+        PerFrameBeamBuffers.Add(CurrentVB);
+        PerFrameBeamBuffers.Add(CurrentIB);
+        
+        // -------------------------------------------------------
+        // 3. 셰이더 및 배치 생성 (이 이미터의 재질 사용)
+        // -------------------------------------------------------
+        // TODO: 실제로는 각 빔마다 다른 텍스처/재질을 쓸 수 있으므로 여기서 로드
+        UMaterial* BeamShaderMaterial = RESOURCE.Load<UMaterial>("Shaders/Effects/ParticleBeam.hlsl");
+        
+        TArray<FShaderMacro> ShaderMacros;
+        if (View) ShaderMacros = View->ViewShaderMacros;
+        ShaderMacros.Append(BeamShaderMaterial->GetShaderMacros());
+
+        FShaderVariant* ShaderVariant = BeamShaderMaterial->GetShader()->GetOrCompileShaderVariant(ShaderMacros);
+        if (!ShaderVariant) continue;
+
+        FMeshBatchElement& Batch = OutMeshBatchElements[OutMeshBatchElements.Add(FMeshBatchElement())];
+        
+        // [핵심] 여기서 현재 이미터(BeamData)의 재질을 적용합니다.
+        Batch.Material = ResolveEmitterMaterial(*BeamData); 
+
+        Batch.VertexShader = ShaderVariant->VertexShader;
+        Batch.PixelShader = ShaderVariant->PixelShader;
+        Batch.InputLayout = ShaderVariant->InputLayout;
+        Batch.VertexBuffer = CurrentVB;
+        Batch.IndexBuffer = CurrentIB;
+        Batch.VertexStride = sizeof(FParticleBeamVertex);
+        Batch.IndexCount = EmitterIndices.Num();
+        Batch.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        Batch.WorldMatrix = FMatrix::Identity();
+        Batch.SortPriority = BeamData->SortPriority;
+        Batch.ParticleBlendMode = BeamData ? BeamData->BlendMode : EMaterialBlendMode::Translucent;
+        Batch.bIsDepthWrite = (Batch.ParticleBlendMode == EMaterialBlendMode::Opaque);
+
+    } // End Emitter Loop
+}
+
+
+
+
+
+
+
+
+
+

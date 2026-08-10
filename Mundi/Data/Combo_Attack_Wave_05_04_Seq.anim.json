@@ -1,0 +1,61 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: Off: WeaponRibbon",
+      "TriggerTime" : 0.791705
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: On: WeaponRibbon",
+      "TriggerTime" : 0.002254
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision",
+      "TriggerTime" : 0.146219
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Disable",
+      "TriggerTime" : 0.378263
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks0_939.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks0_939.wav",
+      "TriggerTime" : 0.132026
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/ShinobiVoices/audio (12).wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: audio (12).wav",
+      "TriggerTime" : 0.115523
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

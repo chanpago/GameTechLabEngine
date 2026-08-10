@@ -1,0 +1,75 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PauseAnimation",
+      "Data" : {
+
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PauseAnimation",
+      "TriggerTime" : 2.437922
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Crash/Banks0_945.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks0_945.wav",
+      "TriggerTime" : 0.134892
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Crash/Banks0_979.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks0_979.wav",
+      "TriggerTime" : 1.460779
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.100000,
+        "RelativeLocation" : [3.000000, 0.000000, 0.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.996195, 0.087156],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.029610
+    }, {
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "Duration" : 3.000000,
+          "FarTransition" : 5.000000,
+          "FocalDistance" : 5.000000,
+          "FocalRegion" : 1.030000,
+          "MaxFarBlur" : 32.000000,
+          "MaxNearBlur" : 4.000000,
+          "NearTransition" : 3.910000,
+          "Priority" : 0,
+          "Type" : "DOF"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 0.101991
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 1.000000,
+        "RelativeLocation" : [0.000000, -500.000000, 200.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.000000, 1.000000],
+        "bBlendBackToDefault" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 1.105454
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

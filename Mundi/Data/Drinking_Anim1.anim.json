@@ -1,0 +1,21 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlayParticle",
+      "Data" : {
+        "AbsoluteWorld" : false,
+        "AttachBone" : "Invalid",
+        "AttachToOwner" : true,
+        "LifeTime" : 2.500000,
+        "LocationOffset" : [0.000000, 0.000000, 0.000000],
+        "ParticlePath" : "Data/Particle/G_Healing.particle",
+        "RotationOffset" : [0.000000, 0.000000, 0.000000],
+        "ScaleOffset" : [1.000000, 1.000000, 1.000000]
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlayParticle: G_Healing.particle",
+      "TriggerTime" : 0.003549
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

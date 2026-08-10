@@ -1,0 +1,283 @@
+{
+  "AnimationCutEndTime" : 0.000000,
+  "AttackCooldown" : 1.500000,
+  "AttackRange" : 300.000000,
+  "ChargeAttackAnimPath" : "",
+  "ChargeStartAnimPath" : "",
+  "CurrentAttackPattern" : 0,
+  "CurrentPhase" : 1,
+  "DeathAnimPath" : "",
+  "DetectionRange" : 2000.000000,
+  "HeavySlamAnimPath" : "",
+  "LightComboAnimPath" : "",
+  "LoseTargetRange" : 3000.000000,
+  "MaxAttackPatterns" : 4,
+  "MaxLockOnDistance" : 1500.000000,
+  "MaxPhase" : 2,
+  "MeshPrefabPath" : "",
+  "MoveSpeed" : 250.000000,
+  "ObjectName" : "보스 에너미_0",
+  "OwnedComponents" : [{
+      "AnimGraphPath" : "",
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 11345,
+      "MaterialSlots" : [{
+          "Type" : "None"
+        }, {
+          "AssetPath" : "M_Dark",
+          "Type" : "UMaterial"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/MiniEnemy/T_Armor_BaseColor.PNG",
+              "1" : "Data/FBX/MiniEnemy/T_Armor_Normal.PNG",
+              "2" : "Data/FBX/MiniEnemy/T_Armor_OcclusionRoughnessMetallic.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "M_Armor1",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/MiniEnemy/T_Armor_BaseColor_1.PNG",
+              "1" : "Data/FBX/MiniEnemy/T_Armor_Normal_3.PNG",
+              "2" : "Data/FBX/MiniEnemy/T_Armor_OcclusionRoughnessMetallic_2.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "M_Armor2",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/MiniEnemy/T_Cloth_BaseColor.PNG",
+              "1" : "Data/FBX/MiniEnemy/T_Cloth_Normal.PNG",
+              "2" : "Data/FBX/MiniEnemy/T_Cloth_OcclusionRoughnessMetallic.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "M_Cloth1",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/FBX/MiniEnemy/T_Cloth_BaseColor_5.PNG",
+              "1" : "Data/FBX/MiniEnemy/T_Cloth_Normal_7.PNG",
+              "2" : "Data/FBX/MiniEnemy/T_Cloth_OcclusionRoughnessMetallic_6.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "M_Cloth2",
+          "Type" : "UMaterialInstanceDynamic"
+        }],
+      "ObjectName" : "SkeletalMeshComponent",
+      "ParentId" : 11346,
+      "PhysicsAssetOverridePath" : "",
+      "RelativeLocation" : [0.000000, 0.000000, -1.199566],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "SkeletalMesh" : "Data/FBX/MiniEnemy/SKM_LowPoly.FBX",
+      "Type" : "USkeletalMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true
+    }, {
+      "CapsuleHalfHeight" : 1.200000,
+      "CapsuleRadius" : 0.500000,
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 11346,
+      "ObjectName" : "CapsuleComponent",
+      "ParentId" : 0,
+      "RelativeLocation" : [-0.401755, -3.219164, 2.515743],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UCapsuleComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bRegisterToPhysX" : true,
+      "bShapeHiddenInGame" : true,
+      "bShapeIsVisible" : true,
+      "bTickEnabled" : true
+    }, {
+      "BoxExtent" : [0.000000, 0.000000, 0.000000],
+      "CollisionEnabled_Internal" : 2,
+      "Id" : 11351,
+      "ObjectName" : "HitboxComponent",
+      "ParentId" : 0,
+      "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [1.000000, 1.000000, 1.000000],
+      "Type" : "UHitboxComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : false,
+      "bHiddenInGame" : false,
+      "bIsActive" : false,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bShapeHiddenInGame" : true,
+      "bShapeIsVisible" : true,
+      "bTickEnabled" : true
+    }, {
+      "AngularDampingOverride" : 0.050000,
+      "BoxExtent" : [50.000000, 0.000000, 0.000000],
+      "CapsuleHalfHeight" : 44.000000,
+      "CapsuleRadius" : 22.000000,
+      "CollisionEnabled_Internal" : 2,
+      "CollisionOffset" : [0.000000, 0.000000, 0.000000],
+      "CollisionRotation" : [0.000000, 0.000000, 0.000000],
+      "CollisionType" : 1,
+      "FrictionCombineModeOverride" : 2,
+      "Id" : 11347,
+      "LinearDampingOverride" : 0.010000,
+      "MassOverride" : 10.000000,
+      "MaterialSlots" : [{
+          "AssetPath" : "texture",
+          "Type" : "UMaterial"
+        }],
+      "ObjectName" : "WeaponMeshComponent",
+      "ParentId" : 11345,
+      "PhysMaterialPreset" : 0,
+      "RelativeLocation" : [0.156984, 0.477684, 1.044669],
+      "RelativeRotationEuler" : [-65.935989, 45.949345, -111.812859],
+      "RelativeScale" : [0.000000, 0.000000, 0.000000],
+      "RestitutionCombineModeOverride" : 2,
+      "SphereRadius" : 50.000000,
+      "StaticMesh" : "Data/cube-tex.obj",
+      "Type" : "UStaticMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bEnableCollision" : true,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bSimulatePhysics" : false,
+      "bTickEnabled" : true
+    }, {
+      "BlockCostPerHit" : 20.000000,
+      "BlockDrainRate" : 25.000000,
+      "BlockMinRequired" : 20.000000,
+      "CurrentFocus" : 0.000000,
+      "CurrentHealth" : 30.000000,
+      "CurrentStamina" : 200.000000,
+      "DodgeCost" : 0.000000,
+      "FocusChargeRate" : 60.000000,
+      "HeavyAttackCost" : 30.000000,
+      "LightAttackCost" : 0.000000,
+      "MaxFocus" : 100.000000,
+      "MaxHealth" : 30.000000,
+      "MaxStamina" : 200.000000,
+      "ObjectName" : "StatsComponent",
+      "ParryCost" : 10.000000,
+      "StaminaRegenDelay" : 20.000000,
+      "StaminaRegenRate" : 10.000000,
+      "Type" : "UStatsComponent",
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bTickEnabled" : true
+    }, {
+      "AngularDampingOverride" : 0.050000,
+      "BoxExtent" : [50.000000, 0.000000, 0.000000],
+      "CapsuleHalfHeight" : 44.000000,
+      "CapsuleRadius" : 22.000000,
+      "CollisionEnabled_Internal" : 2,
+      "CollisionOffset" : [0.000000, 0.000000, 0.000000],
+      "CollisionRotation" : [0.000000, 0.000000, 0.000000],
+      "CollisionType" : 1,
+      "FrictionCombineModeOverride" : 2,
+      "Id" : 11348,
+      "LinearDampingOverride" : 0.010000,
+      "MassOverride" : 10.000000,
+      "MaterialSlots" : [{
+          "AssetPath" : "texture",
+          "Type" : "UMaterial"
+        }],
+      "ObjectName" : "SubWeaponMeshComponent",
+      "ParentId" : 11345,
+      "PhysMaterialPreset" : 0,
+      "RelativeLocation" : [0.000000, 0.000000, 0.000000],
+      "RelativeRotationEuler" : [0.000000, 0.000000, 0.000000],
+      "RelativeScale" : [0.000000, 0.000000, 0.000000],
+      "RestitutionCombineModeOverride" : 2,
+      "SphereRadius" : 50.000000,
+      "StaticMesh" : "Data/cube-tex.obj",
+      "Type" : "UStaticMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bEnableCollision" : true,
+      "bGenerateOverlapEvents" : true,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bSimulatePhysics" : false,
+      "bTickEnabled" : true
+    }, {
+      "ObjectName" : "CharacterMovement",
+      "Type" : "UCharacterMovementComponent",
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bTickEnabled" : true
+    }],
+  "Phase2HealthThreshold" : 0.500000,
+  "PunishAttackAnimPath" : "",
+  "RootComponentId" : 11346,
+  "RotationSpeed" : 5.000000,
+  "Slash_1_AnimPath" : "",
+  "Slash_2_AnimPath" : "",
+  "Slash_3_AnimPath" : "",
+  "Smash_1_AnimPath" : "",
+  "Smash_2_AnimPath" : "",
+  "SpinAttackAnimPath" : "",
+  "Spin_1_AnimPath" : "",
+  "Spin_2_AnimPath" : "",
+  "SubWeaponBoneName" : "hand_l",
+  "SubWeaponOffset" : [0.000000, 0.000000, 0.000000],
+  "SubWeaponRotationOffset" : [0.000000, 0.000000, 0.000000],
+  "Tag" : "",
+  "TargetHeight" : 100.000000,
+  "TargetPriority" : 1.000000,
+  "Type" : "ABossEnemy",
+  "WeaponBoneName" : "hand_r",
+  "WeaponOffset" : [0.000000, 0.000000, 0.000000],
+  "WeaponRotationOffset" : [0.000000, 0.000000, 0.000000],
+  "WeaponTraceLength" : 0.800000,
+  "WeaponTraceRadius" : 0.100000,
+  "bActorHiddenInGame" : false,
+  "bActorIsActive" : true,
+  "bDrawWeaponDebug" : true,
+  "bEnableAttackRootMotion" : true,
+  "bHasSuperArmor" : false,
+  "bIsAttacking" : false
+}

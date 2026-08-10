@@ -1,0 +1,275 @@
+﻿/**
+* ===========================================================================
+ * @file      K2Node_Misc.h
+ * @author    geb0598
+ * @date      2025/11/17
+ * @brief     블루프린트에서 사용되는 기타 유틸리티 노드(입력 처리 등)를 정의한다.
+ *
+ * ===========================================================================
+ *
+ * @note 코딩 규칙
+ *   - `UK2Node_IsPressed`: 키 입력을 확인하는 노드. `KeyName` 프로퍼티에 확인할 키 이름을 문자열로 지정한다. bool 값을 반환하는 'Result' 출력 핀을 가진다.
+ *   - `UK2Node_GetMousePosition`: 마우스 커서의 현재 위치를 얻는 노드. 'X'와 'Y' 출력 핀을 통해 float 값을 반환한다.
+ *   - 모든 입력 관련 노드는 "입력" 메뉴 카테고리에 속한다.
+ *
+ * ===========================================================================
+ */
+
+#pragma once
+
+#include "K2Node.h"
+
+// ----------------------------------------------------------------
+//	[Input] 키보드 입력 확인 노드
+// ----------------------------------------------------------------
+
+/**
+ * @todo 현재는 문자열로 키를 처리하지만, 실수를 줄일 수 있는 더 나은 방법을 찾아야 한다.
+ */
+UCLASS(DisplayName="UK2Node_IsPressed", Description="지정된 키가 현재 눌려있는지 확인합니다 (bool 반환).")
+class UK2Node_IsPressed : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_IsPressed, UK2Node);
+
+public:
+    UK2Node_IsPressed();
+
+    /** 확인할 키의 이름 (예: "Space", "W") */
+    FString KeyName = "Space";
+
+    virtual void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
+    
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Is Key Pressed"; }
+    virtual bool IsNodePure() const override { return true; } // 순수 노드로 처리
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+    virtual FBlueprintValue EvaluatePin(const UEdGraphPin* OutputPin, FBlueprintContext* Context) override;
+    
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "입력"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+UCLASS(DisplayName="UK2Node_IsKeyDown", Description="지정된 키가 이번 프레임에 눌렸는지 확인합니다 (bool 반환).")
+class UK2Node_IsKeyDown : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_IsKeyDown, UK2Node);
+
+public:
+    UK2Node_IsKeyDown();
+
+    /** 확인할 키의 이름 (예: "Space", "W") */
+    FString KeyName = "Space";
+    
+    virtual void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
+    
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Is Key Down"; }
+    virtual bool IsNodePure() const override { return true; } // 순수 노드로 처리
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+    virtual FBlueprintValue EvaluatePin(const UEdGraphPin* OutputPin, FBlueprintContext* Context) override;
+    
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "입력"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+// ----------------------------------------------------------------
+//	[Input] 액션 입력 확인 노드 (InputComponent 기반)
+// ----------------------------------------------------------------
+
+/**
+ * @brief InputComponent에 매핑된 액션이 이번 프레임에 눌렸는지 확인합니다.
+ * @note PIE에서 InputComponent에 바인딩된 키만 인식합니다.
+ */
+UCLASS(DisplayName="UK2Node_IsActionPressed", Description="InputComponent에 매핑된 액션이 이번 프레임에 눌렸는지 확인합니다 (bool 반환).")
+class UK2Node_IsActionPressed : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_IsActionPressed, UK2Node);
+
+public:
+    UK2Node_IsActionPressed();
+
+    /** 확인할 액션 이름 (예: "Jump", "Attack", "Dodge") */
+    FString ActionName = "Jump";
+
+    virtual void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
+
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Is Action Pressed"; }
+    virtual bool IsNodePure() const override { return true; }
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+    virtual FBlueprintValue EvaluatePin(const UEdGraphPin* OutputPin, FBlueprintContext* Context) override;
+
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "입력"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+/**
+ * @brief InputComponent에 매핑된 액션이 눌려있는지 확인합니다.
+ * @note PIE에서 InputComponent에 바인딩된 키만 인식합니다.
+ */
+UCLASS(DisplayName="UK2Node_IsActionDown", Description="InputComponent에 매핑된 액션이 눌려있는지 확인합니다 (bool 반환).")
+class UK2Node_IsActionDown : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_IsActionDown, UK2Node);
+
+public:
+    UK2Node_IsActionDown();
+
+    /** 확인할 액션 이름 (예: "Jump", "Attack", "Dodge") */
+    FString ActionName = "Jump";
+
+    virtual void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
+
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Is Action Down"; }
+    virtual bool IsNodePure() const override { return true; }
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+    virtual FBlueprintValue EvaluatePin(const UEdGraphPin* OutputPin, FBlueprintContext* Context) override;
+
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "입력"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+// ----------------------------------------------------------------
+//	[Jump] 점프 상태 확인 노드
+// ----------------------------------------------------------------
+
+/**
+ * @brief PlayerCharacter의 bJumpPending 상태를 확인합니다.
+ * @note C++에서 점프 조건을 모두 통과하고 실제로 점프가 시작될 때만 true를 반환합니다.
+ */
+UCLASS(DisplayName="UK2Node_IsJumpPending", Description="PlayerCharacter의 점프 대기 상태(bJumpPending)를 확인합니다.")
+class UK2Node_IsJumpPending : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_IsJumpPending, UK2Node);
+
+public:
+    UK2Node_IsJumpPending();
+
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Is Jump Pending"; }
+    virtual bool IsNodePure() const override { return true; }
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+    virtual FBlueprintValue EvaluatePin(const UEdGraphPin* OutputPin, FBlueprintContext* Context) override;
+
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "캐릭터"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+// ----------------------------------------------------------------
+//	[Input] 마우스 위치 확인 노드
+// ----------------------------------------------------------------
+
+UCLASS(DisplayName = "UK2Node_GetMousePosition", Description = "현재 마우스 커서의 위치(X, Y)를 반환합니다.")
+class UK2Node_GetMousePosition : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_GetMousePosition, UK2Node);
+
+public:
+    UK2Node_GetMousePosition();
+
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Get Mouse Position"; }
+    virtual bool IsNodePure() const override { return true; } // 순수 노드로 처리
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override; 
+    virtual FBlueprintValue EvaluatePin(const UEdGraphPin* OutputPin, FBlueprintContext* Context) override;
+
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "입력"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+// ----------------------------------------------------------------
+//	[Debug] 값 확인(Watch) 노드
+// ----------------------------------------------------------------
+// @note 주의사항 
+//   - 값 확인은 컨텍스트가 없는 노드에 대해서만 유효하다.
+// @todo 값 확인 노드에 컨텍스트를 연결할 방법에 대해서 생각해본다.
+// 
+// ----------------------------------------------------------------
+
+UCLASS(DisplayName="UK2Node_Watch_Int", Description="입력된 Int 값을 노드 위에 실시간으로 표시합니다.")
+class UK2Node_Watch_Int : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_Watch_Int, UK2Node);
+
+public:
+    UK2Node_Watch_Int();
+
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Watch (Int)"; }
+    virtual bool IsNodePure() const override { return true; }
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "디버그"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+UCLASS(DisplayName="UK2Node_Watch_Float", Description="입력된 Float 값을 노드 위에 실시간으로 표시합니다.")
+class UK2Node_Watch_Float : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_Watch_Float, UK2Node);
+
+public:
+    UK2Node_Watch_Float();
+
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Watch (Float)"; }
+    virtual bool IsNodePure() const override { return true; }
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "디버그"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};
+
+UCLASS(DisplayName="UK2Node_Watch_Bool", Description="입력된 Bool 값을 노드 위에 실시간으로 표시합니다.")
+class UK2Node_Watch_Bool : public UK2Node
+{
+    DECLARE_CLASS(UK2Node_Watch_Bool, UK2Node);
+
+public:
+    UK2Node_Watch_Bool();
+
+    // --- UEdGraphNode 인터페이스 ---
+public:
+    virtual FString GetNodeTitle() const override { return "Watch (Bool)"; }
+    virtual bool IsNodePure() const override { return true; }
+    virtual void AllocateDefaultPins() override;
+    virtual void RenderBody() override;
+
+    // --- UK2Node 인터페이스 ---
+public:
+    virtual FString GetMenuCategory() const override { return "디버그"; };
+    virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+};

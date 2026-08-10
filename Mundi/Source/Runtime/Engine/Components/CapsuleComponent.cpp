@@ -1,0 +1,514 @@
+﻿#include "pch.h"
+#include "CapsuleComponent.h"
+#include "World.h"
+#include "RenderSettings.h"
+#include "Source/Runtime/Engine/Physics/PhysScene.h"
+#include "Collision.h"
+#include "Character.h"
+#include <PxPhysicsAPI.h>
+
+using namespace physx;
+
+// IMPLEMENT_CLASS is now auto-generated in .generated.cpp
+//BEGIN_PROPERTIES(UCapsuleComponent)
+//MARK_AS_COMPONENT("캡슐 충돌 컴포넌트", "캡슐 모양의 충돌체를 생성하는 컴포넌트입니다.")
+//ADD_PROPERTY(float , CapsuleHalfHeight, "CapsuleHalfHeight", true, "박스 충돌체의 크기입니다.")
+//ADD_PROPERTY(float , CapsuleRadius, "CapsuleHalfHeight", true, "박스 충돌체의 크기입니다.")
+//END_PROPERTIES()
+
+UCapsuleComponent::UCapsuleComponent()
+{
+    CapsuleHalfHeight = 0.5f;
+    CapsuleRadius = 0.5f;
+}
+
+UCapsuleComponent::~UCapsuleComponent()
+{
+    // 복제본은 PhysXActor를 해제하지 않음 (원본이 관리)
+    if (PhysXActor && bOwnsPhysXActor)
+    {
+        DestroyPhysXActor();
+    }
+}
+
+void UCapsuleComponent::OnRegister(UWorld* World)
+{
+    Super::OnRegister(World);
+
+    if (AActor* Owner = GetOwner())
+    {
+        FAABB ActorBounds = Owner->GetBounds();
+        FVector WorldHalfExtent = ActorBounds.GetHalfExtent();
+
+        // Owner의 bounds가 유효한 경우에만 캡슐 크기를 재계산
+        // Character 같은 경우 GetBounds()가 빈 AABB를 반환하므로 기존 값 유지
+        if (!WorldHalfExtent.IsZero())
+        {
+            // World scale로 나눠서 local 값 계산
+            const FTransform WorldTransform = GetWorldTransform();
+            const FVector S = FVector(
+                std::fabs(WorldTransform.Scale3D.X),
+                std::fabs(WorldTransform.Scale3D.Y),
+                std::fabs(WorldTransform.Scale3D.Z)
+            );
+
+            constexpr float Eps = 1e-6f;
+
+            // Z축 = 높이, XY축 = 반지름
+            float LocalHalfHeight = S.Z > Eps ? WorldHalfExtent.Z / S.Z : WorldHalfExtent.Z;
+            float LocalRadiusX = S.X > Eps ? WorldHalfExtent.X / S.X : WorldHalfExtent.X;
+            float LocalRadiusY = S.Y > Eps ? WorldHalfExtent.Y / S.Y : WorldHalfExtent.Y;
+
+            CapsuleHalfHeight = LocalHalfHeight;
+            CapsuleRadius = FMath::Max(LocalRadiusX, LocalRadiusY);
+        }
+    }
+
+    // PIE 모드에서 PhysX에 등록 (PVD 디버깅용) - 비활성화 (소멸 순서 문제)
+    // if (bRegisterToPhysX && World && World->bPie)
+    // {
+    //     CreatePhysXActor();
+    // }
+}
+
+void UCapsuleComponent::OnUnregister()
+{
+    // DestroyPhysXActor();  // 비활성화
+    Super::OnUnregister();
+}
+
+void UCapsuleComponent::TickComponent(float DeltaSeconds)
+{
+    Super::TickComponent(DeltaSeconds);
+
+    // PhysX Actor 위치 업데이트
+    if (PhysXActor)
+    {
+        UpdatePhysXActorTransform();
+    }
+
+    // 트리거 충돌 체크
+    if (bTriggerEnabled)
+    {
+        CheckTriggerOverlaps();
+    }
+}
+
+void UCapsuleComponent::DuplicateSubObjects()
+{
+    Super::DuplicateSubObjects();
+
+    // PhysXActor는 얕은 복사 유지 - 복제본은 소유권 없음
+    bOwnsPhysXActor = false;
+    OverlappedActors.Empty();
+}
+
+void UCapsuleComponent::GetShape(FShape& Out) const
+{
+	Out.Kind = EShapeKind::Capsule;
+	Out.Capsule.CapsuleHalfHeight = CapsuleHalfHeight;
+	Out.Capsule.CapsuleRadius = CapsuleRadius;
+}
+
+FAABB UCapsuleComponent::GetWorldAABB() const
+{
+    const FTransform WorldTransform = GetWorldTransform();
+    const FVector Center = WorldTransform.Translation;
+    const FQuat Rotation = WorldTransform.Rotation;
+    const FVector Scale3D = WorldTransform.Scale3D;
+
+    // 1. 월드 스케일 절댓값 (음수 스케일 대응)
+    const float AbsScaleX = std::fabs(Scale3D.X);
+    const float AbsScaleY = std::fabs(Scale3D.Y);
+    const float AbsScaleZ = std::fabs(Scale3D.Z);
+
+    // 2. 월드 공간에서의 반지름과 높이 계산
+    // 캡슐의 반지름은 XY 스케일 중 큰 값을 따르고, 높이는 Z축 스케일을 따름
+    const float WorldRadius = CapsuleRadius * FMath::Max(AbsScaleX, AbsScaleY);
+    const float WorldHalfHeight = CapsuleHalfHeight * AbsScaleZ;
+
+    // 3. 캡슐 내부의 '중심 선분' 길이 계산
+    // 캡슐은 [0, 0, -Len] ~ [0, 0, +Len] 선분에 반지름 R을 더한 모양
+    // HalfHeight가 Radius보다 작으면 그냥 구체(Sphere)로 취급 (Max(0, ...))
+    const float CylinderHalfLen = FMath::Max(0.0f, WorldHalfHeight - WorldRadius);
+
+    // 4. 회전된 Z축(Up Vector) 구하기
+    // 로컬 Z축(0,0,1)을 월드 회전으로 변환
+    const FVector AxisZ = Rotation.RotateVector(FVector(0.0f, 0.0f, 1.0f));
+
+    // 5. 중심 선분의 위/아래 끝점 계산 (Center 기준)
+    const FVector TopPoint = Center + (AxisZ * CylinderHalfLen);
+    const FVector BottomPoint = Center - (AxisZ * CylinderHalfLen);
+
+    // 6. 선분의 AABB(Min/Max) 구하기
+    
+    FVector Min(
+        std::min({ TopPoint.X, BottomPoint.X }),
+        std::min({ TopPoint.Y, BottomPoint.Y }),
+        std::min({ TopPoint.Z, BottomPoint.Z })
+    );
+    FVector Max(
+        std::max({ TopPoint.X, BottomPoint.X }),
+        std::max({ TopPoint.Y, BottomPoint.Y }),
+        std::max({ TopPoint.Z, BottomPoint.Z })
+    );
+
+    // 7. AABB를 반지름만큼 모든 축 방향으로 확장
+    const FVector RadiusExtent(WorldRadius, WorldRadius, WorldRadius);
+
+    return FAABB(Min - RadiusExtent, Max + RadiusExtent);
+}
+
+void UCapsuleComponent::RenderDebugVolume(URenderer* Renderer) const
+{
+    // SF_BoundingBoxes 플래그가 켜져있으면 항상 표시
+    bool bShowFlagEnabled = GWorld->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_BoundingBoxes);
+
+    if (!bShapeIsVisible && !bShowFlagEnabled) return;
+    if (GWorld->bPie)
+    {
+        if (bShapeHiddenInGame && !bShowFlagEnabled)
+            return;
+    }
+
+    const FTransform WorldTransform = GetWorldTransform();
+    const FVector Scale3D = WorldTransform.Scale3D;
+    const float AbsScaleX = std::fabs(Scale3D.X);
+    const float AbsScaleY = std::fabs(Scale3D.Y);
+    const float AbsScaleZ = std::fabs(Scale3D.Z);
+
+    // 월드 치수 계산
+    const float WorldRadius = CapsuleRadius * FMath::Max(AbsScaleX, AbsScaleY);
+    const float WorldHalfHeight = CapsuleHalfHeight * AbsScaleZ;
+    
+    // 계산된 월드 치수 사용
+    const float Radius = WorldRadius;
+    const float HalfHeightAABB = WorldHalfHeight;
+    const float HalfHeightCylinder = FMath::Max(0.0f, HalfHeightAABB - Radius);
+
+    // 위치, 회전 변환만 가져와서 사용, Scale은 사용자가 조정 
+    const FMatrix WorldNoScale = FMatrix::FromTRS(GetWorldLocation(), 
+        GetWorldRotation(), FVector(1.0f, 1.0f, 1.0f));
+     
+    const int NumOfSphereSlice = 4;
+    const int NumHemisphereSegments = 8; 
+
+    TArray<FVector> StartPoints;
+    TArray<FVector> EndPoints;
+    TArray<FVector4> Colors;
+
+    TArray<FVector> TopRingLocal;
+    TArray<FVector> BottomRingLocal;
+    TopRingLocal.Reserve(NumOfSphereSlice);
+    BottomRingLocal.Reserve(NumOfSphereSlice);
+
+     
+    //윗면 아랫면 
+    for (int i = 0; i < NumOfSphereSlice; ++i)
+    {
+        const float a0 = (static_cast<float>(i) / NumOfSphereSlice) * TWO_PI;
+        const float x = Radius * std::sin(a0);
+        const float y = Radius * std::cos(a0);
+        TopRingLocal.Add(FVector(x, y, +HalfHeightCylinder));
+        BottomRingLocal.Add(FVector(x, y, -HalfHeightCylinder));
+    }
+     
+    for (int i = 0; i < NumOfSphereSlice; ++i)
+    {
+        const int j = (i + 1) % NumOfSphereSlice;
+
+        //윗면
+        StartPoints.Add(TopRingLocal[i] * WorldNoScale);
+        EndPoints.Add(TopRingLocal[j] * WorldNoScale);
+        Colors.Add(ShapeColor);
+
+        // 아랫면
+        StartPoints.Add(BottomRingLocal[i] * WorldNoScale);
+        EndPoints.Add(BottomRingLocal[j] * WorldNoScale);
+        Colors.Add(ShapeColor);
+    }
+     
+    //윗면 아랫면 잇는 선분
+    for (int i = 0; i < NumOfSphereSlice; ++i)
+    {
+        StartPoints.Add(TopRingLocal[i] * WorldNoScale);
+        EndPoints.Add(BottomRingLocal[i] * WorldNoScale);
+        Colors.Add(ShapeColor);
+    }
+    
+    // 반구 위아래 
+    auto AddHemisphereArcs = [&](float CenterZSign)
+    {
+        const float CenterZ = CenterZSign * HalfHeightCylinder;
+
+        for (int i = 0; i < NumHemisphereSegments; ++i)
+        {
+            const float t0 = (static_cast<float>(i) / NumHemisphereSegments) * PI;
+            const float t1 = (static_cast<float>(i + 1) / NumHemisphereSegments) * PI;
+    
+            FVector PlaneXZ0(Radius * std::cos(t0), 0.0f, CenterZ + CenterZSign* Radius * std::sin(t0));
+            FVector PlaneXZ1(Radius * std::cos(t1), 0.0f, CenterZ + CenterZSign* Radius * std::sin(t1));
+            
+            StartPoints.Add(PlaneXZ0 * WorldNoScale);
+            EndPoints.Add(PlaneXZ1 * WorldNoScale);
+            Colors.Add(ShapeColor);
+            
+            FVector PlaneYZ0(0.0f, Radius * std::cos(t0), CenterZ + CenterZSign * Radius * std::sin(t0));
+            FVector PlaneYZ1(0.0f, Radius * std::cos(t1), CenterZ + CenterZSign * Radius * std::sin(t1));
+
+            StartPoints.Add(PlaneYZ0 * WorldNoScale);
+            EndPoints.Add(PlaneYZ1 * WorldNoScale);
+            Colors.Add(ShapeColor);
+        }
+    };
+     
+    AddHemisphereArcs(+1.0f);
+    AddHemisphereArcs(-1.0f);
+
+    Renderer->AddLines(StartPoints, EndPoints, Colors);
+
+    // ========================================================================
+    // ACharacter 무기 디버그 렌더링
+    // ========================================================================
+    if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
+    {
+        if (Character->bDrawWeaponDebug && Character->WeaponDebugData.bIsValid)
+        {
+            const auto& DebugData = Character->WeaponDebugData;
+
+            TArray<FVector> WeaponStartPoints;
+            TArray<FVector> WeaponEndPoints;
+            TArray<FVector4> WeaponColors;
+
+            // 무기 중심선 (베이스 → 팁) - 흰색
+            WeaponStartPoints.Add(DebugData.CurrentBasePos);
+            WeaponEndPoints.Add(DebugData.CurrentTipPos);
+            WeaponColors.Add(FVector4(1.0f, 1.0f, 1.0f, 1.0f));
+
+            // Sweep 경로 (이전 → 현재) - 녹색
+            WeaponStartPoints.Add(DebugData.PrevBasePos);
+            WeaponEndPoints.Add(DebugData.CurrentBasePos);
+            WeaponColors.Add(FVector4(0.0f, 1.0f, 0.0f, 1.0f));
+
+            WeaponStartPoints.Add(DebugData.PrevTipPos);
+            WeaponEndPoints.Add(DebugData.CurrentTipPos);
+            WeaponColors.Add(FVector4(0.0f, 1.0f, 0.0f, 1.0f));
+
+            // 판정 범위 원 그리기
+            const int32 NumSegments = 12;
+            FVector Right = DebugData.WeaponRotation.RotateVector(FVector(1, 0, 0));
+            FVector Forward = DebugData.WeaponRotation.RotateVector(FVector(0, 1, 0));
+
+            for (int32 i = 0; i < NumSegments; ++i)
+            {
+                float Angle1 = (float)i / NumSegments * 2.0f * 3.14159f;
+                float Angle2 = (float)(i + 1) / NumSegments * 2.0f * 3.14159f;
+
+                // 팁 위치 원 - 빨간색
+                FVector P1 = DebugData.CurrentTipPos + (Right * cosf(Angle1) + Forward * sinf(Angle1)) * DebugData.TraceRadius;
+                FVector P2 = DebugData.CurrentTipPos + (Right * cosf(Angle2) + Forward * sinf(Angle2)) * DebugData.TraceRadius;
+                WeaponStartPoints.Add(P1);
+                WeaponEndPoints.Add(P2);
+                WeaponColors.Add(FVector4(1.0f, 0.0f, 0.0f, 1.0f));
+
+                // 베이스 위치 원 - 주황색
+                P1 = DebugData.CurrentBasePos + (Right * cosf(Angle1) + Forward * sinf(Angle1)) * DebugData.TraceRadius;
+                P2 = DebugData.CurrentBasePos + (Right * cosf(Angle2) + Forward * sinf(Angle2)) * DebugData.TraceRadius;
+                WeaponStartPoints.Add(P1);
+                WeaponEndPoints.Add(P2);
+                WeaponColors.Add(FVector4(1.0f, 0.5f, 0.0f, 1.0f));
+            }
+
+            Renderer->AddLines(WeaponStartPoints, WeaponEndPoints, WeaponColors);
+        }
+    }
+}
+
+void UCapsuleComponent::CreatePhysXActor()
+{
+    if (PhysXActor)
+        return;  // 이미 생성됨
+
+    UWorld* World = GetWorld();
+    if (!World)
+        return;
+
+    FPhysScene* PhysScene = World->GetPhysScene();
+    if (!PhysScene)
+        return;
+
+    PxPhysics* Physics = PhysScene->GetPhysics();
+    PxScene* Scene = PhysScene->GetScene();
+    if (!Physics || !Scene)
+        return;
+
+    // 현재 월드 트랜스폼
+    const FTransform WorldTransform = GetWorldTransform();
+    const float AbsScaleX = std::fabs(WorldTransform.Scale3D.X);
+    const float AbsScaleY = std::fabs(WorldTransform.Scale3D.Y);
+    const float AbsScaleZ = std::fabs(WorldTransform.Scale3D.Z);
+
+    // 디버그: 스케일 값 출력
+    UE_LOG("[CapsuleComponent] CreatePhysXActor - %s Scale=(%.4f, %.4f, %.4f) AttachParent=%p",
+           GetName().c_str(), AbsScaleX, AbsScaleY, AbsScaleZ, GetAttachParent());
+
+    // 월드 스케일 적용된 캡슐 크기 (PhysX는 radius, halfHeight 둘 다 0보다 커야 함)
+    const float WorldRadius = FMath::Max(0.001f, CapsuleRadius * FMath::Max(AbsScaleX, AbsScaleY));
+    const float WorldHalfHeight = CapsuleHalfHeight * AbsScaleZ;
+    const float CylinderHalfHeight = FMath::Max(0.001f, WorldHalfHeight - WorldRadius);
+
+    // PhysX Transform (Z-up → X-up 캡슐 회전 포함)
+    PxQuat CapsuleRotation(PxHalfPi, PxVec3(0, 1, 0));  // Y축 기준 90도 회전
+    
+
+    PxTransform Pose(
+        PxVec3(WorldTransform.Translation.X, WorldTransform.Translation.Y, WorldTransform.Translation.Z),
+        CapsuleRotation
+    );
+
+    // Kinematic Dynamic Actor 생성
+    PhysXActor = Physics->createRigidDynamic(Pose);
+    if (!PhysXActor)
+        return;
+
+    // Kinematic으로 설정 (물리 시뮬레이션 안 받음, 수동으로 위치 제어)
+    PhysXActor->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, true);
+
+    // 캡슐 Shape 생성
+    PxMaterial* Material = PhysScene->GetDefaultMaterial();
+    PxCapsuleGeometry CapsuleGeom(WorldRadius, CylinderHalfHeight);
+    PxShape* Shape = Physics->createShape(CapsuleGeom, *Material);
+    if (Shape)
+    {
+        // 충돌 처리 완전 제외 (PVD 시각화 전용)
+        Shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, false);
+        Shape->setFlag(PxShapeFlag::eSCENE_QUERY_SHAPE, false);
+        Shape->setFlag(PxShapeFlag::eVISUALIZATION, true);  // PVD에서만 보임
+        PhysXActor->attachShape(*Shape);
+        Shape->release();
+    }
+
+    // Scene에 등록
+    Scene->addActor(*PhysXActor);
+
+    UE_LOG("[CapsuleComponent] PhysX Kinematic Actor created (R=%.2f, H=%.2f)", WorldRadius, WorldHalfHeight);
+}
+
+void UCapsuleComponent::DestroyPhysXActor()
+{
+    if (!PhysXActor)
+        return;
+
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        FPhysScene* PhysScene = World->GetPhysScene();
+        if (PhysScene)
+        {
+            PxScene* Scene = PhysScene->GetScene();
+            if (Scene)
+            {
+                Scene->removeActor(*PhysXActor);
+            }
+            // PhysScene이 살아있을 때만 release 호출
+            // PhysScene이 Shutdown되면 모든 Actor가 자동 해제됨
+            PhysXActor->release();
+            UE_LOG("[CapsuleComponent] PhysX Actor destroyed");
+        }
+    }
+
+    PhysXActor = nullptr;
+}
+
+void UCapsuleComponent::UpdatePhysXActorTransform()
+{
+    if (!PhysXActor)
+        return;
+
+    const FTransform WorldTransform = GetWorldTransform();
+    
+    PxQuat CapsuleRotation(PxHalfPi, PxVec3(0, 1, 0));
+    PxTransform NewPose(
+        PxVec3(WorldTransform.Translation.X, WorldTransform.Translation.Y, WorldTransform.Translation.Z),
+        CapsuleRotation
+    );
+
+    
+}
+
+void UCapsuleComponent::EnableTriggerCollision(bool bEnable)
+{
+    bTriggerEnabled = bEnable;
+
+    if (bEnable)
+    {
+        // PhysX Actor 생성 (없으면)
+        if (!PhysXActor)
+        {
+            CreatePhysXActor();
+        }
+        // 오버랩 목록 초기화
+        OverlappedActors.Empty();
+    }
+    else
+    {
+        // 비활성화 시 오버랩 목록 초기화
+        OverlappedActors.Empty();
+    }
+
+    UE_LOG("[CapsuleComponent] Trigger collision %s", bEnable ? "enabled" : "disabled");
+}
+
+void UCapsuleComponent::CheckTriggerOverlaps()
+{
+    UWorld* World = GetWorld();
+    if (!World)
+        return;
+
+    FPhysScene* PhysScene = World->GetPhysScene();
+    if (!PhysScene)
+        return;
+
+    // 현재 캡슐 위치와 크기
+    const FTransform WorldTransform = GetWorldTransform();
+    const float AbsScaleX = std::fabs(WorldTransform.Scale3D.X);
+    const float AbsScaleY = std::fabs(WorldTransform.Scale3D.Y);
+    const float AbsScaleZ = std::fabs(WorldTransform.Scale3D.Z);
+
+    const float WorldRadius = CapsuleRadius * FMath::Max(AbsScaleX, AbsScaleY);
+    const float WorldHalfHeight = CapsuleHalfHeight * AbsScaleZ;
+
+    // SweepCapsuleOriented로 충돌 체크 (회전 적용)
+    FVector Start = WorldTransform.Translation;
+    FVector End = Start + FVector(0.01f, 0, 0);  // 작은 거리로 sweep
+    
+
+    FHitResult HitResult;
+    bool bHit = PhysScene->SweepCapsule(
+        Start,
+        End,
+        WorldRadius,
+        WorldHalfHeight,
+        HitResult,
+        GetOwner()  // 자기 자신 무시
+    );
+
+    if (bHit && HitResult.HitActor)
+    {
+        // 이미 충돌한 액터인지 확인 (중복 방지)
+        if (!OverlappedActors.Contains(HitResult.HitActor))
+        {
+            OverlappedActors.Add(HitResult.HitActor);
+
+            // 충돌 위치는 캡슐의 현재 위치 사용
+            FVector HitLocation = GetWorldLocation();
+
+            // 델리게이트 브로드캐스트
+            OnTriggerHit.Broadcast(HitResult.HitActor, HitLocation);
+
+            UE_LOG("[CapsuleComponent] Trigger hit: %s at (%.2f, %.2f, %.2f)",
+                   HitResult.HitActor->GetName().c_str(),
+                   HitLocation.X, HitLocation.Y, HitLocation.Z);
+        }
+    }
+}

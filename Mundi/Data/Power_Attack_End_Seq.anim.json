@@ -1,0 +1,229 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Enable",
+      "TriggerTime" : 0.025089
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Disable",
+      "TriggerTime" : 1.822396
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: On: WeaponRibbon",
+      "TriggerTime" : 0.000168
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: Off: WeaponRibbon",
+      "TriggerTime" : 0.929976
+    }, {
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "Dilation" : 0.010000,
+          "Duration" : 1.000000,
+          "Type" : "HitStop"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 0.938084
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.080000,
+        "RelativeLocation" : [-1.500000, 0.000000, -0.500000],
+        "RelativeRotation" : [0.000000, -0.173648, 0.000000, 0.984808],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 1.104840
+    }, {
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "AmpLoc" : 0.150000,
+          "AmpRot" : 0.150000,
+          "Duration" : 0.500000,
+          "Frequency" : 10.000000,
+          "Priority" : 0,
+          "Type" : "Shake"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 1.084660
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.010000,
+        "RelativeLocation" : [-3.000000, 0.000000, 0.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.000000, 1.000000],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.000000
+    }, {
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "Dilation" : 0.080000,
+          "Duration" : 2.000000,
+          "Type" : "Slomo"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 0.007755
+    }, {
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "Dilation" : 0.250000,
+          "Duration" : 2.000000,
+          "Type" : "Slomo"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 0.493119
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.050000,
+        "RelativeLocation" : [-3.000000, 0.000000, -1.000000],
+        "RelativeRotation" : [0.000000, -0.258819, 0.000000, 0.965926],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.000000
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.020000,
+        "RelativeLocation" : [-2.500000, -1.500000, 6.000000],
+        "RelativeRotation" : [0.000000, 0.573576, 0.000000, 0.819152],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.812488
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.100000,
+        "RelativeLocation" : [6.000000, 6.000000, 0.000000],
+        "RelativeRotation" : [-0.086824, -0.007596, -0.992404, 0.086824],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.516286
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.500000,
+        "RelativeLocation" : [0.000000, -500.000000, 200.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.000000, 1.000000],
+        "bBlendBackToDefault" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 1.774742
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.200000,
+        "RelativeLocation" : [0.000000, -500.000000, 200.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.000000, 1.000000],
+        "bBlendBackToDefault" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.030448
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Magic/Banks0_925.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks0_925.wav",
+      "TriggerTime" : 0.135690
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Magic/Banks10_65.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_65.wav",
+      "TriggerTime" : 0.018202
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Magic/Banks10_64.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_64.wav",
+      "TriggerTime" : 0.933285
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "Charged",
+        "bActivate" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: On: Charged",
+      "TriggerTime" : 0.000000
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "Charged",
+        "bActivate" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: Off: Charged",
+      "TriggerTime" : 1.747516
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

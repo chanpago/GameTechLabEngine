@@ -1,0 +1,29 @@
+{
+  "ObjectName" : "ADecalActor_0",
+  "OwnedComponents" : [{
+      "CollisionEnabled_Internal" : 2,
+      "DecalOpacity" : 1.000000,
+      "DecalTexture" : "Data/Textures/Sicka Dynasty/Game/SICKA_DYNASTY/Textures/T_DeadLeaves_BaseColor.PNG",
+      "FadeSpeed" : 0.000000,
+      "Id" : 10563,
+      "NormalTexture" : "Data/Textures/Sicka Dynasty/Game/SICKA_DYNASTY/Textures/T_DeadLeaves_Normal.PNG",
+      "ObjectName" : "DecalComponent",
+      "ParentId" : 0,
+      "RelativeLocation" : [0.201893, -9.076346, 0.058705],
+      "RelativeRotationEuler" : [0.000000, 90.000000, -0.000000],
+      "RelativeScale" : [0.400000, 5.000000, 5.000000],
+      "Type" : "UDecalComponent",
+      "bBlockComponent" : false,
+      "bGenerateOverlapEvents" : false,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bTickEnabled" : true
+    }],
+  "RootComponentId" : 10563,
+  "Tag" : "",
+  "Type" : "ADecalActor",
+  "bActorHiddenInGame" : false,
+  "bActorIsActive" : true
+}

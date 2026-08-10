@@ -1,0 +1,265 @@
+<mxfile host="app.diagrams.net" modified="2026-02-27T00:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram name="Runtime Animation Pipeline" id="pipeline">
+    <mxGraphModel dx="1422" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="Runtime Animation Pipeline" style="text;html=1;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="300" y="15" width="400" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== 1. Pose Generation Group ========== -->
+        <mxCell id="group1" value="1. Pose Generation (AnimInstance::NativeUpdateAnimation)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;verticalAlign=top;dashed=1;dashPattern=8 4;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="120" y="60" width="760" height="170" as="geometry"/>
+        </mxCell>
+
+        <!-- StateMachine -->
+        <mxCell id="sm" value="StateMachine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="150" y="100" width="130" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- BlendSpace2D -->
+        <mxCell id="bs" value="BlendSpace2D&#xa;(Speed, Direction)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="370" y="100" width="150" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- BasePose -->
+        <mxCell id="basePose" value="BasePose" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="100" width="120" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- SM -> BS -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="sm" target="bs" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- BS -> BasePose -->
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" source="bs" target="basePose" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- 항상 계산 label -->
+        <mxCell id="labelAlways" value="항상 계산" style="text;html=1;fontSize=10;fontColor=#82b366;align=center;" vertex="1" parent="1">
+          <mxGeometry x="640" y="140" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- Montage -->
+        <mxCell id="montage" value="Montage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="150" y="175" width="130" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- MontagePose -->
+        <mxCell id="montagePose" value="MontagePose" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="175" width="120" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Montage -> MontagePose -->
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="montage" target="montagePose" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Weight label -->
+        <mxCell id="weightLabel" value="Weight 0~1 (BlendIn/Out)" style="text;html=1;fontSize=10;fontColor=#9673a6;align=center;" vertex="1" parent="1">
+          <mxGeometry x="370" y="182" width="150" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- 활성 시만 label -->
+        <mxCell id="labelOptional" value="활성 시만" style="text;html=1;fontSize=10;fontColor=#9673a6;align=center;" vertex="1" parent="1">
+          <mxGeometry x="785" y="182" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Arrow: Group1 -> Group2 ========== -->
+        <mxCell id="conn12" value="" style="rounded=0;strokeColor=#333333;strokeWidth=2;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="500" y="230" as="sourcePoint"/>
+            <mxPoint x="500" y="260" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== 2. Pose Blending Group ========== -->
+        <mxCell id="group2" value="2. Pose Blending" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1;verticalAlign=top;dashed=1;dashPattern=8 4;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="120" y="260" width="760" height="210" as="geometry"/>
+        </mxCell>
+
+        <!-- Diamond: Montage Active? -->
+        <mxCell id="diamondMontage" value="Montage&#xa;활성?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="300" width="110" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Diamond: UpperBodySplit? -->
+        <mxCell id="diamondSplit" value="UpperBody&#xa;Split?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="430" y="300" width="110" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Montage Active Y -> Split -->
+        <mxCell id="e5" value="Y" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeWidth=2;fontSize=10;fontStyle=1;labelBackgroundColor=#ffffff;" edge="1" source="diamondMontage" target="diamondSplit" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- FinalPose = BasePose (N path) -->
+        <mxCell id="noMontage" value="FinalPose = BasePose" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="420" width="170" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Diamond N -> noMontage -->
+        <mxCell id="e4" value="N" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeWidth=2;fontSize=10;fontStyle=1;labelBackgroundColor=#ffffff;" edge="1" source="diamondMontage" target="noMontage" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Full body blend (OFF path) -->
+        <mxCell id="fullBlend" value="전신: Lerp(Base, Montage, W)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="390" y="420" width="190" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Split OFF -> Full body -->
+        <mxCell id="e6" value="OFF" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeWidth=2;fontSize=10;fontStyle=1;labelBackgroundColor=#ffffff;" edge="1" source="diamondSplit" target="fullBlend" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Split blend (ON path) -->
+        <mxCell id="splitBlend" value="상체: Lerp(Base, Montage, W)&#xa;하체: BasePose" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="630" y="300" width="200" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Split ON -> splitBlend -->
+        <mxCell id="e7" value="ON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeWidth=2;fontSize=10;fontStyle=1;labelBackgroundColor=#ffffff;" edge="1" source="diamondSplit" target="splitBlend" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- FinalPose (center bottom of group2) -->
+        <mxCell id="finalPose" value="FinalPose" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="420" width="130" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- splitBlend -> FinalPose -->
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" source="splitBlend" target="finalPose" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- fullBlend -> FinalPose -->
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" source="fullBlend" target="finalPose" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- noMontage -> FinalPose -->
+        <mxCell id="e9b" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" source="noMontage" target="finalPose" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Arrow: Group2 -> Group3 ========== -->
+        <mxCell id="conn23" value="" style="rounded=0;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="500" y="470" as="sourcePoint"/>
+            <mxPoint x="500" y="500" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== 3. Root Motion Group ========== -->
+        <mxCell id="group3" value="3. Root Motion (몽타주에서 ON 시만)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;verticalAlign=top;dashed=1;dashPattern=8 4;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="120" y="500" width="760" height="130" as="geometry"/>
+        </mxCell>
+
+        <!-- Delta extraction -->
+        <mxCell id="deltaExtract" value="Delta 추출&#xa;Pose[0] - Previous" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="545" width="150" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Zero root -->
+        <mxCell id="zeroRoot" value="Pose[0] = Zero&#xa;(본 제자리 고정)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="420" y="545" width="150" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Actor move -->
+        <mxCell id="actorMove" value="Actor 이동&#xa;충돌검사 + Slide" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="670" y="545" width="150" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- deltaExtract -> zeroRoot -->
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#d79b00;strokeWidth=2;" edge="1" source="deltaExtract" target="zeroRoot" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- zeroRoot -> actorMove -->
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#d79b00;strokeWidth=2;" edge="1" source="zeroRoot" target="actorMove" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Arrow: Group3 -> Group4 ========== -->
+        <mxCell id="conn34" value="" style="rounded=0;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="500" y="630" as="sourcePoint"/>
+            <mxPoint x="500" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== 4. GPU Skinning Group ========== -->
+        <mxCell id="group4" value="4. GPU Skinning" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#deecf9;strokeColor=#4a86c8;fontSize=12;fontStyle=1;verticalAlign=top;dashed=1;dashPattern=8 4;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="120" y="660" width="760" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Skinning Matrix -->
+        <mxCell id="skinMatrix" value="SkinningMatrix[i]&#xa;= GlobalPose[i] × InvBindPose[i]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#deecf9;strokeColor=#4a86c8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="705" width="200" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Structured Buffer -->
+        <mxCell id="structBuf" value="Structured Buffer&#xa;(GPU Upload)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#deecf9;strokeColor=#4a86c8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="430" y="705" width="150" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Vertex Shader -->
+        <mxCell id="vs" value="Vertex Shader&#xa;정점 변환" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#deecf9;strokeColor=#4a86c8;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="670" y="705" width="130" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- skinMatrix -> structBuf -->
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#4a86c8;strokeWidth=2;" edge="1" source="skinMatrix" target="structBuf" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- structBuf -> vs -->
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#4a86c8;strokeWidth=2;" edge="1" source="structBuf" target="vs" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== Legend ========== -->
+        <mxCell id="legend" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="120" y="810" width="760" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="140" y="822" width="18" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1t" value="Locomotion" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="162" y="819" width="80" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="260" y="822" width="18" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2t" value="Montage" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="282" y="819" width="70" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="370" y="822" width="18" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3t" value="Pose Output" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="392" y="819" width="80" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="490" y="822" width="18" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4t" value="Root Motion" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="512" y="819" width="80" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg5" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#deecf9;strokeColor=#4a86c8;" vertex="1" parent="1">
+          <mxGeometry x="610" y="822" width="18" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg5t" value="GPU Skinning" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="632" y="819" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

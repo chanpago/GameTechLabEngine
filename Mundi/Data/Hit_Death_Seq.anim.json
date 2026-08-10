@@ -1,0 +1,23 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PauseAnimation",
+      "Data" : {
+
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PauseAnimation",
+      "TriggerTime" : 2.914663
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/ShinobiVoices/audio (7).wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: audio (7).wav",
+      "TriggerTime" : 0.023203
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

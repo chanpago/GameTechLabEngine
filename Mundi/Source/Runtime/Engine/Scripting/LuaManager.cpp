@@ -1,0 +1,1410 @@
+﻿#include "pch.h"
+#include "LuaManager.h"
+#include "LuaComponentProxy.h"
+#include "GameObject.h"
+#include "ObjectIterator.h"
+#include "LuaPhysicsTypes.h"
+#include "CameraActor.h"
+#include "CameraComponent.h"
+#include "PlayerCameraManager.h"
+#include "GameModeBase.h"
+#include "PlayerController.h"
+#include"Pawn.h"
+#include "EnemyBase.h"
+#include "BossEnemy.h"
+#include "BasicEnemy.h"
+#include "BossSword.h"
+#include "HitboxComponent.h"
+#include "CombatTypes.h"
+#include "SkeletalMeshComponent.h"
+#include "AnimInstance.h"
+#include "PlayerCharacter.h"
+#include "StatsComponent.h"
+#include "HeightFogComponent.h"
+#include "GameOverlayD2D.h"
+#include <tuple>
+
+sol::object MakeCompProxy(sol::state_view SolState, void* Instance, UClass* Class) {
+    BuildBoundClass(Class);
+    LuaComponentProxy Proxy;
+    Proxy.Instance = Instance;
+    Proxy.Class = Class;
+    return sol::make_object(SolState, std::move(Proxy));
+}
+
+FLuaManager::FLuaManager()
+{
+    Lua = new sol::state();
+    
+    
+    // Open essential standard libraries for gameplay scripts
+    Lua->open_libraries(
+        sol::lib::base,
+        sol::lib::coroutine,
+        sol::lib::math,
+        sol::lib::table,
+        sol::lib::string
+    );
+
+    SharedLib = Lua->create_table();
+
+    // Lua에서 Actor와 FGameObject 가 1대1로 매칭되고
+    // Component는 그대로 Component와 1대1로 매칭된다
+    // NOTE: 그냥 FGameObject 개념을 없애고 그냥 Actor/Component 그대로 사용하는 게 좋을듯?
+    Lua->new_usertype<FGameObject>("GameObject",
+        "UUID", &FGameObject::UUID,
+        "Tag", sol::property(&FGameObject::GetTag, &FGameObject::SetTag),
+        "Location", sol::property(&FGameObject::GetLocation, &FGameObject::SetLocation),
+        "Rotation", sol::property(&FGameObject::GetRotation, &FGameObject::SetRotation), 
+        "Scale", sol::property(&FGameObject::GetScale, &FGameObject::SetScale),
+        "bIsActive", sol::property(&FGameObject::GetIsActive, &FGameObject::SetIsActive),
+        "Velocity", &FGameObject::Velocity,
+        "PrintLocation", &FGameObject::PrintLocation,
+        "GetForward", &FGameObject::GetForward
+    );
+    
+    Lua->new_usertype<UCameraComponent>("CameraComponent",
+        sol::no_constructor,
+        "SetLocation", sol::overload(
+            [](UCameraComponent* Camera, FVector Location)
+            {
+                if (!Camera)
+                {
+                    return;
+                }
+                Camera->SetWorldLocation(Location);
+            },
+            [](UCameraComponent* Camera, float X, float Y, float Z)
+            {
+                if (!Camera)
+                {
+                    return;
+                }
+                Camera->SetWorldLocation(FVector(X, Y, Z));
+            }
+        ),
+        "SetCameraForward",
+        [](UCameraComponent* Camera, FVector Direction)
+        {
+            if (!Camera)
+            {
+                return;
+            }
+            ACameraActor* CameraActor = Cast<ACameraActor>(Camera->GetOwner());
+            CameraActor->SetForward(Direction);
+        },
+        "GetActorLocation", [](UCameraComponent* Camera) -> FVector
+        {
+            if (!Camera)
+            {
+                // 유효하지 않은 경우 0 벡터 반환
+                return FVector(0.f, 0.f, 0.f);
+            }
+            return Camera->GetWorldLocation();
+        },
+        "GetActorRight", [](UCameraComponent* Camera) -> FVector
+        {
+            if (!Camera) return FVector(0.f, 0.f, 1.f); // 기본값 (World Forward)
+
+            // C++ UCameraComponent 클래스의 실제 함수명으로 변경해야 합니다.
+            // (예: GetActorForwardVector(), GetForward() 등)
+            return Camera->GetForward();
+        }
+    );
+    Lua->new_usertype<UInputManager>("InputManager",
+        "IsKeyDown", sol::overload(
+            &UInputManager::IsKeyDown,
+            [](UInputManager* Self, const FString& Key) {
+                if (Key.empty()) return false;
+                return Self->IsKeyDown(Key[0]);
+            }),
+        "IsKeyPressed", sol::overload(
+            &UInputManager::IsKeyPressed,
+            [](UInputManager* Self, const FString& Key) {
+                if (Key.empty()) return false;
+                return Self->IsKeyPressed(Key[0]);
+            }),
+        "IsKeyReleased", sol::overload(
+            &UInputManager::IsKeyReleased,
+            [](UInputManager* Self, const FString& Key) {
+                if (Key.empty()) return false;
+                return Self->IsKeyReleased(Key[0]);
+            }),
+        "IsMouseButtonDown", &UInputManager::IsMouseButtonDown,
+        "IsMouseButtonPressed", &UInputManager::IsMouseButtonPressed,
+        "IsMouseButtonReleased", &UInputManager::IsMouseButtonReleased,
+        "GetMouseDelta", [](UInputManager* Self) {
+            const FVector2D Delta = Self->GetMouseDelta();
+            return FVector(Delta.X, Delta.Y, 1.0);
+        },
+        "SetCursorVisible", [](UInputManager* Self, bool bVisible){
+            if (bVisible)
+            { 
+                Self->SetCursorVisible(true);
+                if (Self->IsCursorLocked())
+                    Self->ReleaseCursor();
+            } else
+            { 
+                Self->SetCursorVisible(false);
+                Self->LockCursor();
+            }
+        }
+    );                
+    
+    sol::table MouseButton = Lua->create_table("MouseButton");
+    MouseButton["Left"] = EMouseButton::LeftButton;
+    MouseButton["Right"] = EMouseButton::RightButton;
+    MouseButton["Middle"] = EMouseButton::MiddleButton;
+    MouseButton["XButton1"] = EMouseButton::XButton1;
+    MouseButton["XButton2"] = EMouseButton::XButton2;
+    
+    Lua->set_function("print", sol::overload(                             
+        [](const FString& msg) {                                          
+            UE_LOG("[Lua-Str] %s\n", msg.c_str());                        
+        },                                                                
+                                                                          
+        [](int num){                                                      
+            UE_LOG("[Lua] %d\n", num);                                    
+        },                                                                
+                                                                          
+        [](double num){                                                   
+            UE_LOG("[Lua] %f\n", num);                                    
+        },                                                                
+                                                                          
+        [](FVector Vector)                                                    
+        {                                                                 
+            UE_LOG("[Lua] (%f, %f, %f)\n", Vector.X, Vector.Y, Vector.Z); 
+        }                                                                 
+    ));
+
+    // Physics types
+    Lua->new_usertype<LuaContactInfo>("ContactInfo",
+        sol::no_constructor,
+        "OtherActor", sol::readonly(&LuaContactInfo::OtherActor),
+        "Position", sol::readonly(&LuaContactInfo::Position),
+        "Normal", sol::readonly(&LuaContactInfo::Normal),
+        "Impulse", sol::readonly(&LuaContactInfo::Impulse)
+    );
+
+    Lua->new_usertype<LuaTriggerInfo>("TriggerInfo",
+        sol::no_constructor,
+        "OtherActor", sol::readonly(&LuaTriggerInfo::OtherActor),
+        "IsEnter", sol::readonly(&LuaTriggerInfo::bIsEnter)
+    );
+    
+    // GlobalConfig는 전역 table
+    SharedLib["GlobalConfig"] = Lua->create_table(); 
+    // SharedLib["GlobalConfig"]["Gravity"] = 9.8;
+
+    SharedLib.set_function("SpawnPrefab", sol::overload(
+        [](const FString& PrefabPath) -> FGameObject*
+        {
+            FGameObject* NewObject = nullptr;
+
+            AActor* NewActor = GWorld->SpawnPrefabActor(UTF8ToWide(PrefabPath));
+
+            if (NewActor)
+            {
+                NewObject = NewActor->GetGameObject();
+            }
+
+            return NewObject;
+        }
+    ));
+
+    // BossSword 오프셋 설정 (Lua용)
+    SharedLib.set_function("SetSwordHoverOffset", [](FGameObject& Obj, float X, float Y)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossSword* Sword = Cast<ABossSword>(Owner))
+                {
+                    Sword->SetHoverOffset(X, Y);
+                    UE_LOG("[Lua] SetSwordHoverOffset: (%.1f, %.1f) SUCCESS", X, Y);
+                }
+                else
+                {
+                    UE_LOG("[Lua] SetSwordHoverOffset: Cast to ABossSword FAILED! Actor class: %s", Owner->GetClass()->Name);
+                }
+            }
+        });
+
+    SharedLib.set_function("SetSwordHoverHeight", [](FGameObject& Obj, float Height)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossSword* Sword = Cast<ABossSword>(Owner))
+                {
+                    Sword->SetHoverHeight(Height);
+                }
+            }
+        });
+
+    SharedLib.set_function("SetSwordHoverDuration", [](FGameObject& Obj, float Duration)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossSword* Sword = Cast<ABossSword>(Owner))
+                {
+                    Sword->SetHoverDuration(Duration);
+                    UE_LOG("[Lua] SetSwordHoverDuration: %.2f SUCCESS", Duration);
+                }
+                else
+                {
+                    UE_LOG("[Lua] SetSwordHoverDuration: Cast FAILED! Actor class: %s", Owner->GetClass()->Name);
+                }
+            }
+            else
+            {
+                UE_LOG("[Lua] SetSwordHoverDuration: Owner is NULL!");
+            }
+        });
+
+    SharedLib.set_function("SetSwordIsHovering", [](FGameObject& Obj, bool bHovering)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossSword* Sword = Cast<ABossSword>(Owner))
+                {
+                    Sword->SetIsHovering(bHovering);
+                }
+            }
+        });
+
+    SharedLib.set_function("LaunchSword", [](FGameObject& Obj)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossSword* Sword = Cast<ABossSword>(Owner))
+                {
+                    Sword->LaunchTowardPlayer();
+                }
+            }
+        });
+    SharedLib.set_function("DeleteObject", sol::overload(
+        [](const FGameObject& GameObject)
+        {
+            for (TObjectIterator<AActor> It; It; ++It)
+            {
+                AActor* Actor = *It;
+
+                if (Actor->UUID == GameObject.UUID)
+                {
+                    Actor->Destroy();   // 지연 삭제 요청 (즉시 삭제하면 터짐)
+                    break;
+                }
+            }
+        }
+    ));
+    SharedLib.set_function("FindObjectByName",
+        [](const FString& ActorName) -> FGameObject*
+        {
+            if (!GWorld)
+            {
+                return nullptr;
+            }
+
+            // Lua의 FString을 FName으로 변환
+            FName NameToFind(ActorName);
+
+            AActor* FoundActor = GWorld->FindActorByName(NameToFind);
+
+            // Lua 스크립트가 사용할 수 있도록 AActor*를 FGameObject*로 변환
+            if (FoundActor && !FoundActor->IsPendingDestroy())
+            {
+                return FoundActor->GetGameObject();
+            }
+
+            return nullptr; // 찾지 못함
+        }
+    );
+    SharedLib.set_function("FindComponentByName",
+        [this](const FString& ComponentName) -> UActorComponent*
+        {
+            if (!GWorld)
+            {
+                return nullptr;
+            }
+
+            // Lua의 FString을 FName으로 변환
+            FName NameToFind(ComponentName);
+
+            UActorComponent* FoundComponent = GWorld->FindComponentByName(NameToFind);
+
+            // Lua 스크립트가 사용할 수 있도록 UActorComponent*를 LuaComponentProxy로 변환
+            if (FoundComponent && !FoundComponent->IsPendingDestroy())
+            {
+                return FoundComponent;
+            }
+
+            return nullptr; // 찾지 못함
+        }
+    );
+    SharedLib.set_function("GetCamera",
+        []() -> UCameraComponent*
+        {
+            if (!GWorld)
+            {
+                return nullptr;
+            }
+            return GWorld->GetPlayerCameraManager()->GetViewCamera();
+        }
+    );
+    SharedLib.set_function("GetCameraManager",
+        []() -> APlayerCameraManager*
+        {
+            if (!GWorld)
+            {
+                return nullptr;
+            }
+            return GWorld->GetPlayerCameraManager();
+        }
+    );
+    SharedLib.set_function("GetPlayer",
+        []() -> FGameObject*
+        {
+            if (!GWorld)
+            {
+                return nullptr;
+            }
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController)
+            {
+                return nullptr;
+            }
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            if (!Pawn)
+            {
+                return nullptr;
+            }
+            return Pawn->GetGameObject();
+        }
+    );
+
+    // ========================================================================
+    // 플레이어 상태 조회 함수들 (보스 AI용)
+    // ========================================================================
+
+    // 플레이어 전투 상태 반환 (문자열)
+    // "Idle", "Attacking", "Dodging", "Blocking", "Parrying", "Staggered", "Knockback", "Dead"
+    SharedLib.set_function("GetPlayerCombatState",
+        []() -> std::string
+        {
+            if (!GWorld) return "Unknown";
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return "Unknown";
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return "Unknown";
+
+            ECombatState State = Player->GetCombatState();
+            switch (State)
+            {
+            case ECombatState::Idle:      return "Idle";
+            case ECombatState::Attacking: return "Attacking";
+            case ECombatState::Dodging:   return "Dodging";
+            case ECombatState::Blocking:  return "Blocking";
+            case ECombatState::Parrying:  return "Parrying";
+            case ECombatState::Staggered: return "Staggered";
+            case ECombatState::Knockback: return "Knockback";
+            case ECombatState::Dead:      return "Dead";
+            default:                      return "Unknown";
+            }
+        }
+    );
+
+    // 플레이어가 회피 중인지 (무적 상태)
+    SharedLib.set_function("IsPlayerDodging",
+        []() -> bool
+        {
+            if (!GWorld) return false;
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return false;
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return false;
+            return Player->GetCombatState() == ECombatState::Dodging;
+        }
+    );
+
+    // 플레이어가 공격 중인지
+    SharedLib.set_function("IsPlayerAttacking",
+        []() -> bool
+        {
+            if (!GWorld) return false;
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return false;
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return false;
+            return Player->GetCombatState() == ECombatState::Attacking;
+        }
+    );
+
+    // 플레이어가 가드 중인지
+    SharedLib.set_function("IsPlayerBlocking",
+        []() -> bool
+        {
+            if (!GWorld) return false;
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return false;
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return false;
+            return Player->IsBlocking();
+        }
+    );
+
+    // 플레이어가 패리 중인지
+    SharedLib.set_function("IsPlayerParrying",
+        []() -> bool
+        {
+            if (!GWorld) return false;
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return false;
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return false;
+            return Player->IsParrying();
+        }
+    );
+
+    // 플레이어가 무적 상태인지 (회피 중 등)
+    SharedLib.set_function("IsPlayerInvincible",
+        []() -> bool
+        {
+            if (!GWorld) return false;
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return false;
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return false;
+            return Player->IsInvincible();
+        }
+    );
+
+    // 플레이어가 경직 상태인지
+    SharedLib.set_function("IsPlayerStaggered",
+        []() -> bool
+        {
+            if (!GWorld) return false;
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return false;
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return false;
+            return Player->GetCombatState() == ECombatState::Staggered;
+        }
+    );
+
+    // 플레이어가 살아있는지
+    SharedLib.set_function("IsPlayerAlive",
+        []() -> bool
+        {
+            if (!GWorld) return false;
+            AGameModeBase* GameMode = GWorld->GetGameMode();
+            if (!GameMode || !GameMode->PlayerController) return false;
+            APawn* Pawn = GameMode->PlayerController->GetPawn();
+            APlayerCharacter* Player = Cast<APlayerCharacter>(Pawn);
+            if (!Player) return false;
+            return Player->IsAlive();
+        }
+    );
+
+    SharedLib.set_function("AddMovementInput",
+        [](FGameObject& GameObject, FVector Direction, float Scale)
+        {
+            AActor* Actor = GameObject.GetOwner();
+            if (!Actor)
+            {
+                return;
+            }
+            APawn* Pawn = Cast<APawn>(Actor);
+            if (Pawn)
+            {
+                Pawn->AddMovementInput(Direction, Scale);
+            }
+        }
+    );
+    SharedLib.set_function("SetPlayerForward",
+        [](FGameObject& GameObject, FVector Direction)
+        {
+            AActor* Player = GameObject.GetOwner();
+            if (!Player)
+            {
+                return;
+            }
+
+            USceneComponent* SceneComponent = Player->GetRootComponent();
+
+            if (!SceneComponent)
+            {
+                return;
+            }
+
+            SceneComponent->SetForward(Direction);
+        }
+   );
+    SharedLib.set_function("Vector", sol::overload(
+       []() { return FVector(0.0f, 0.0f, 0.0f); },
+       [](float x, float y, float z) { return FVector(x, y, z); }
+   ));
+
+    //@TODO(Timing)
+    SharedLib.set_function("SetSlomo", [](float Duration , float Dilation) { GWorld->RequestSlomo(Duration, Dilation); });
+
+    SharedLib.set_function("HitStop", [](float Duration, sol::optional<float> Scale) { GWorld->RequestHitStop(Duration, Scale.value_or(0.0f)); });
+    
+    SharedLib.set_function("TargetHitStop", [](FGameObject& Obj, float Duration, sol::optional<float> Scale)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                Owner->SetCustomTimeDillation(Duration, Scale.value_or(0.0f));
+            }
+        });
+
+    // 보스 공격 패턴 실행
+    SharedLib.set_function("ExecuteAttackPattern", [](FGameObject& Obj, int PatternIndex)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Owner))
+                {
+                    Boss->ExecuteAttackPattern(PatternIndex);
+                }
+            }
+        });
+
+    // 보스/적 몽타주 재생 (Lua용)
+    // 사용법: PlayMontage(Obj, "LightCombo") 또는 PlayMontage(Obj, "LightCombo", 0.1, 0.1, 1.5)
+    SharedLib.set_function("PlayMontage", [](FGameObject& Obj, const FString& MontageName,
+        sol::optional<float> BlendIn, sol::optional<float> BlendOut, sol::optional<float> PlayRate) -> bool
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                // BossEnemy 지원
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Owner))
+                {
+                    return Boss->PlayMontageByName(MontageName,
+                        BlendIn.value_or(0.1f),
+                        BlendOut.value_or(0.1f),
+                        PlayRate.value_or(1.0f));
+                }
+                // BasicEnemy 지원
+                else if (ABasicEnemy* BasicEnemy = Cast<ABasicEnemy>(Owner))
+                {
+                    return BasicEnemy->PlayMontageByName(MontageName,
+                        BlendIn.value_or(0.1f),
+                        BlendOut.value_or(0.1f),
+                        PlayRate.value_or(1.0f));
+                }
+            }
+            return false;
+        });
+
+    // 몽타주 재생 속도 변경 (Lua용)
+    // 사용법: SetMontagePlayRate(Obj, 1.5) -- 1.5배속
+    SharedLib.set_function("SetMontagePlayRate", [](FGameObject& Obj, float NewPlayRate)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Owner))
+                {
+                    Boss->SetMontagePlayRate(NewPlayRate);
+                }
+                else if (ABasicEnemy* BasicEnemy = Cast<ABasicEnemy>(Owner))
+                {
+                    BasicEnemy->SetMontagePlayRate(NewPlayRate);
+                }
+            }
+        });
+
+    // 보스 패턴 이름 설정 (디버그 오버레이용)
+    // 사용법: SetBossPatternName(Obj, "PunishAttack")
+    SharedLib.set_function("SetBossPatternName", [](FGameObject& Obj, const FString& PatternName)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Owner))
+                {
+                    Boss->SetCurrentPatternName(PatternName);
+                }
+            }
+        });
+
+    // 보스 AI 상태 설정 (디버그 오버레이용)
+    // 사용법: SetBossAIState(Obj, "Strafing")
+    SharedLib.set_function("SetBossAIState", [](FGameObject& Obj, const FString& State)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Owner))
+                {
+                    Boss->SetAIState(State);
+                }
+            }
+        });
+
+    // 보스 이동 타입 설정 (디버그 오버레이용)
+    // 사용법: SetBossMovementType(Obj, "Strafe_L")
+    SharedLib.set_function("SetBossMovementType", [](FGameObject& Obj, const FString& Type)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Owner))
+                {
+                    Boss->SetMovementType(Type);
+                }
+            }
+        });
+
+    // 보스와 플레이어 사이 거리 설정 (디버그 오버레이용)
+    // 사용법: SetBossDistanceToPlayer(Obj, 5.5)
+    SharedLib.set_function("SetBossDistanceToPlayer", [](FGameObject& Obj, float Distance)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Owner))
+                {
+                    Boss->SetDistanceToPlayer(Distance);
+                }
+            }
+        });
+
+    // ========================================================================
+    // StatsComponent Lua 바인딩
+    // ========================================================================
+
+    // 현재 체력 가져오기
+    // 사용법: local hp = GetCurrentHealth(Obj)
+    SharedLib.set_function("GetCurrentHealth", [](FGameObject& Obj) -> float
+        {
+            if (!GWorld) return 0.f;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Actor))
+                {
+                    if (UStatsComponent* Stats = Boss->GetStatsComponent())
+                    {
+                        return Stats->GetCurrentHealth();
+                    }
+                }
+            }
+            return 0.f;
+        });
+
+    // 최대 체력 가져오기
+    // 사용법: local maxHp = GetMaxHealth(Obj)
+    SharedLib.set_function("GetMaxHealth", [](FGameObject& Obj) -> float
+        {
+            if (!GWorld) return 0.f;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Actor))
+                {
+                    if (UStatsComponent* Stats = Boss->GetStatsComponent())
+                    {
+                        return Stats->GetMaxHealth();
+                    }
+                }
+            }
+            return 0.f;
+        });
+
+    // 최대 체력 설정하기
+    // 사용법: SetMaxHealth(Obj, 500)
+    SharedLib.set_function("SetMaxHealth", [](FGameObject& Obj, float NewMaxHealth)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Actor))
+                {
+                    if (UStatsComponent* Stats = Boss->GetStatsComponent())
+                    {
+                        Stats->SetMaxHealth(NewMaxHealth);
+                        return;
+                    }
+                }
+            }
+        });
+
+    // 현재 체력 설정하기
+    // 사용법: SetCurrentHealth(Obj, 500)
+    SharedLib.set_function("SetCurrentHealth", [](FGameObject& Obj, float NewHealth)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Actor))
+                {
+                    if (UStatsComponent* Stats = Boss->GetStatsComponent())
+                    {
+                        Stats->SetCurrentHealth(NewHealth);
+                        return;
+                    }
+                }
+            }
+        });
+
+    // 체력 퍼센트 가져오기 (0.0 ~ 1.0)
+    // 사용법: local percent = GetHealthPercent(Obj)
+    SharedLib.set_function("GetHealthPercent", [](FGameObject& Obj) -> float
+        {
+            if (!GWorld) return 0.f;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Actor))
+                {
+                    if (UStatsComponent* Stats = Boss->GetStatsComponent())
+                    {
+                        return Stats->GetHealthPercent();
+                    }
+                }
+            }
+            return 0.f;
+        });
+
+    // 생존 여부 확인
+    // 사용법: local alive = IsAlive(Obj)
+    SharedLib.set_function("IsAlive", [](FGameObject& Obj) -> bool
+        {
+            if (!GWorld) return false;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (ABossEnemy* Boss = Cast<ABossEnemy>(Actor))
+                {
+                    if (UStatsComponent* Stats = Boss->GetStatsComponent())
+                    {
+                        return Stats->IsAlive();
+                    }
+                }
+            }
+            return false;
+        });
+
+    // ========================================================================
+    // Height Fog 제어 함수들
+    // ========================================================================
+
+    // 안개 밀도 설정
+    // 사용법: SetFogDensity(0.5)
+    SharedLib.set_function("SetFogDensity", [](float Density)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (UHeightFogComponent* FogComp = Cast<UHeightFogComponent>(
+                    Actor->GetComponent(UHeightFogComponent::StaticClass())))
+                {
+                    FogComp->SetFogDensity(Density);
+                    return;
+                }
+            }
+        });
+
+    // 안개 밀도 가져오기
+    // 사용법: local density = GetFogDensity()
+    SharedLib.set_function("GetFogDensity", []() -> float
+        {
+            if (!GWorld) return 0.f;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (UHeightFogComponent* FogComp = Cast<UHeightFogComponent>(
+                    Actor->GetComponent(UHeightFogComponent::StaticClass())))
+                {
+                    return FogComp->GetFogDensity();
+                }
+            }
+            return 0.f;
+        });
+
+    // 안개 최대 불투명도 설정
+    // 사용법: SetFogMaxOpacity(0.8)
+    SharedLib.set_function("SetFogMaxOpacity", [](float Opacity)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (UHeightFogComponent* FogComp = Cast<UHeightFogComponent>(
+                    Actor->GetComponent(UHeightFogComponent::StaticClass())))
+                {
+                    FogComp->SetFogMaxOpacity(Opacity);
+                    return;
+                }
+            }
+        });
+
+    // 안개 시작 거리 설정
+    // 사용법: SetFogStartDistance(100)
+    SharedLib.set_function("SetFogStartDistance", [](float Distance)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (UHeightFogComponent* FogComp = Cast<UHeightFogComponent>(
+                    Actor->GetComponent(UHeightFogComponent::StaticClass())))
+                {
+                    FogComp->SetStartDistance(Distance);
+                    return;
+                }
+            }
+        });
+
+    // 안개 높이 감쇠 설정 (높을수록 안개가 낮은 곳에 집중)
+    // 사용법: SetFogHeightFalloff(0.5)
+    SharedLib.set_function("SetFogHeightFalloff", [](float Falloff)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (UHeightFogComponent* FogComp = Cast<UHeightFogComponent>(
+                    Actor->GetComponent(UHeightFogComponent::StaticClass())))
+                {
+                    FogComp->SetFogHeightFalloff(Falloff);
+                    return;
+                }
+            }
+        });
+
+    // 안개 색상 설정 (RGB, 0~1 범위)
+    // 사용법: SetFogColor(0.5, 0.2, 0.1) -- 붉은 안개
+    SharedLib.set_function("SetFogColor", [](float R, float G, float B)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (UHeightFogComponent* FogComp = Cast<UHeightFogComponent>(
+                    Actor->GetComponent(UHeightFogComponent::StaticClass())))
+                {
+                    FogComp->SetFogInscatteringColor(FLinearColor(R, G, B, 1.0f));
+                    return;
+                }
+            }
+        });
+
+    // 안개 컷오프 거리 설정 (이 거리 이후로는 안개 없음)
+    // 사용법: SetFogCutoffDistance(5000)
+    SharedLib.set_function("SetFogCutoffDistance", [](float Distance)
+        {
+            if (!GWorld) return;
+
+            const TArray<AActor*>& Actors = GWorld->GetActors();
+            for (AActor* Actor : Actors)
+            {
+                if (UHeightFogComponent* FogComp = Cast<UHeightFogComponent>(
+                    Actor->GetComponent(UHeightFogComponent::StaticClass())))
+                {
+                    FogComp->SetFogCutoffDistance(Distance);
+                    return;
+                }
+            }
+        });
+
+    // 히트박스 활성화 (Lua용)
+    // 사용법: EnableHitbox(Obj, damage, damageType, extentX, extentY, extentZ)
+    // damageType: "Light", "Heavy", "Special"
+    // extent: 히트박스 반 크기 (half extent), 생략 시 기존 크기 유지
+    SharedLib.set_function("EnableHitbox", [](FGameObject& Obj, float Damage, const FString& DamageTypeStr,
+        sol::optional<float> ExtentX, sol::optional<float> ExtentY, sol::optional<float> ExtentZ)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                UHitboxComponent* Hitbox = Cast<UHitboxComponent>(
+                    Owner->GetComponent(UHitboxComponent::StaticClass())
+                );
+                if (Hitbox)
+                {
+                    // 크기가 지정되었으면 설정
+                    if (ExtentX.has_value() && ExtentY.has_value() && ExtentZ.has_value())
+                    {
+                        Hitbox->SetBoxExtent(FVector(ExtentX.value(), ExtentY.value(), ExtentZ.value()));
+                    }
+
+                    // 문자열을 EDamageType으로 변환
+                    EDamageType DamageType = EDamageType::Light;
+                    if (DamageTypeStr == "Heavy")
+                        DamageType = EDamageType::Heavy;
+                    else if (DamageTypeStr == "Special")
+                        DamageType = EDamageType::Special;
+                    else if (DamageTypeStr == "Parried")
+                        DamageType = EDamageType::Parried;
+
+                    FDamageInfo DamageInfo(Owner, Damage, DamageType);
+                    Hitbox->EnableHitbox(DamageInfo);
+                }
+            }
+        });
+
+    // 히트박스 크기 설정 (Lua용)
+    // 사용법: SetHitboxExtent(Obj, extentX, extentY, extentZ)
+    SharedLib.set_function("SetHitboxExtent", [](FGameObject& Obj, float ExtentX, float ExtentY, float ExtentZ)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                UHitboxComponent* Hitbox = Cast<UHitboxComponent>(
+                    Owner->GetComponent(UHitboxComponent::StaticClass())
+                );
+                if (Hitbox)
+                {
+                    Hitbox->SetBoxExtent(FVector(ExtentX, ExtentY, ExtentZ));
+                }
+            }
+        });
+
+    // 히트박스 로컬 오프셋 설정 (Lua용)
+    // 사용법: SetHitboxOffset(Obj, offsetX, offsetY, offsetZ)
+    // offsetX: 전방(+) / 후방(-), offsetY: 우측(+) / 좌측(-), offsetZ: 위(+) / 아래(-)
+    // 캐릭터의 회전을 고려하여 월드 좌표로 변환
+    SharedLib.set_function("SetHitboxOffset", [](FGameObject& Obj, float OffsetX, float OffsetY, float OffsetZ)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                UHitboxComponent* Hitbox = Cast<UHitboxComponent>(
+                    Owner->GetComponent(UHitboxComponent::StaticClass())
+                );
+                if (Hitbox)
+                {
+                    // Forward/Right 벡터를 사용해 로컬 오프셋을 월드 좌표로 변환
+                    FVector Forward = Owner->GetActorForward();
+                    FVector Right = Owner->GetActorRight();
+                    FVector OwnerLocation = Owner->GetActorLocation();
+
+                    // 로컬 오프셋 적용: X=전방, Y=우측, Z=위
+                    FVector WorldPosition = OwnerLocation + Forward * OffsetX - Right * OffsetY + FVector(0, 0, OffsetZ);
+
+                    Hitbox->SetWorldLocation(WorldPosition);
+                    Hitbox->SetWorldRotation(Owner->GetActorRotation());
+                }
+            }
+        });
+
+    // 히트박스 비활성화 (Lua용)
+    SharedLib.set_function("DisableHitbox", [](FGameObject& Obj)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                UHitboxComponent* Hitbox = Cast<UHitboxComponent>(
+                    Owner->GetComponent(UHitboxComponent::StaticClass())
+                );
+                if (Hitbox)
+                {
+                    Hitbox->DisableHitbox();
+                }
+            }
+        });
+
+    // 몽타주 재생 중인지 확인 (Lua용)
+    SharedLib.set_function("IsMontagePlayling", [](FGameObject& Obj) -> bool
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (AEnemyBase* Enemy = Cast<AEnemyBase>(Owner))
+                {
+                    if (USkeletalMeshComponent* Mesh = Enemy->GetMesh())
+                    {
+                        if (UAnimInstance* AnimInst = Mesh->GetAnimInstance())
+                        {
+                            return AnimInst->Montage_IsPlaying();
+                        }
+                    }
+                }
+            }
+            return false;
+        });
+
+    // 몽타주 정지 (Lua용) - 보스/적용
+    SharedLib.set_function("StopMontage", [](FGameObject& Obj)
+        {
+            if (AActor* Owner = Obj.GetOwner())
+            {
+                if (AEnemyBase* Enemy = Cast<AEnemyBase>(Owner))
+                {
+                    if (USkeletalMeshComponent* Mesh = Enemy->GetMesh())
+                    {
+                        if (UAnimInstance* AnimInst = Mesh->GetAnimInstance())
+                        {
+                            AnimInst->Montage_Stop(0.1f);
+                        }
+                    }
+                }
+            }
+        });
+
+    // 플레이어 몽타주 정지 (Lua용)
+    SharedLib.set_function("StopPlayerMontage", []()
+        {
+            for (TObjectIterator<APlayerCharacter> It; It; ++It)
+            {
+                APlayerCharacter* Player = *It;
+                if (USkeletalMeshComponent* Mesh = Player->GetMesh())
+                {
+                    if (UAnimInstance* AnimInst = Mesh->GetAnimInstance())
+                    {
+                        AnimInst->Montage_Stop(0.1f);
+                    }
+                }
+            }
+        });
+
+    // 플레이어 체력바 Y 오프셋 설정 (Phase 3 레터박스용)
+    SharedLib.set_function("SetPlayerBarYOffset", [](float Offset)
+        {
+            UGameOverlayD2D::Get().SetPlayerBarYOffset(Offset);
+        });
+    
+    // FVector usertype 등록 (메서드와 프로퍼티)
+    SharedLib.new_usertype<FVector>("FVector",
+        sol::no_constructor,  // 생성자는 위에서 Vector 함수로 등록했음
+        // Properties
+        "X", &FVector::X,
+        "Y", &FVector::Y,
+        "Z", &FVector::Z,
+        // Operators
+        sol::meta_function::addition, [](const FVector& a, const FVector& b) -> FVector {
+            return FVector(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+        },
+        sol::meta_function::subtraction, [](const FVector& a, const FVector& b) -> FVector {
+            return FVector(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+        },
+        sol::meta_function::multiplication, sol::overload(
+            [](const FVector& v, float f) -> FVector { return v * f; },
+            [](float f, const FVector& v) -> FVector { return v * f; }
+        ),
+        // Methods
+        "Length", &FVector::Distance,
+        "Normalize", &FVector::Normalize,
+        "Dot", [](const FVector& a, const FVector& b) { return FVector::Dot(a, b); },
+        "Cross", [](const FVector& a, const FVector& b) { return FVector::Cross(a, b); }
+    );
+
+    Lua->set_function("Color", sol::overload(
+        []() { return FLinearColor(0.0f, 0.0f, 0.0f, 1.0f); },
+        [](float R, float G, float B) { return FLinearColor(R, G, B, 1.0f); },
+        [](float R, float G, float B, float A) { return FLinearColor(R, G, B, A); }
+    ));
+
+
+    SharedLib.new_usertype<FLinearColor>("FLinearColor",
+        sol::no_constructor,
+        "R", &FLinearColor::R,
+        "G", &FLinearColor::G,
+        "B", &FLinearColor::B,
+        "A", &FLinearColor::A
+    );
+
+    RegisterComponentProxy(*Lua);
+    ExposeGlobalFunctions();
+    ExposeAllComponentsToLua();
+
+    // 위 등록 마친 뒤 fall back 설정 : Shared lib의 fall back은 G
+    sol::table MetaTableShared = Lua->create_table();
+    MetaTableShared[sol::meta_function::index] = Lua->globals();
+    SharedLib[sol::metatable_key]  = MetaTableShared;
+}
+
+FLuaManager::~FLuaManager()
+{
+    ShutdownBeforeLuaClose();
+    
+    if (Lua)
+    {
+        delete Lua;
+        Lua = nullptr;
+    }
+}
+
+sol::environment FLuaManager::CreateEnvironment()
+{
+    sol::environment Env(*Lua, sol::create);
+
+    // Environment의 Fall back은 SharedLib
+    sol::table MetaTable = Lua->create_table();
+    MetaTable[sol::meta_function::index] = SharedLib;
+    Env[sol::metatable_key] = MetaTable;
+    
+    return Env;
+}
+
+void FLuaManager::RegisterComponentProxy(sol::state& Lua) {
+    Lua.new_usertype<LuaComponentProxy>("Component",
+        sol::meta_function::index,     &LuaComponentProxy::Index,
+        sol::meta_function::new_index, &LuaComponentProxy::NewIndex
+    );
+}
+
+void FLuaManager::ExposeAllComponentsToLua()
+{
+    SharedLib["Components"] = Lua->create_table();
+
+    SharedLib.set_function("AddComponent",
+        [this](sol::object Obj, const FString& ClassName)
+        {
+           if (!Obj.is<FGameObject&>()) {
+                UE_LOG("[Lua][error] Error: Expected GameObject\n");
+                return sol::make_object(*Lua, sol::nil);
+            }
+        
+            FGameObject& GameObject = Obj.as<FGameObject&>();
+            AActor* Actor = GameObject.GetOwner();
+
+            UClass* Class = UClass::FindClass(ClassName);
+            if (!Class) return sol::make_object(*Lua, sol::nil);
+
+            UActorComponent* Comp = Actor->AddNewComponent(Class);
+            return MakeCompProxy(*Lua, Comp, Class);
+        });
+
+    SharedLib.set_function("GetComponent",
+        [this](sol::object Obj, const FString& ClassName)
+        {
+            if (!Obj.is<FGameObject&>()) {
+                UE_LOG("[Lua][error] Error: Expected GameObject\n");
+                return sol::make_object(*Lua, sol::nil);
+            }
+            
+            FGameObject& GameObject = Obj.as<FGameObject&>();
+            AActor* Actor = GameObject.GetOwner();
+
+            UClass* Class = UClass::FindClass(ClassName);
+            if (!Class) return sol::make_object(*Lua, sol::nil);
+            
+            UActorComponent* Comp = Actor->GetComponent(Class);
+            if (!Comp) return sol::make_object(*Lua, sol::nil); 
+            
+            return MakeCompProxy(*Lua, Comp, Class);
+        }
+    );
+}
+
+void FLuaManager::ExposeGlobalFunctions()
+{
+    // APlayerCameraManager 클래스의 멤버 함수들 바인딩
+    Lua->new_usertype<APlayerCameraManager>("PlayerCameraManager",
+        sol::no_constructor,
+
+        // --- StartCameraShake ---
+        "StartCameraShake", sol::overload(
+            // (Full) 5개 인수
+            [](APlayerCameraManager* Self, float InDuration, float AmpLoc, float AmpRotDeg, float Frequency, int32 InPriority)
+            {
+                if (Self) Self->StartCameraShake(InDuration, AmpLoc, AmpRotDeg, Frequency, InPriority);
+            },
+            // (Priority 기본값 사용) 4개 인수
+            [](APlayerCameraManager* Self, float InDuration, float AmpLoc, float AmpRotDeg, float Frequency)
+            {
+                if (Self) Self->StartCameraShake(InDuration, AmpLoc, AmpRotDeg, Frequency);
+            }
+        ),
+
+        // --- StartFade ---
+        "StartFade", sol::overload(
+            // (Full) 5개 인수
+            [](APlayerCameraManager* Self, float InDuration, float FromAlpha, float ToAlpha, const FLinearColor& InColor, int32 InPriority)
+            {
+                if (Self) Self->StartFade(InDuration, FromAlpha, ToAlpha, InColor, InPriority);
+            },
+            // (Priority 기본값 사용) 4개 인수
+            [](APlayerCameraManager* Self, float InDuration, float FromAlpha, float ToAlpha, const FLinearColor& InColor)
+            {
+                if (Self) Self->StartFade(InDuration, FromAlpha, ToAlpha, InColor);
+            },
+            // (Color, Priority 기본값 사용) 3개 인수
+            [](APlayerCameraManager* Self, float InDuration, float FromAlpha, float ToAlpha)
+            {
+                if (Self) Self->StartFade(InDuration, FromAlpha, ToAlpha);
+            }
+        ),
+
+        // --- StartLetterBox ---
+        "StartLetterBox", sol::overload(
+            // (Full) 5개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Aspect, float BarHeight, const FLinearColor& InColor, int32 InPriority)
+            {
+                if (Self) Self->StartLetterBox(InDuration, Aspect, BarHeight, InColor, InPriority);
+            },
+            // (Priority 기본값 사용) 4개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Aspect, float BarHeight, const FLinearColor& InColor)
+            {
+                if (Self) Self->StartLetterBox(InDuration, Aspect, BarHeight, InColor);
+            },
+            // (Color, Priority 기본값 사용) 3개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Aspect, float BarHeight)
+            {
+                if (Self) Self->StartLetterBox(InDuration, Aspect, BarHeight);
+            }
+        ),
+
+        // --- StartVignette (int 반환) ---
+        "StartVignette", sol::overload(
+            // (Full) 7개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor, int32 InPriority) -> int
+            {
+                return Self ? Self->StartVignette(InDuration, Radius, Softness, Intensity, Roundness, InColor, InPriority) : -1;
+            },
+            // (Priority 기본값 사용) 6개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor) -> int
+            {
+                return Self ? Self->StartVignette(InDuration, Radius, Softness, Intensity, Roundness, InColor) : -1;
+            },
+            // (Color, Priority 기본값 사용) 5개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Radius, float Softness, float Intensity, float Roundness) -> int
+            {
+                return Self ? Self->StartVignette(InDuration, Radius, Softness, Intensity, Roundness) : -1;
+            }
+        ),
+
+        // --- UpdateVignette (int 반환) ---
+        "UpdateVignette", sol::overload(
+            // (Full) 8개 인수
+            [](APlayerCameraManager* Self, int Idx, float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor, int32 InPriority) -> int
+            {
+                return Self ? Self->UpdateVignette(Idx, InDuration, Radius, Softness, Intensity, Roundness, InColor, InPriority) : -1;
+            },
+            // (Priority 기본값 사용) 7개 인수
+            [](APlayerCameraManager* Self, int Idx, float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor) -> int
+            {
+                return Self ? Self->UpdateVignette(Idx, InDuration, Radius, Softness, Intensity, Roundness, InColor) : -1;
+            },
+            // (Color, Priority 기본값 사용) 6개 인수
+            [](APlayerCameraManager* Self, int Idx, float InDuration, float Radius, float Softness, float Intensity, float Roundness) -> int
+            {
+                return Self ? Self->UpdateVignette(Idx, InDuration, Radius, Softness, Intensity, Roundness) : -1;
+            }
+        ),
+
+        // --- AdjustVignette ---
+        "AdjustVignette", sol::overload(
+            // (Full) 7개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor, int32 InPriority)
+            {
+                if (Self) Self->AdjustVignette(InDuration, Radius, Softness, Intensity, Roundness, InColor, InPriority);
+            },
+            // (Priority 기본값 사용) 6개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Radius, float Softness, float Intensity, float Roundness, const FLinearColor& InColor)
+            {
+                if (Self) Self->AdjustVignette(InDuration, Radius, Softness, Intensity, Roundness, InColor);
+            },
+            // (Color, Priority 기본값 사용) 5개 인수
+            [](APlayerCameraManager* Self, float InDuration, float Radius, float Softness, float Intensity, float Roundness)
+            {
+                if (Self) Self->AdjustVignette(InDuration, Radius, Softness, Intensity, Roundness);
+            }
+        ),
+
+        // --- DeleteVignette ---
+        "DeleteVignette", [](APlayerCameraManager* Self)
+        {
+            if (Self) Self->DeleteVignette();
+        },
+            
+        "SetViewTarget", [](APlayerCameraManager* self, LuaComponentProxy& Proxy)
+        {
+            // 타입 안정성 확인
+            if (self && Proxy.Instance && Proxy.Class == UCameraComponent::StaticClass())
+            {
+                // 프록시에서 실제 컴포넌트 포인터 추출
+                auto* CameraComp = static_cast<UCameraComponent*>(Proxy.Instance);
+                self->SetViewCamera(CameraComp);
+            }
+        },
+
+        "SetViewTargetWithBlend", [](APlayerCameraManager* self, LuaComponentProxy& Proxy, float InBlendTime)
+        {
+            // 타입 안정성 확인
+            if (self && Proxy.Instance && Proxy.Class == UCameraComponent::StaticClass())
+            {
+                // 프록시에서 실제 컴포넌트 포인터 추출
+                auto* CameraComp = static_cast<UCameraComponent*>(Proxy.Instance);
+                self->SetViewCameraWithBlend(CameraComp, InBlendTime);
+            }
+        },
+
+        // --- Gamma Correction ---
+         // (Gamma Correction 기본값 사용) 1개 인수
+        "StartGamma", [](APlayerCameraManager* Self, float Gamma)
+        {
+            if (Self)
+            {
+                Self->StartGamma(Gamma);
+            }
+        },
+
+        // --- Depth of Field ---
+        // (Full) 7개 인수
+        "StartDOF", [](APlayerCameraManager* Self, float FocalDistance, float FocalRegion, float NearTransitionRegion, float FarTransitionRegion, float MaxNearBlurSize, float MaxFarBlurSize, int32 InPriority)
+        {
+            if (Self)
+            {
+                Self->StartDOF(FocalDistance, FocalRegion, NearTransitionRegion, FarTransitionRegion, MaxNearBlurSize, MaxFarBlurSize, InPriority);
+            }
+        }
+    );
+}
+
+bool FLuaManager::LoadScriptInto(sol::environment& Env, const FString& Path) {
+    auto Chunk = Lua->load_file(Path);
+    if (!Chunk.valid()) { sol::error Err = Chunk; UE_LOG("[Lua][error] %s", Err.what()); return false; }
+    
+    sol::protected_function ProtectedFunc = Chunk;
+    sol::set_environment(Env, ProtectedFunc);         
+    auto Result = ProtectedFunc();
+    if (!Result.valid()) { sol::error Err = Result; UE_LOG("[Lua][error] %s", Err.what()); return false; }
+    return true;
+}
+
+void FLuaManager::Tick(double DeltaSeconds)
+{
+    CoroutineSchedular.Tick(DeltaSeconds);
+}
+
+void FLuaManager::ShutdownBeforeLuaClose()
+{
+    CoroutineSchedular.ShutdownBeforeLuaClose();
+    
+    FLuaBindRegistry::Get().Reset();
+    
+    SharedLib = sol::nil;
+}
+
+// Lua 함수 캐시 함수
+sol::protected_function FLuaManager::GetFunc(sol::environment& Env, const char* Name)
+{
+    // (*Lua)[BeginPlay]()를 VM이 아닌, env에서 생성 및 캐시한다.
+    // TODO : 함수 이름이 중복된다면?
+    if (!Env.valid())
+        return {};
+
+    sol::object Object = Env[Name];
+    
+    if (Object == sol::nil || Object.get_type() != sol::type::function)
+        return {};
+    
+    sol::protected_function Func = Object.as<sol::protected_function>();
+    
+    return Func;
+}

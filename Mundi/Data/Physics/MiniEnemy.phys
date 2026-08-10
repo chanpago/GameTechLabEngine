@@ -1,0 +1,1383 @@
+{
+        "BodySetups" : [{
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.000000, 0.000000, 0.000000],
+                  "HalfLength" : 0.000000,
+                  "Radius" : 0.000000,
+                  "Rotation" : [0.000000, 0.000000, 0.000000, 1.000000]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "root",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.032749, 0.347764, 0.000000],
+                  "HalfLength" : 0.304958,
+                  "Radius" : 0.304958,
+                  "Rotation" : [0.703992, 0.066295, -0.000000, 0.707107]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "pelvis",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.005398, 0.068578, 0.000000],
+                  "HalfLength" : 0.062407,
+                  "Radius" : 0.062407,
+                  "Rotation" : [0.704927, -0.055486, 0.000000, 0.707106]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "spine_05",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.002210, 0.009259, -0.000000],
+                  "HalfLength" : 0.053683,
+                  "Radius" : 0.053683,
+                  "Rotation" : [0.687784, -0.164173, 0.000000, 0.707107]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "neck_01",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.000702, 0.039586, -0.023558],
+                  "HalfLength" : 0.062806,
+                  "Radius" : 0.062806,
+                  "Rotation" : [0.494217, -0.008770, 0.000000, 0.869294]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "upperarm_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.048282, 0.084774, 0.000000],
+                  "HalfLength" : 0.088246,
+                  "Radius" : 0.088246,
+                  "Rotation" : [0.614442, -0.349946, 0.000000, 0.707106]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "lowerarm_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.003208, 0.090741, 0.002665],
+                  "HalfLength" : 0.045418,
+                  "Radius" : 0.045418,
+                  "Rotation" : [0.716958, 0.025350, -0.000000, 0.696655]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "lowerarm_twist_01_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.008845, 0.053108, 0.001904],
+                  "HalfLength" : 0.106561,
+                  "Radius" : 0.106561,
+                  "Rotation" : [0.709719, -0.118200, 0.000000, 0.694499]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "hand_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.000000, 0.092571, 0.000000],
+                  "HalfLength" : 0.046285,
+                  "Radius" : 0.046285,
+                  "Rotation" : [0.707108, -0.000001, 0.000000, 0.707105]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "upperarm_twist_02_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.000703, -0.039588, 0.023559],
+                  "HalfLength" : 0.062807,
+                  "Radius" : 0.062807,
+                  "Rotation" : [-0.869157, 0.015425, 0.000000, 0.494296]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "upperarm_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.048281, -0.084771, 0.000001],
+                  "HalfLength" : 0.088244,
+                  "Radius" : 0.088244,
+                  "Rotation" : [-0.614442, 0.349950, 0.000000, 0.707104]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "lowerarm_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.003208, -0.090739, -0.002664],
+                  "HalfLength" : 0.045418,
+                  "Radius" : 0.045418,
+                  "Rotation" : [-0.696224, -0.024611, 0.000000, 0.717402]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "lowerarm_twist_01_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.008844, -0.053108, -0.001903],
+                  "HalfLength" : 0.106560,
+                  "Radius" : 0.106560,
+                  "Rotation" : [-0.685070, 0.114081, 0.000000, 0.719489]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "hand_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.000000, -0.092569, 0.000002],
+                  "HalfLength" : 0.046284,
+                  "Radius" : 0.046284,
+                  "Rotation" : [-0.707115, 0.000000, 0.000000, 0.707099]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "upperarm_twist_02_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.008501, 0.014469, -0.048407],
+                  "HalfLength" : 0.025617,
+                  "Radius" : 0.025617,
+                  "Rotation" : [0.143195, -0.084130, 0.000000, 0.986112]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "thigh_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.018905, 0.215880, -0.000002],
+                  "HalfLength" : 0.108353,
+                  "Radius" : 0.108353,
+                  "Rotation" : [0.704408, -0.061688, 0.000000, 0.707109]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "calf_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.009813, 0.210557, -0.011334],
+                  "HalfLength" : 0.105545,
+                  "Radius" : 0.105545,
+                  "Rotation" : [0.687116, 0.032022, -0.000000, 0.725842]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "foot_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.035047, -0.076188, 0.002695],
+                  "HalfLength" : 0.041953,
+                  "Radius" : 0.041953,
+                  "Rotation" : [-0.652631, -0.300216, 0.000000, 0.695660]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "ball_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.003271, 0.070286, -0.000505],
+                  "HalfLength" : 0.035182,
+                  "Radius" : 0.035182,
+                  "Rotation" : [0.703802, 0.032754, -0.000000, 0.709641]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "calf_twist_02_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.006542, 0.140571, -0.001010],
+                  "HalfLength" : 0.070363,
+                  "Radius" : 0.070363,
+                  "Rotation" : [0.703802, 0.032753, -0.000000, 0.709641]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "calf_twist_01_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.001648, 0.072216, -0.000326],
+                  "HalfLength" : 0.036118,
+                  "Radius" : 0.036118,
+                  "Rotation" : [0.705327, -0.016097, 0.000000, 0.708699]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "thigh_twist_01_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.003296, 0.144432, -0.000652],
+                  "HalfLength" : 0.072235,
+                  "Radius" : 0.072235,
+                  "Rotation" : [0.705327, -0.016096, 0.000000, 0.708699]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "thigh_twist_02_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.008454, -0.014472, 0.048414],
+                  "HalfLength" : 0.025617,
+                  "Radius" : 0.025617,
+                  "Rotation" : [-0.851501, 0.497427, 0.000000, 0.165867]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "thigh_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.018905, -0.215881, 0.000000],
+                  "HalfLength" : 0.108353,
+                  "Radius" : 0.108353,
+                  "Rotation" : [-0.704411, 0.061688, 0.000000, 0.707107]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "calf_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.009813, -0.210556, 0.011333],
+                  "HalfLength" : 0.105545,
+                  "Radius" : 0.105545,
+                  "Rotation" : [-0.725054, -0.033790, 0.000000, 0.687863]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "foot_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.035047, 0.076188, -0.002694],
+                  "HalfLength" : 0.041953,
+                  "Radius" : 0.041953,
+                  "Rotation" : [0.631998, 0.290726, -0.000000, 0.718371]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "ball_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.003271, -0.070286, 0.000316],
+                  "HalfLength" : 0.035181,
+                  "Radius" : 0.035181,
+                  "Rotation" : [-0.707929, -0.032944, 0.000000, 0.705515]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "calf_twist_02_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.006542, -0.140571, 0.001010],
+                  "HalfLength" : 0.070363,
+                  "Radius" : 0.070363,
+                  "Rotation" : [-0.708873, -0.032989, 0.000000, 0.704565]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "calf_twist_01_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.001648, -0.072216, 0.000325],
+                  "HalfLength" : 0.036118,
+                  "Radius" : 0.036118,
+                  "Rotation" : [-0.708514, 0.016168, 0.000000, 0.705512]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "thigh_twist_01_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.003296, -0.144432, 0.000651],
+                  "HalfLength" : 0.072236,
+                  "Radius" : 0.072236,
+                  "Rotation" : [-0.708514, 0.016169, 0.000000, 0.705512]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "thigh_twist_02_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.004214, 0.041340, 0.070399],
+                  "HalfLength" : 0.040874,
+                  "Radius" : 0.040874,
+                  "Rotation" : [0.959695, 0.097821, -0.000000, 0.263469]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "ik_foot_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.004260, -0.041344, -0.070391],
+                  "HalfLength" : 0.040873,
+                  "Radius" : 0.040873,
+                  "Rotation" : [-0.262149, -0.027012, 0.000000, 0.964649]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "ik_foot_r",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [0.549868, 0.173422, -0.060057],
+                  "HalfLength" : 0.289844,
+                  "Radius" : 0.289844,
+                  "Rotation" : [0.201368, -0.638475, 0.000000, 0.742833]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "ik_hand_gun",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }, {
+            "Aggregate" : {
+              "Boxes" : [],
+              "Capsules" : [{
+                  "Center" : [-0.308350, 0.218668, -0.292040],
+                  "HalfLength" : 0.238842,
+                  "Radius" : 0.238842,
+                  "Rotation" : [0.254995, 0.359576, -0.000000, 0.897598]
+                }],
+              "Convexes" : [],
+              "Spheres" : []
+            },
+            "AngularDamping" : 1.000000,
+            "Bone" : "ik_hand_l",
+            "CollisionState" : 2,
+            "LinearDamping" : 1.000000,
+            "Mass" : 10.000000,
+            "PhysMaterial" : {
+              "Density" : 1.000000,
+              "DynamicFriction" : 0.500000,
+              "FrictionCombineMode" : 2,
+              "Restitution" : 0.000000,
+              "RestitutionCombineMode" : 2,
+              "StaticFriction" : 1.000000
+            },
+            "bEnableGravity" : true,
+            "bSimulatePhysics" : true
+          }],
+        "Constraints" : [{
+            "BodyA" : "root",
+            "BodyB" : "pelvis",
+            "LocalFrameA" : {
+              "Rotation" : [-0.706751, -0.706751, -0.022415, -0.022415],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.022809, 0.000000, 0.958968]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "spine_05",
+            "BodyB" : "neck_01",
+            "LocalFrameA" : {
+              "Rotation" : [-0.385489, -0.592788, -0.385489, 0.592788],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, -0.118877, 0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "upperarm_l",
+            "BodyB" : "lowerarm_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.304535, -0.638168, -0.304535, 0.638168],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, -0.277713, -0.000001]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "lowerarm_l",
+            "BodyB" : "lowerarm_twist_01_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.521760, -0.492788, -0.495405, 0.489388],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, -0.181674, 0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "lowerarm_l",
+            "BodyB" : "hand_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.145579, -0.682605, -0.704844, 0.126697],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, -0.272511, -0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "upperarm_l",
+            "BodyB" : "upperarm_twist_02_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, -0.185142, -0.000001]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "upperarm_r",
+            "BodyB" : "lowerarm_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.304537, -0.638167, -0.304532, 0.638169],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.277706, -0.000003]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "lowerarm_r",
+            "BodyB" : "lowerarm_twist_01_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.521760, -0.492788, -0.495405, 0.489388],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000001, 0.181670, -0.000002]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "lowerarm_r",
+            "BodyB" : "hand_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.145575, -0.682606, -0.704844, 0.126693],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000002, 0.272506, -0.000003]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "upperarm_r",
+            "BodyB" : "upperarm_twist_02_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.499999, -0.499999, -0.500001, 0.500001],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.185137, -0.000004]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "pelvis",
+            "BodyB" : "thigh_r",
+            "LocalFrameA" : {
+              "Rotation" : [0.491271, -0.534707, 0.534217, 0.432843],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.001195, 0.023658, 0.099691]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "thigh_r",
+            "BodyB" : "calf_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.477692, -0.521353, -0.477693, 0.521354],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, -0.433412, 0.000003]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "calf_r",
+            "BodyB" : "foot_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.497534, -0.474960, -0.525074, 0.501169],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, -0.422179, 0.000003]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "foot_r",
+            "BodyB" : "ball_r",
+            "LocalFrameA" : {
+              "Rotation" : [0.000000, -0.707107, 0.000000, 0.707106],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.152376, -0.070094, -0.005389]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "calf_r",
+            "BodyB" : "calf_twist_02_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.510317, -0.487161, -0.512659, 0.489317],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, -0.140726, 0.000378]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "calf_r",
+            "BodyB" : "calf_twist_01_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.510317, -0.487162, -0.512659, 0.489317],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, -0.281453, 0.000757]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "thigh_r",
+            "BodyB" : "thigh_twist_01_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.493149, -0.504531, -0.495375, 0.506809],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, -0.144471, 0.000001]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "thigh_r",
+            "BodyB" : "thigh_twist_02_r",
+            "LocalFrameA" : {
+              "Rotation" : [-0.493149, -0.504531, -0.495376, 0.506809],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, -0.288941, 0.000002]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "pelvis",
+            "BodyB" : "thigh_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.534708, -0.491273, -0.432841, 0.534216],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.001100, 0.023657, -0.099692]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "thigh_l",
+            "BodyB" : "calf_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.477692, -0.521354, -0.477692, 0.521354],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, 0.433413, 0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "calf_l",
+            "BodyB" : "foot_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.497533, -0.474959, -0.525075, 0.501170],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, 0.422179, -0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "foot_l",
+            "BodyB" : "ball_l",
+            "LocalFrameA" : {
+              "Rotation" : [0.000000, -0.707107, 0.000000, 0.707107],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.152376, 0.070095, 0.005389]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "calf_l",
+            "BodyB" : "calf_twist_02_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.510316, -0.487160, -0.512660, 0.489318],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.140726, -0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "calf_l",
+            "BodyB" : "calf_twist_01_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.510316, -0.487160, -0.512660, 0.489318],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, 0.281452, -0.000755]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "thigh_l",
+            "BodyB" : "thigh_twist_01_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.493148, -0.504531, -0.495376, 0.506810],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, 0.144471, -0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "thigh_l",
+            "BodyB" : "thigh_twist_02_l",
+            "LocalFrameA" : {
+              "Rotation" : [-0.493148, -0.504531, -0.495376, 0.506810],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [-0.000000, 0.288942, -0.000000]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }, {
+            "BodyA" : "ik_hand_gun",
+            "BodyB" : "ik_hand_l",
+            "LocalFrameA" : {
+              "Rotation" : [0.857321, -0.211811, -0.245955, 0.399554],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.616699, -0.437336, 0.584081]
+            },
+            "LocalFrameB" : {
+              "Rotation" : [-0.500000, -0.500000, -0.500000, 0.500000],
+              "Scale3D" : [1.000000, 1.000000, 1.000000],
+              "Translation" : [0.000000, 0.000000, 0.000000]
+            },
+            "SwingY" : 0.523599,
+            "SwingZ" : 0.523599,
+            "TwistMax" : 0.785398,
+            "TwistMin" : -0.785398
+          }],
+        "Name" : "UPhysicsAsset_6",
+        "Type" : "PhysicsAsset"
+      }

@@ -1,0 +1,15 @@
+=== Crash Detected ===
+Time: 2025-12-08_19-39-59
+Exception Code: 0xc0000005 (Access Violation)
+=== Call Stack ===
+D3DKMTOpenResource - (Unknown File) (0)
+FSceneRenderer::DrawMeshBatches - C:\Users\Jungle\GTL_Week14_GameJam\Mundi\Source\Runtime\Renderer\SceneRenderer.cpp (1781)
+FSceneRenderer::RenderOpaquePass - C:\Users\Jungle\GTL_Week14_GameJam\Mundi\Source\Runtime\Renderer\SceneRenderer.cpp (992)
+FSceneRenderer::RenderLitPath - C:\Users\Jungle\GTL_Week14_GameJam\Mundi\Source\Runtime\Renderer\SceneRenderer.cpp (178)
+FSceneRenderer::Render - C:\Users\Jungle\GTL_Week14_GameJam\Mundi\Source\Runtime\Renderer\SceneRenderer.cpp (109)
+URenderer::RenderSceneForView - C:\Users\Jungle\GTL_Week14_GameJam\Mundi\Source\Runtime\Renderer\Renderer.cpp (74)
+UGameEngine::Render - C:\Users\Jungle\GTL_Week14_GameJam\Mundi\Source\Runtime\Engine\GameFramework\GameEngine.cpp (259)
+WinMain - C:\Users\Jungle\GTL_Week14_GameJam\Mundi\main.cpp (27)
+__scrt_common_main_seh - D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl (288)
+BaseThreadInitThunk - (Unknown File) (0)
+RtlUserThreadStart - (Unknown File) (0)

@@ -1,0 +1,37 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlayParticle",
+      "Data" : {
+        "AbsoluteWorld" : true,
+        "AttachBone" : "Invalid",
+        "AttachToOwner" : false,
+        "LifeTime" : 0.000000,
+        "LocationOffset" : [0.000000, 0.000000, 6.000000],
+        "ParticlePath" : "Data/Particle/G_Rain.particle",
+        "RotationOffset" : [0.000000, 0.000000, 0.000000],
+        "ScaleOffset" : [3.338000, 2.809000, 1.000000]
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlayParticle: G_Rain.particle",
+      "TriggerTime" : 0.023062
+    }, {
+      "Class" : "UAnimNotify_PlayParticle",
+      "Data" : {
+        "AbsoluteWorld" : false,
+        "AttachBone" : "Invalid",
+        "AttachToOwner" : true,
+        "LifeTime" : 2.200000,
+        "LocationOffset" : [0.290000, 0.040000, 0.960000],
+        "ParticlePath" : "Data/Particle/G_3Phase.particle",
+        "RotationOffset" : [0.000000, 0.000000, 0.000000],
+        "ScaleOffset" : [1.000000, 1.000000, 1.000000]
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlayParticle: G_3Phase.particle",
+      "TriggerTime" : 0.065829
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

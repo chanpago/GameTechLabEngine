@@ -1,0 +1,159 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "Dilation" : 0.100000,
+          "Duration" : 3.500000,
+          "Type" : "Slomo"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 0.174837
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Enable",
+      "TriggerTime" : 0.069160
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Disable",
+      "TriggerTime" : 0.637398
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.010000,
+        "RelativeLocation" : [5.500000, 0.000000, 0.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.996195, 0.087156],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.162128
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.400000,
+        "RelativeLocation" : [0.000000, -500.000000, 200.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.000000, 1.000000],
+        "bBlendBackToDefault" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.566555
+    }, {
+      "Class" : "UAnimNotify_SetViewTarget",
+      "Data" : {
+        "BlendTime" : 0.010000,
+        "RelativeLocation" : [-2.000000, 0.000000, 0.000000],
+        "RelativeRotation" : [0.000000, 0.000000, 0.000000, 1.000000],
+        "bBlendBackToDefault" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "SetViewTarget",
+      "TriggerTime" : 0.399472
+    }, {
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "AmpLoc" : 0.050000,
+          "AmpRot" : 0.050000,
+          "Duration" : 0.350000,
+          "Frequency" : 10.000000,
+          "Priority" : 0,
+          "Type" : "Shake"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 0.411925
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: On: WeaponRibbon",
+      "TriggerTime" : 0.004039
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: Off: WeaponRibbon",
+      "TriggerTime" : 0.565854
+    }, {
+      "Class" : "UAnimNotify_PlayParticle",
+      "Data" : {
+        "AttachBone" : "Invalid",
+        "AttachToOwner" : true,
+        "LifeTime" : 1.700000,
+        "LocationOffset" : [0.000000, 0.000000, 1.000000],
+        "ParticlePath" : "Data/Particle/G_Ember.particle",
+        "RotationOffset" : [0.000000, 0.000000, 0.000000],
+        "ScaleOffset" : [1.000000, 1.000000, 1.000000]
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlayParticle: G_Ember.particle",
+      "TriggerTime" : 0.006425
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Magic/Banks10_65.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_65.wav",
+      "TriggerTime" : 0.359350
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/ShinobiVoices/audio (12).wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: audio (12).wav",
+      "TriggerTime" : 0.151220
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Magic/Banks17_89.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks17_89.wav",
+      "TriggerTime" : 0.021138
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Minimum_8.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Minimum_8.wav",
+      "TriggerTime" : 0.627642
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

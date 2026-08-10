@@ -1,0 +1,90 @@
+{
+  "ObjectName" : "스태틱 메시_1",
+  "OwnedComponents" : [{
+      "AngularDampingOverride" : 0.050000,
+      "BoxExtent" : [50.000000, 0.000000, 0.000000],
+      "CapsuleHalfHeight" : 44.000000,
+      "CapsuleRadius" : 22.000000,
+      "CollisionEnabled_Internal" : 2,
+      "CollisionOffset" : [0.000000, 0.000000, 0.000000],
+      "CollisionRotation" : [0.000000, 0.000000, 0.000000],
+      "CollisionType" : 1,
+      "FrictionCombineModeOverride" : 2,
+      "Id" : 10610,
+      "LinearDampingOverride" : 0.010000,
+      "MassOverride" : 10.000000,
+      "MaterialSlots" : [{
+          "Type" : "None"
+        }, {
+          "AssetPath" : "MI_Treebark",
+          "Type" : "UMaterial"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/Textures/Sicka Dynasty/Game/SICKA_DYNASTY/Textures/T_TreeBranch2_BaseColor.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_TreeBranch2",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/Textures/Sicka Dynasty/Game/SICKA_DYNASTY/Textures/T_TreeBranch2_BaseColor.PNG"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_TreeBranch2_2",
+          "Type" : "UMaterialInstanceDynamic"
+        }, {
+          "Overrides" : {
+            "Scalars" : {
+
+            },
+            "Textures" : {
+              "0" : "Data/Textures/blank.png"
+            },
+            "Vectors" : {
+
+            }
+          },
+          "ParentPath" : "MI_TreeBillboard",
+          "Type" : "UMaterialInstanceDynamic"
+        }],
+      "ObjectName" : "StaticMeshComponent",
+      "ParentId" : 0,
+      "PhysMaterialPreset" : 0,
+      "RelativeLocation" : [5.998075, -11.086295, 0.134681],
+      "RelativeRotationEuler" : [0.000000, -0.000000, 0.000000],
+      "RelativeScale" : [0.003000, 0.003000, 0.003000],
+      "RestitutionCombineModeOverride" : 2,
+      "SphereRadius" : 50.000000,
+      "StaticMesh" : "Data/Model/Sicka Dynasty/Game/SICKA_DYNASTY/StaticMeshes/SM_Tree_05.FBX",
+      "Type" : "UStaticMeshComponent",
+      "bBlockComponent" : false,
+      "bCastShadows" : true,
+      "bEnableCollision" : false,
+      "bGenerateOverlapEvents" : false,
+      "bHiddenInGame" : false,
+      "bIsActive" : true,
+      "bIsVisible" : true,
+      "bOverrideCollisionSetting" : false,
+      "bSimulatePhysics" : false,
+      "bTickEnabled" : true
+    }],
+  "RootComponentId" : 10610,
+  "Tag" : "",
+  "Type" : "AStaticMeshActor",
+  "bActorHiddenInGame" : false,
+  "bActorIsActive" : true
+}

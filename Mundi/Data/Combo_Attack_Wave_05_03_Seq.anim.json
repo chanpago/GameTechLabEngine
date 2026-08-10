@@ -1,0 +1,70 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_ComboWindow",
+      "Data" : {
+
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "ComboWindow: Enable",
+      "TriggerTime" : 0.012178
+    }, {
+      "Class" : "UAnimNotify_ComboWindow",
+      "Data" : {
+
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "ComboWindow: Enable",
+      "TriggerTime" : 0.316293
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: On: WeaponRibbon",
+      "TriggerTime" : 0.001649
+    }, {
+      "Class" : "UAnimNotify_ParticleOnOff",
+      "Data" : {
+        "ParticleName" : "WeaponRibbon",
+        "bActivate" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Particle: Off: WeaponRibbon",
+      "TriggerTime" : 0.800017
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Enable",
+      "TriggerTime" : 0.120864
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Disable",
+      "TriggerTime" : 0.261495
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks0_938.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks0_938.wav",
+      "TriggerTime" : 0.159965
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

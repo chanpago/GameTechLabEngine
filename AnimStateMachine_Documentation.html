@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mundi Engine - Animation State Machine Blueprint</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #1c2333;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #3fb950;
+  --accent3: #d2a8ff;
+  --accent4: #f78166;
+  --accent5: #ffa657;
+  --red: #f85149;
+  --yellow: #e3b341;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; line-height:1.7; }
+.container { max-width:1200px; margin:0 auto; padding:0 24px; }
+
+/* Header */
+header { background:linear-gradient(135deg,#0d1117 0%,#161b22 50%,#1a1e2e 100%); border-bottom:1px solid var(--border); padding:48px 0; }
+header h1 { font-size:2.4rem; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+header p { color:var(--text-dim); font-size:1.1rem; margin-top:8px; }
+.badge-row { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+.badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:.75rem; font-weight:600; }
+.badge-blue { background:rgba(88,166,255,.15); color:var(--accent); border:1px solid rgba(88,166,255,.3); }
+.badge-green { background:rgba(63,185,80,.15); color:var(--accent2); border:1px solid rgba(63,185,80,.3); }
+.badge-purple { background:rgba(210,168,255,.15); color:var(--accent3); border:1px solid rgba(210,168,255,.3); }
+.badge-orange { background:rgba(255,166,87,.15); color:var(--accent5); border:1px solid rgba(255,166,87,.3); }
+
+/* Navigation */
+nav { background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+nav ul { display:flex; list-style:none; gap:0; overflow-x:auto; }
+nav a { display:block; padding:12px 20px; color:var(--text-dim); text-decoration:none; font-size:.875rem; font-weight:500; white-space:nowrap; border-bottom:2px solid transparent; transition:all .2s; }
+nav a:hover, nav a.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* Sections */
+section { padding:48px 0; border-bottom:1px solid var(--border); }
+section:last-child { border-bottom:none; }
+h2 { font-size:1.6rem; font-weight:700; margin-bottom:24px; display:flex; align-items:center; gap:10px; }
+h2 .icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+h3 { font-size:1.15rem; font-weight:600; margin:24px 0 12px; color:var(--accent3); }
+p, li { color:var(--text-dim); }
+p { margin-bottom:12px; }
+
+/* Cards */
+.card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin:16px 0; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; transition:border-color .2s; }
+.card:hover { border-color:var(--accent); }
+.card-title { font-size:1rem; font-weight:700; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+.card-title .dot { width:8px;height:8px;border-radius:50%; }
+.card-body { font-size:.875rem; color:var(--text-dim); }
+.card-body code { background:rgba(88,166,255,.1); color:var(--accent); padding:1px 6px; border-radius:4px; font-size:.8rem; }
+
+/* Code Blocks */
+.code-block { background:#0d1117; border:1px solid var(--border); border-radius:8px; overflow-x:auto; margin:12px 0; }
+.code-header { background:var(--surface); padding:8px 16px; font-size:.75rem; color:var(--text-dim); border-bottom:1px solid var(--border); font-family:monospace; }
+.code-block pre { padding:16px; font-size:.82rem; line-height:1.6; font-family:'Cascadia Code','Fira Code',monospace; }
+.code-block .kw { color:#ff7b72; }
+.code-block .type { color:#79c0ff; }
+.code-block .str { color:#a5d6ff; }
+.code-block .cmt { color:#8b949e; }
+.code-block .fn { color:#d2a8ff; }
+.code-block .num { color:#79c0ff; }
+.code-block .param { color:#ffa657; }
+
+/* SVG Diagrams */
+.diagram-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; margin:16px 0; overflow-x:auto; }
+.diagram-wrap svg { display:block; margin:0 auto; }
+.diagram-label { text-align:center; font-size:.8rem; color:var(--text-dim); margin-top:12px; }
+
+/* Tables */
+table { width:100%; border-collapse:collapse; margin:12px 0; font-size:.875rem; }
+th { background:var(--surface2); color:var(--accent); text-align:left; padding:10px 14px; border:1px solid var(--border); font-weight:600; }
+td { padding:10px 14px; border:1px solid var(--border); color:var(--text-dim); }
+td code { background:rgba(88,166,255,.1); color:var(--accent); padding:1px 6px; border-radius:4px; font-size:.8rem; }
+tr:hover td { background:rgba(88,166,255,.03); }
+
+/* Pipeline */
+.pipeline { display:flex; align-items:center; gap:0; margin:24px 0; overflow-x:auto; padding:8px 0; }
+.pipe-step { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 20px; min-width:160px; text-align:center; flex-shrink:0; }
+.pipe-step .step-num { font-size:.7rem; color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+.pipe-step .step-title { font-size:.95rem; font-weight:700; color:var(--text); margin:4px 0; }
+.pipe-step .step-desc { font-size:.75rem; color:var(--text-dim); }
+.pipe-arrow { color:var(--accent); font-size:1.5rem; flex-shrink:0; margin:0 4px; }
+
+/* Class hierarchy tree */
+.tree { margin:16px 0; font-family:'Cascadia Code','Fira Code',monospace; font-size:.85rem; }
+.tree-item { padding:4px 0 4px 24px; border-left:2px solid var(--border); position:relative; }
+.tree-item::before { content:''; position:absolute; left:-2px; top:14px; width:20px; height:0; border-top:2px solid var(--border); }
+.tree-root { padding:6px 0; font-weight:700; color:var(--accent); }
+.tree-node { display:inline-block; background:var(--surface); border:1px solid var(--border); padding:2px 10px; border-radius:6px; }
+.tree-node.iface { border-color:var(--accent3); color:var(--accent3); }
+.tree-node.runtime { border-color:var(--accent2); color:var(--accent2); }
+.tree-node.editor { border-color:var(--accent5); color:var(--accent5); }
+.tree-node.compiler { border-color:var(--red); color:var(--red); }
+
+/* Layer diagram */
+.layer-stack { display:flex; flex-direction:column; gap:2px; max-width:500px; margin:16px 0; }
+.layer { padding:14px 20px; border-radius:8px; font-size:.875rem; font-weight:600; text-align:center; }
+
+/* Flowchart nodes */
+.flow-container { display:flex; flex-direction:column; align-items:center; gap:8px; margin:16px 0; }
+.flow-node { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 24px; font-size:.85rem; font-weight:600; }
+.flow-node.decision { transform:rotate(0deg); border-color:var(--yellow); color:var(--yellow); }
+.flow-arrow { color:var(--text-dim); font-size:1.2rem; }
+
+/* Tabs */
+.tab-container { margin:16px 0; }
+.tab-buttons { display:flex; gap:0; border-bottom:1px solid var(--border); }
+.tab-btn { padding:10px 20px; background:none; border:none; color:var(--text-dim); font-size:.875rem; cursor:pointer; border-bottom:2px solid transparent; font-weight:500; }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab-panel { display:none; padding:16px 0; }
+.tab-panel.active { display:block; }
+
+@media(max-width:768px) {
+  header h1 { font-size:1.6rem; }
+  .card-grid { grid-template-columns:1fr; }
+  .pipeline { flex-direction:column; }
+  .pipe-arrow { transform:rotate(90deg); }
+}
+</style>
+</head>
+<body>
+
+<header>
+<div class="container">
+  <h1>Mundi Engine</h1>
+  <p>Custom Animation State Machine Blueprint System - DirectX 11</p>
+  <div class="badge-row">
+    <span class="badge badge-blue">DirectX 11</span>
+    <span class="badge badge-green">C++ Custom Engine</span>
+    <span class="badge badge-purple">ImGui Node Editor</span>
+    <span class="badge badge-orange">Delaunay Triangulation</span>
+  </div>
+</div>
+</header>
+
+<nav>
+<div class="container">
+<ul>
+  <li><a href="#overview">Architecture</a></li>
+  <li><a href="#k2node-hierarchy">K2Node Hierarchy</a></li>
+  <li><a href="#pipeline">Pipeline</a></li>
+  <li><a href="#nodes">Blueprint Nodes</a></li>
+  <li><a href="#pin-system">Pin System</a></li>
+  <li><a href="#statemachine">State Machine</a></li>
+  <li><a href="#blendspace">BlendSpace</a></li>
+  <li><a href="#compiler">Compiler</a></li>
+  <li><a href="#animinstance">AnimInstance</a></li>
+  <li><a href="#notify">Notify</a></li>
+</ul>
+</div>
+</nav>
+
+<!-- ==================== SECTION 1: Architecture Overview ==================== -->
+<section id="overview">
+<div class="container">
+<h2><span class="icon" style="background:rgba(88,166,255,.15);">&#9881;</span> System Architecture</h2>
+
+<p>Mundi Engine의 애니메이션 시스템은 <strong>에디터(비주얼 그래프)</strong>에서 상태 머신을 설계하고, <strong>컴파일러</strong>가 이를 <strong>런타임 스테이트 머신</strong>으로 변환하는 구조입니다. Unreal Engine의 Animation Blueprint와 유사한 패턴을 커스텀으로 구현했습니다.</p>
+
+<!-- Architecture Diagram -->
+<div class="diagram-wrap">
+<svg width="900" height="420" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background regions -->
+  <rect x="20" y="20" width="270" height="380" rx="12" fill="rgba(255,166,87,.06)" stroke="rgba(255,166,87,.3)" stroke-dasharray="6,3"/>
+  <text x="155" y="52" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">EDITOR LAYER</text>
+
+  <rect x="320" y="20" width="220" height="380" rx="12" fill="rgba(248,81,73,.06)" stroke="rgba(248,81,73,.3)" stroke-dasharray="6,3"/>
+  <text x="430" y="52" text-anchor="middle" fill="#f85149" font-size="13" font-weight="700">COMPILER</text>
+
+  <rect x="570" y="20" width="310" height="380" rx="12" fill="rgba(63,185,80,.06)" stroke="rgba(63,185,80,.3)" stroke-dasharray="6,3"/>
+  <text x="725" y="52" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">RUNTIME LAYER</text>
+
+  <!-- Editor nodes -->
+  <rect x="45" y="75" width="220" height="40" rx="8" fill="#1c2333" stroke="#ffa657"/>
+  <text x="155" y="100" text-anchor="middle" fill="#ffa657" font-size="12" font-weight="600">UAnimationGraph</text>
+
+  <rect x="45" y="135" width="220" height="40" rx="8" fill="#1c2333" stroke="#ffa657"/>
+  <text x="155" y="160" text-anchor="middle" fill="#ffa657" font-size="12" font-weight="600">UK2Node_AnimStateEntry</text>
+
+  <rect x="45" y="195" width="220" height="40" rx="8" fill="#1c2333" stroke="#ffa657"/>
+  <text x="155" y="220" text-anchor="middle" fill="#ffa657" font-size="12" font-weight="600">UK2Node_AnimState</text>
+
+  <rect x="45" y="255" width="220" height="40" rx="8" fill="#1c2333" stroke="#ffa657"/>
+  <text x="155" y="280" text-anchor="middle" fill="#ffa657" font-size="12" font-weight="600">UK2Node_AnimTransition</text>
+
+  <rect x="45" y="315" width="105" height="40" rx="8" fill="#1c2333" stroke="#d2a8ff"/>
+  <text x="97" y="340" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">BlendSpace1D</text>
+
+  <rect x="160" y="315" width="105" height="40" rx="8" fill="#1c2333" stroke="#d2a8ff"/>
+  <text x="212" y="340" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">BlendSpace2D</text>
+
+  <!-- Compiler -->
+  <rect x="345" y="170" width="170" height="50" rx="8" fill="#1c2333" stroke="#f85149" stroke-width="2"/>
+  <text x="430" y="192" text-anchor="middle" fill="#f85149" font-size="13" font-weight="700">FAnimBlueprint</text>
+  <text x="430" y="208" text-anchor="middle" fill="#f85149" font-size="13" font-weight="700">Compiler</text>
+
+  <text x="430" y="260" text-anchor="middle" fill="#8b949e" font-size="11">Graph Traversal</text>
+  <text x="430" y="278" text-anchor="middle" fill="#8b949e" font-size="11">State Registration</text>
+  <text x="430" y="296" text-anchor="middle" fill="#8b949e" font-size="11">Transition Binding</text>
+  <text x="430" y="314" text-anchor="middle" fill="#8b949e" font-size="11">Lambda Capture</text>
+
+  <!-- Runtime nodes -->
+  <rect x="595" y="75" width="260" height="40" rx="8" fill="#1c2333" stroke="#3fb950"/>
+  <text x="725" y="100" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">UAnimationStateMachine</text>
+
+  <rect x="595" y="135" width="260" height="40" rx="8" fill="#1c2333" stroke="#3fb950"/>
+  <text x="725" y="160" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">FAnimationState</text>
+
+  <rect x="595" y="195" width="260" height="40" rx="8" fill="#1c2333" stroke="#3fb950"/>
+  <text x="725" y="220" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">FStateTransition</text>
+
+  <rect x="595" y="265" width="260" height="40" rx="8" fill="#1c2333" stroke="#58a6ff"/>
+  <text x="725" y="290" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">UAnimInstance</text>
+
+  <rect x="595" y="325" width="125" height="40" rx="8" fill="#1c2333" stroke="#d2a8ff"/>
+  <text x="657" y="350" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">IAnimPoseProvider</text>
+
+  <rect x="730" y="325" width="125" height="40" rx="8" fill="#1c2333" stroke="#58a6ff"/>
+  <text x="792" y="350" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">UAnimMontage</text>
+
+  <!-- Arrows Editor -> Compiler -->
+  <line x1="265" y1="155" x2="345" y2="185" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="265" y1="215" x2="345" y2="195" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="265" y1="275" x2="345" y2="200" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Arrow Compiler -> Runtime -->
+  <line x1="515" y1="195" x2="595" y2="155" stroke="#f85149" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <line x1="515" y1="195" x2="595" y2="215" stroke="#f85149" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <line x1="515" y1="195" x2="595" y2="95" stroke="#f85149" stroke-width="2" marker-end="url(#arrowRed)"/>
+
+  <!-- Arrow Runtime internal -->
+  <line x1="725" y1="175" x2="725" y2="195" stroke="#3fb950" stroke-width="1" marker-end="url(#arrowGreen)"/>
+  <line x1="725" y1="235" x2="725" y2="265" stroke="#3fb950" stroke-width="1" marker-end="url(#arrowGreen)"/>
+
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#8b949e"/></marker>
+    <marker id="arrowRed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f85149"/></marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3fb950"/></marker>
+  </defs>
+</svg>
+<p class="diagram-label">Fig 1. Editor &rarr; Compiler &rarr; Runtime 3-Layer Architecture</p>
+</div>
+
+<!-- Class Hierarchy -->
+<h3>Class Hierarchy</h3>
+<div class="card" style="max-width:700px;">
+<div class="tree">
+  <div class="tree-root"><span class="tree-node iface">IAnimPoseProvider</span> (Interface)</div>
+  <div class="tree-item"><span class="tree-node runtime">UAnimSequence</span></div>
+  <div class="tree-item"><span class="tree-node runtime">UBlendSpace1D</span> : UObject</div>
+  <div class="tree-item"><span class="tree-node runtime">UBlendSpace2D</span> : UObject</div>
+</div>
+<div class="tree" style="margin-top:16px;">
+  <div class="tree-root"><span class="tree-node">UObject</span></div>
+  <div class="tree-item"><span class="tree-node runtime">UAnimInstance</span></div>
+  <div class="tree-item"><span class="tree-node runtime">UAnimationStateMachine</span></div>
+  <div class="tree-item">
+    <span class="tree-node">UEdGraph</span>
+    <div class="tree-item"><span class="tree-node editor">UAnimationGraph</span></div>
+  </div>
+  <div class="tree-item">
+    <span class="tree-node">UK2Node</span>
+    <div class="tree-item"><span class="tree-node editor">UK2Node_AnimStateEntry</span></div>
+    <div class="tree-item"><span class="tree-node editor">UK2Node_AnimState</span></div>
+    <div class="tree-item"><span class="tree-node editor">UK2Node_AnimTransition</span></div>
+    <div class="tree-item"><span class="tree-node editor">UK2Node_AnimSequence</span></div>
+    <div class="tree-item"><span class="tree-node editor">UK2Node_BlendSpace1D</span></div>
+    <div class="tree-item"><span class="tree-node editor">UK2Node_BlendSpace2D</span></div>
+    <div class="tree-item"><span class="tree-node editor">UK2Node_IsAnimationFinished</span></div>
+  </div>
+</div>
+<div class="tree" style="margin-top:16px;">
+  <div class="tree-root"><span class="tree-node compiler">FAnimBlueprintCompiler</span> (Static Class)</div>
+</div>
+</div>
+
+<!-- File Map -->
+<h3>Source File Map</h3>
+<table>
+<tr><th>Category</th><th>File</th><th>Description</th></tr>
+<tr><td rowspan="3">Runtime</td><td><code>Animation/AnimationStateMachine.h/.cpp</code></td><td>State Machine core (states, transitions, evaluation)</td></tr>
+<tr><td><code>Animation/AnimInstance.h/.cpp</code></td><td>Animation playback host, pose evaluation, montage</td></tr>
+<tr><td><code>Animation/AnimTypes.h</code></td><td>IAnimPoseProvider, FAnimNotifyEvent, EAnimLayer</td></tr>
+<tr><td rowspan="3">Editor</td><td><code>BlueprintGraph/K2Node_Animation.h/.cpp</code></td><td>7 visual node types for graph editing</td></tr>
+<tr><td><code>BlueprintGraph/AnimationGraph.h/.cpp</code></td><td>Animation-specific graph with Entry node</td></tr>
+<tr><td><code>BlueprintGraph/AnimBlueprintCompiler.h/.cpp</code></td><td>Graph &rarr; Runtime StateMachine compiler</td></tr>
+<tr><td rowspan="2">BlendSpace</td><td><code>FBX/BlendSpace/BlendSpace1D.h/.cpp</code></td><td>1D linear interpolation blend space</td></tr>
+<tr><td><code>FBX/BlendSpace/BlendSpace2D.h/.cpp</code></td><td>2D Delaunay triangulation blend space</td></tr>
+</table>
+</div>
+</section>
+
+<!-- ==================== SECTION 1.5: K2Node Hierarchy Visualization ==================== -->
+<section id="k2node-hierarchy">
+<div class="container">
+<h2><span class="icon" style="background:rgba(210,168,255,.15);">&#9733;</span> K2Node Inheritance Hierarchy</h2>
+
+<p>Mundi Engine의 <strong>모든 블루프린트 노드</strong>는 <code>UK2Node</code>을 상속받습니다. 애니메이션, 수학, 캐릭터 이동, 리터럴 등 카테고리에 상관없이 단일 베이스 클래스로 통일된 플랫(flat) 구조입니다. 아래 다이어그램에서 각 노드 위에 마우스를 올려보세요.</p>
+
+<div class="diagram-wrap" style="padding:32px 16px;">
+<svg id="k2node-svg" width="960" height="700" viewBox="0 0 960 700" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+  <defs>
+    <marker id="arrowK2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#58a6ff"/></marker>
+    <marker id="arrowK2Anim" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#ffa657"/></marker>
+    <marker id="arrowK2Math" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3fb950"/></marker>
+    <marker id="arrowK2Char" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f78166"/></marker>
+    <marker id="arrowK2Misc" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#d2a8ff"/></marker>
+    <marker id="arrowBase" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#8b949e"/></marker>
+
+    <filter id="glow-blue"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow-orange"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+
+    <radialGradient id="centerGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(88,166,255,.15)"/>
+      <stop offset="100%" stop-color="rgba(88,166,255,.03)"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background radial hint -->
+  <circle cx="480" cy="200" r="180" fill="url(#centerGrad)" opacity=".6"/>
+
+  <!-- ===== Base chain: UObject -> UEdGraphNode -> UK2Node ===== -->
+  <rect x="420" y="15" width="120" height="36" rx="8" fill="#1c2333" stroke="#8b949e" stroke-width="1.5"/>
+  <text x="480" y="38" text-anchor="middle" fill="#8b949e" font-size="12" font-weight="600" font-family="monospace">UObject</text>
+
+  <line x1="480" y1="51" x2="480" y2="72" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrowBase)"/>
+
+  <rect x="395" y="72" width="170" height="36" rx="8" fill="#1c2333" stroke="#8b949e" stroke-width="1.5"/>
+  <text x="480" y="95" text-anchor="middle" fill="#8b949e" font-size="12" font-weight="600" font-family="monospace">UEdGraphNode</text>
+
+  <line x1="480" y1="108" x2="480" y2="150" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrowK2)"/>
+
+  <!-- ===== UK2Node (CENTER) ===== -->
+  <rect x="380" y="150" width="200" height="50" rx="12" fill="#0d1117" stroke="#58a6ff" stroke-width="3" filter="url(#glow-blue)"/>
+  <text x="480" y="172" text-anchor="middle" fill="#58a6ff" font-size="16" font-weight="800" font-family="monospace">UK2Node</text>
+  <text x="480" y="190" text-anchor="middle" fill="#8b949e" font-size="9">Base class for ALL blueprint nodes</text>
+
+  <!-- ===== Category Labels ===== -->
+  <!-- Animation (Left) -->
+  <rect x="20" y="265" width="100" height="22" rx="11" fill="rgba(255,166,87,.12)" stroke="rgba(255,166,87,.4)" stroke-width="1"/>
+  <text x="70" y="280" text-anchor="middle" fill="#ffa657" font-size="10" font-weight="700">ANIMATION</text>
+
+  <!-- Math (Right) -->
+  <rect x="570" y="265" width="60" height="22" rx="11" fill="rgba(63,185,80,.12)" stroke="rgba(63,185,80,.4)" stroke-width="1"/>
+  <text x="600" y="280" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="700">MATH</text>
+
+  <!-- Character (Far Right) -->
+  <rect x="780" y="265" width="100" height="22" rx="11" fill="rgba(247,129,102,.12)" stroke="rgba(247,129,102,.4)" stroke-width="1"/>
+  <text x="830" y="280" text-anchor="middle" fill="#f78166" font-size="10" font-weight="700">CHARACTER</text>
+
+  <!-- Misc (Center Right) -->
+  <rect x="570" y="515" width="50" height="22" rx="11" fill="rgba(210,168,255,.12)" stroke="rgba(210,168,255,.4)" stroke-width="1"/>
+  <text x="595" y="530" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="700">MISC</text>
+
+  <!-- Literal (Center) -->
+  <rect x="340" y="515" width="70" height="22" rx="11" fill="rgba(88,166,255,.12)" stroke="rgba(88,166,255,.4)" stroke-width="1"/>
+  <text x="375" y="530" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="700">LITERAL</text>
+
+  <!-- Expression (Center Left) -->
+  <rect x="100" y="515" width="90" height="22" rx="11" fill="rgba(227,179,65,.12)" stroke="rgba(227,179,65,.4)" stroke-width="1"/>
+  <text x="145" y="530" text-anchor="middle" fill="#e3b341" font-size="10" font-weight="700">EXPRESSION</text>
+
+  <!-- ===== CONNECTION LINES from UK2Node ===== -->
+  <!-- Animation branch -->
+  <line x1="410" y1="200" x2="140" y2="300" stroke="#ffa657" stroke-width="1.5" opacity=".5" marker-end="url(#arrowK2Anim)"/>
+  <line x1="395" y1="200" x2="55" y2="300" stroke="#ffa657" stroke-width="1.5" opacity=".5"/>
+  <line x1="420" y1="200" x2="225" y2="300" stroke="#ffa657" stroke-width="1.5" opacity=".5"/>
+
+  <!-- Math branch -->
+  <line x1="550" y1="200" x2="660" y2="300" stroke="#3fb950" stroke-width="1.5" opacity=".5" marker-end="url(#arrowK2Math)"/>
+
+  <!-- Character branch -->
+  <line x1="570" y1="200" x2="830" y2="300" stroke="#f78166" stroke-width="1.5" opacity=".5" marker-end="url(#arrowK2Char)"/>
+
+  <!-- Literal branch -->
+  <line x1="460" y1="200" x2="375" y2="550" stroke="#58a6ff" stroke-width="1.5" opacity=".3"/>
+
+  <!-- Expression branch -->
+  <line x1="430" y1="200" x2="145" y2="550" stroke="#e3b341" stroke-width="1.5" opacity=".3"/>
+
+  <!-- Misc branch -->
+  <line x1="510" y1="200" x2="620" y2="550" stroke="#d2a8ff" stroke-width="1.5" opacity=".3"/>
+
+
+  <!-- ===== ANIMATION NODES ===== -->
+  <g class="k2-node" data-info="상태 머신의 진입점 노드. 그래프당 하나만 존재.">
+    <rect x="10" y="300" width="210" height="34" rx="7" fill="#1c2333" stroke="#ffa657" stroke-width="1.5"/>
+    <text x="115" y="322" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="600" font-family="monospace">UK2Node_AnimStateEntry</text>
+  </g>
+  <g class="k2-node" data-info="애니메이션 상태를 정의. StateName, Animation, Loop, PlayRate 핀을 가짐.">
+    <rect x="10" y="345" width="210" height="34" rx="7" fill="#1c2333" stroke="#ffa657" stroke-width="1.5"/>
+    <text x="115" y="367" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="600" font-family="monospace">UK2Node_AnimState</text>
+  </g>
+  <g class="k2-node" data-info="상태 간 전이 규칙. Can Transition 조건과 Blend Time을 정의.">
+    <rect x="10" y="390" width="210" height="34" rx="7" fill="#1c2333" stroke="#ffa657" stroke-width="1.5"/>
+    <text x="115" y="412" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="600" font-family="monospace">UK2Node_AnimTransition</text>
+  </g>
+  <g class="k2-node" data-info="애니메이션 시퀀스 에셋 리터럴. Pure 노드.">
+    <rect x="10" y="435" width="210" height="34" rx="7" fill="#1c2333" stroke="#ffa657" stroke-width="1.5"/>
+    <text x="115" y="457" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="600" font-family="monospace">UK2Node_AnimSequence</text>
+  </g>
+  <g class="k2-node" data-info="1D 블렌드 스페이스. 하나의 파라미터로 애니메이션 블렌딩.">
+    <rect x="230" y="300" width="210" height="34" rx="7" fill="#1c2333" stroke="#ffa657" stroke-width="1.5"/>
+    <text x="335" y="322" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="600" font-family="monospace">UK2Node_BlendSpace1D</text>
+  </g>
+  <g class="k2-node" data-info="2D 블렌드 스페이스. X(Direction), Y(Speed) 두 축으로 블렌딩.">
+    <rect x="230" y="345" width="210" height="34" rx="7" fill="#1c2333" stroke="#ffa657" stroke-width="1.5"/>
+    <text x="335" y="367" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="600" font-family="monospace">UK2Node_BlendSpace2D</text>
+  </g>
+  <g class="k2-node" data-info="현재 애니메이션 재생이 끝났는지 bool 반환. Pure 노드.">
+    <rect x="230" y="390" width="230" height="34" rx="7" fill="#1c2333" stroke="#ffa657" stroke-width="1.5"/>
+    <text x="345" y="412" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="600" font-family="monospace">UK2Node_IsAnimationFinished</text>
+  </g>
+
+  <!-- ===== MATH NODES ===== -->
+  <g class="k2-node" data-info="Float + Float 덧셈 연산. Pure 노드.">
+    <rect x="570" y="300" width="195" height="30" rx="7" fill="#1c2333" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="667" y="320" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600" font-family="monospace">UK2Node_Add_FloatFloat</text>
+  </g>
+  <g class="k2-node" data-info="Float - Float 뺄셈 연산. Pure 노드.">
+    <rect x="570" y="338" width="195" height="30" rx="7" fill="#1c2333" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="667" y="358" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600" font-family="monospace">UK2Node_Sub_FloatFloat</text>
+  </g>
+  <g class="k2-node" data-info="Float * Float 곱셈 연산. Pure 노드.">
+    <rect x="570" y="376" width="195" height="30" rx="7" fill="#1c2333" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="667" y="396" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600" font-family="monospace">UK2Node_Mul_FloatFloat</text>
+  </g>
+  <g class="k2-node" data-info="Float / Float 나눗셈 연산. Pure 노드.">
+    <rect x="570" y="414" width="195" height="30" rx="7" fill="#1c2333" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="667" y="434" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600" font-family="monospace">UK2Node_Div_FloatFloat</text>
+  </g>
+  <g class="k2-node" data-info="Float > Float 비교 연산. Pure 노드.">
+    <rect x="570" y="452" width="195" height="30" rx="7" fill="#1c2333" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="667" y="472" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600" font-family="monospace">UK2Node_Greater_FF</text>
+  </g>
+
+  <!-- ===== CHARACTER NODES ===== -->
+  <g class="k2-node" data-info="캐릭터가 공중에 있는지(낙하 중) 확인. Pure 노드.">
+    <rect x="780" y="300" width="170" height="30" rx="7" fill="#1c2333" stroke="#f78166" stroke-width="1.5"/>
+    <text x="865" y="320" text-anchor="middle" fill="#f78166" font-size="10" font-weight="600" font-family="monospace">UK2Node_GetIsFalling</text>
+  </g>
+  <g class="k2-node" data-info="캐릭터의 월드 속도 벡터를 반환. Pure 노드.">
+    <rect x="780" y="338" width="170" height="30" rx="7" fill="#1c2333" stroke="#f78166" stroke-width="1.5"/>
+    <text x="865" y="358" text-anchor="middle" fill="#f78166" font-size="10" font-weight="600" font-family="monospace">UK2Node_GetVelocity</text>
+  </g>
+  <g class="k2-node" data-info="캐릭터의 로컬 속도 벡터를 반환. Pure 노드.">
+    <rect x="780" y="376" width="170" height="30" rx="7" fill="#1c2333" stroke="#f78166" stroke-width="1.5"/>
+    <text x="865" y="396" text-anchor="middle" fill="#f78166" font-size="10" font-weight="600" font-family="monospace">UK2Node_GetLocalVel</text>
+  </g>
+  <g class="k2-node" data-info="캐릭터의 이동 속력(스칼라)을 반환. Pure 노드.">
+    <rect x="780" y="414" width="170" height="30" rx="7" fill="#1c2333" stroke="#f78166" stroke-width="1.5"/>
+    <text x="865" y="434" text-anchor="middle" fill="#f78166" font-size="10" font-weight="600" font-family="monospace">UK2Node_GetSpeed</text>
+  </g>
+
+  <!-- ===== EXPRESSION NODES ===== -->
+  <g class="k2-node" data-info="조건에 따라 Int 값을 선택. Select 노드.">
+    <rect x="30" y="550" width="175" height="30" rx="7" fill="#1c2333" stroke="#e3b341" stroke-width="1.5"/>
+    <text x="117" y="570" text-anchor="middle" fill="#e3b341" font-size="10" font-weight="600" font-family="monospace">UK2Node_Select_Int</text>
+  </g>
+  <g class="k2-node" data-info="조건에 따라 Float 값을 선택. Select 노드.">
+    <rect x="30" y="588" width="175" height="30" rx="7" fill="#1c2333" stroke="#e3b341" stroke-width="1.5"/>
+    <text x="117" y="608" text-anchor="middle" fill="#e3b341" font-size="10" font-weight="600" font-family="monospace">UK2Node_Select_Float</text>
+  </g>
+  <g class="k2-node" data-info="조건에 따라 Bool 값을 선택. Select 노드.">
+    <rect x="30" y="626" width="175" height="30" rx="7" fill="#1c2333" stroke="#e3b341" stroke-width="1.5"/>
+    <text x="117" y="646" text-anchor="middle" fill="#e3b341" font-size="10" font-weight="600" font-family="monospace">UK2Node_Select_Bool</text>
+  </g>
+
+  <!-- ===== LITERAL NODES ===== -->
+  <g class="k2-node" data-info="Int 상수 값 리터럴 노드. Pure 노드.">
+    <rect x="280" y="550" width="175" height="30" rx="7" fill="#1c2333" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="367" y="570" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="600" font-family="monospace">UK2Node_Literal_Int</text>
+  </g>
+  <g class="k2-node" data-info="Float 상수 값 리터럴 노드. Pure 노드.">
+    <rect x="280" y="588" width="175" height="30" rx="7" fill="#1c2333" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="367" y="608" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="600" font-family="monospace">UK2Node_Literal_Float</text>
+  </g>
+  <g class="k2-node" data-info="Bool 상수 값 리터럴 노드. Pure 노드.">
+    <rect x="280" y="626" width="175" height="30" rx="7" fill="#1c2333" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="367" y="646" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="600" font-family="monospace">UK2Node_Literal_Bool</text>
+  </g>
+
+  <!-- ===== MISC NODES ===== -->
+  <g class="k2-node" data-info="키가 눌렸는지 확인. Pure 노드.">
+    <rect x="530" y="550" width="185" height="30" rx="7" fill="#1c2333" stroke="#d2a8ff" stroke-width="1.5"/>
+    <text x="622" y="570" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600" font-family="monospace">UK2Node_IsKeyDown</text>
+  </g>
+  <g class="k2-node" data-info="마우스 위치를 반환. Pure 노드.">
+    <rect x="530" y="588" width="185" height="30" rx="7" fill="#1c2333" stroke="#d2a8ff" stroke-width="1.5"/>
+    <text x="622" y="608" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600" font-family="monospace">UK2Node_GetMousePos</text>
+  </g>
+  <g class="k2-node" data-info="Int 값을 실시간으로 감시/표시. 디버그용.">
+    <rect x="530" y="626" width="185" height="30" rx="7" fill="#1c2333" stroke="#d2a8ff" stroke-width="1.5"/>
+    <text x="622" y="646" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600" font-family="monospace">UK2Node_Watch_Int</text>
+  </g>
+
+  <!-- ===== "... and more" indicators ===== -->
+  <text x="667" y="498" text-anchor="middle" fill="#3fb950" font-size="10" opacity=".6">+ Int 연산 노드들 ...</text>
+  <text x="865" y="458" text-anchor="middle" fill="#f78166" font-size="10" opacity=".6">...</text>
+  <text x="117" y="668" text-anchor="middle" fill="#e3b341" font-size="10" opacity=".6">...</text>
+  <text x="367" y="668" text-anchor="middle" fill="#58a6ff" font-size="10" opacity=".6">...</text>
+  <text x="622" y="668" text-anchor="middle" fill="#d2a8ff" font-size="10" opacity=".6">+ IsPressed, Watch ...</text>
+
+  <!-- ===== Tooltip (hidden by default, shown by JS) ===== -->
+  <rect id="k2-tooltip-bg" x="0" y="0" width="280" height="40" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="1" opacity="0" pointer-events="none"/>
+  <text id="k2-tooltip-text" x="0" y="0" fill="#e6edf3" font-size="11" opacity="0" pointer-events="none"></text>
+</svg>
+
+<p class="diagram-label">Fig 1.5. UK2Node Inheritance Map &mdash; 모든 블루프린트 노드가 UK2Node 하나를 상속</p>
+</div>
+
+<!-- Legend -->
+<div class="card-grid" style="margin-top:16px;">
+  <div class="card" style="border-left:3px solid #ffa657;">
+    <div class="card-title"><span class="dot" style="background:#ffa657;"></span> Animation (7 nodes)</div>
+    <div class="card-body">상태 머신의 핵심. State, Transition, Entry, AnimSequence, BlendSpace, IsAnimationFinished 노드로 구성.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #3fb950;">
+    <div class="card-title"><span class="dot" style="background:#3fb950;"></span> Math (8+ nodes)</div>
+    <div class="card-body">산술/비교 연산. Float, Int 타입별 Add, Subtract, Multiply, Divide, Greater, Equal 등.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #f78166;">
+    <div class="card-title"><span class="dot" style="background:#f78166;"></span> Character (4 nodes)</div>
+    <div class="card-body">캐릭터 상태 조회. IsFalling, GetVelocity, GetLocalVelocity, GetSpeed.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #d2a8ff;">
+    <div class="card-title"><span class="dot" style="background:#d2a8ff;"></span> Misc (6+ nodes)</div>
+    <div class="card-body">입력/디버그. IsPressed, IsKeyDown, IsActionPressed, GetMousePosition, Watch 시리즈.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #58a6ff;">
+    <div class="card-title"><span class="dot" style="background:#58a6ff;"></span> Literal (3 nodes)</div>
+    <div class="card-body">상수 값. Literal_Int, Literal_Float, Literal_Bool. 모두 Pure 노드.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #e3b341;">
+    <div class="card-title"><span class="dot" style="background:#e3b341;"></span> Expression (3 nodes)</div>
+    <div class="card-body">조건 선택. Select_Int, Select_Float, Select_Bool. 조건에 따라 값 분기.</div>
+  </div>
+</div>
+
+<!-- Why flat K2Node? -->
+<h3>Why flat UK2Node inheritance?</h3>
+<div class="card" style="max-width:800px;">
+<table>
+<tr><th>Unreal Engine</th><th>Mundi Engine (This Project)</th></tr>
+<tr>
+  <td style="color:var(--text-dim);">
+    <code>UK2Node</code> &mdash; 블루프린트 로직 전용<br>
+    <code>UAnimStateNodeBase</code> &mdash; 상태 머신 전용<br>
+    <code>UAnimGraphNode_Base</code> &mdash; 애님 그래프 전용<br>
+    <span style="color:#8b949e;">역할별 중간 추상 계층 다수</span>
+  </td>
+  <td style="color:var(--text-dim);">
+    <code>UK2Node</code> &mdash; <strong>모든 노드의 유일한 베이스</strong><br>
+    <span style="color:#8b949e;">중간 계층 없음, 플랫 구조</span><br><br>
+    <strong>이유:</strong> 자체 엔진이므로 RTTI 자동 등록 + ImGui 렌더링으로 복잡한 계층이 불필요
+  </td>
+</tr>
+</table>
+</div>
+
+</div>
+</section>
+
+<!-- Tooltip JS for K2Node diagram -->
+<script>
+(function() {
+  const svg = document.getElementById('k2node-svg');
+  if (!svg) return;
+  const tooltipBg = document.getElementById('k2-tooltip-bg');
+  const tooltipText = document.getElementById('k2-tooltip-text');
+  const nodes = svg.querySelectorAll('.k2-node');
+
+  nodes.forEach(function(node) {
+    node.style.cursor = 'pointer';
+    node.addEventListener('mouseenter', function(e) {
+      const info = node.getAttribute('data-info');
+      if (!info) return;
+      const rect = node.querySelector('rect');
+      const x = parseFloat(rect.getAttribute('x'));
+      const y = parseFloat(rect.getAttribute('y'));
+      const w = parseFloat(rect.getAttribute('width'));
+
+      // Position tooltip above the node
+      const tx = x + w / 2;
+      const ty = y - 8;
+
+      tooltipText.textContent = info;
+      tooltipText.setAttribute('x', tx);
+      tooltipText.setAttribute('y', ty);
+      tooltipText.setAttribute('text-anchor', 'middle');
+      tooltipText.setAttribute('opacity', '1');
+
+      // Measure text for background
+      const bbox = tooltipText.getBBox();
+      tooltipBg.setAttribute('x', bbox.x - 8);
+      tooltipBg.setAttribute('y', bbox.y - 4);
+      tooltipBg.setAttribute('width', bbox.width + 16);
+      tooltipBg.setAttribute('height', bbox.height + 8);
+      tooltipBg.setAttribute('opacity', '1');
+
+      // Highlight node
+      rect.setAttribute('stroke-width', '2.5');
+      rect.style.filter = 'url(#glow-orange)';
+    });
+
+    node.addEventListener('mouseleave', function() {
+      tooltipBg.setAttribute('opacity', '0');
+      tooltipText.setAttribute('opacity', '0');
+      const rect = node.querySelector('rect');
+      rect.setAttribute('stroke-width', '1.5');
+      rect.style.filter = '';
+    });
+  });
+})();
+</script>
+
+<!-- ==================== SECTION 2: Pipeline ==================== -->
+<section id="pipeline">
+<div class="container">
+<h2><span class="icon" style="background:rgba(63,185,80,.15);">&#9654;</span> Compilation Pipeline</h2>
+
+<p>비주얼 그래프에서 런타임 스테이트 머신까지의 전체 파이프라인입니다.</p>
+
+<div class="pipeline">
+  <div class="pipe-step">
+    <div class="step-num">Step 1</div>
+    <div class="step-title">Visual Graph</div>
+    <div class="step-desc">ImGui Node Editor에서<br>노드 배치 &amp; 연결</div>
+  </div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step">
+    <div class="step-num">Step 2</div>
+    <div class="step-title">Graph Serialization</div>
+    <div class="step-desc">JSON으로 노드/핀/링크<br>직렬화</div>
+  </div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step" style="border-color:var(--red);">
+    <div class="step-num" style="color:var(--red);">Step 3</div>
+    <div class="step-title">Compile</div>
+    <div class="step-desc">FAnimBlueprintCompiler<br>그래프 순회 &amp; 빌드</div>
+  </div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step" style="border-color:var(--accent2);">
+    <div class="step-num" style="color:var(--accent2);">Step 4</div>
+    <div class="step-title">Runtime SM</div>
+    <div class="step-desc">UAnimationStateMachine<br>상태 &amp; 전이 등록</div>
+  </div>
+  <div class="pipe-arrow">&rarr;</div>
+  <div class="pipe-step" style="border-color:var(--accent);">
+    <div class="step-num" style="color:var(--accent);">Step 5</div>
+    <div class="step-title">Game Loop</div>
+    <div class="step-desc">ProcessState() 매 프레임<br>전이 평가 &amp; 포즈 출력</div>
+  </div>
+</div>
+
+<!-- Compile detail -->
+<h3>Compiler 3-Pass Process</h3>
+<div class="diagram-wrap">
+<svg width="750" height="300" viewBox="0 0 750 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pass 1 -->
+  <rect x="20" y="30" width="220" height="240" rx="10" fill="rgba(88,166,255,.05)" stroke="var(--accent)" stroke-dasharray="4,2"/>
+  <text x="130" y="55" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">Pass #1: State Registration</text>
+  <text x="40" y="85" fill="#8b949e" font-size="11">1. UK2Node_AnimState &#54869;&#51064;</text>
+  <text x="40" y="105" fill="#8b949e" font-size="11">2. Animation &#54592; &#54217;&#44032; (EvaluatePin)</text>
+  <text x="40" y="125" fill="#8b949e" font-size="11">3. AnimSequence / BlendSpace</text>
+  <text x="40" y="145" fill="#8b949e" font-size="11">   &#53440;&#51077; &#48516;&#44592; (std::variant)</text>
+  <text x="40" y="175" fill="#8b949e" font-size="11">4. FAnimationState &#49373;&#49457;</text>
+  <text x="40" y="195" fill="#8b949e" font-size="11">   - Name, Loop, PlayRate</text>
+  <text x="40" y="215" fill="#8b949e" font-size="11">   - RootMotion, CutEndTime</text>
+  <text x="40" y="235" fill="#8b949e" font-size="11">   - OnUpdate lambda &#52897;&#52376;</text>
+  <text x="40" y="255" fill="#8b949e" font-size="11">5. AddState() &#54840;&#52636;</text>
+
+  <!-- Pass 2 -->
+  <rect x="265" y="30" width="220" height="240" rx="10" fill="rgba(63,185,80,.05)" stroke="var(--accent2)" stroke-dasharray="4,2"/>
+  <text x="375" y="55" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">Pass #2: Entry Point</text>
+  <text x="285" y="85" fill="#8b949e" font-size="11">1. UK2Node_AnimStateEntry &#52286;&#44592;</text>
+  <text x="285" y="115" fill="#8b949e" font-size="11">2. "Entry" &#52636;&#47141;&#54592; &#52628;&#51201;</text>
+  <text x="285" y="145" fill="#8b949e" font-size="11">3. &#50672;&#44208;&#46108; AnimState &#54869;&#51064;</text>
+  <text x="285" y="185" fill="#8b949e" font-size="11">4. SetInitialState() &#54840;&#52636;</text>
+  <text x="285" y="215" fill="#8b949e" font-size="11">   &rarr; &#52395; &#50528;&#45768;&#47700;&#51060;&#49496; &#51116;&#49373; &#49884;&#51089;</text>
+
+  <!-- Pass 3 -->
+  <rect x="510" y="30" width="220" height="240" rx="10" fill="rgba(210,168,255,.05)" stroke="var(--accent3)" stroke-dasharray="4,2"/>
+  <text x="620" y="55" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">Pass #3: Transitions</text>
+  <text x="530" y="85" fill="#8b949e" font-size="11">1. UK2Node_AnimTransition &#49692;&#54924;</text>
+  <text x="530" y="115" fill="#8b949e" font-size="11">2. Execute &#54592; &rarr; FromState</text>
+  <text x="530" y="135" fill="#8b949e" font-size="11">3. Transition To &#54592; &rarr; ToState</text>
+  <text x="530" y="165" fill="#8b949e" font-size="11">4. "Can Transition" &#54592;&#51012;</text>
+  <text x="530" y="185" fill="#8b949e" font-size="11">   &#47100;&#45796;&#47196; &#52897;&#52376; (&#47088;&#53440;&#51076; &#54217;&#44032;)</text>
+  <text x="530" y="215" fill="#8b949e" font-size="11">5. Blend Time &#52628;&#52636;</text>
+  <text x="530" y="245" fill="#8b949e" font-size="11">6. AddTransition() &#54840;&#52636;</text>
+</svg>
+<p class="diagram-label">Fig 2. FAnimBlueprintCompiler::Compile() - 3-Pass Process</p>
+</div>
+</div>
+</section>
+
+<!-- ==================== SECTION 3: Blueprint Nodes ==================== -->
+<section id="nodes">
+<div class="container">
+<h2><span class="icon" style="background:rgba(255,166,87,.15);">&#9634;</span> Blueprint Node Types</h2>
+<p>에디터에서 비주얼 그래프를 구성하는 7종의 노드입니다. 모든 노드는 <code>UK2Node</code>을 상속하며 "애니메이션" 메뉴 카테고리에 속합니다.</p>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#f85149;"></span>AnimStateEntry</div>
+    <div class="card-body">
+      <strong>State Machine 진입점.</strong> 그래프당 1개만 존재. "Entry" 출력 핀으로 초기 상태와 연결됩니다.<br><br>
+      <code>Output: "Entry" (Exec)</code><br><br>
+      에디터 실행 시 자동 생성. 사용자가 삭제 시 ValidateGraph()에서 재생성.
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#3fb950;"></span>AnimState</div>
+    <div class="card-body">
+      <strong>애니메이션 상태 정의.</strong> 각 상태의 이름, 애니메이션 소스, 루프, 재생속도를 설정합니다.<br><br>
+      <code>Input: "Animation", "Looping", "PlayRate"</code><br>
+      Properties: <code>StateName</code>, <code>bEnableRootMotion</code>, <code>AnimationCutEndTime</code>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#ffa657;"></span>AnimTransition</div>
+    <div class="card-body">
+      <strong>상태 간 전이 규칙.</strong> 소스 &rarr; 목적지 상태를 연결하고 전이 조건과 블렌드 시간을 정의합니다.<br><br>
+      <code>Input: "Execute" (Exec), "Can Transition" (Bool), "Blend Time" (Float)</code><br>
+      <code>Output: "Transition To" (Exec)</code>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#58a6ff;"></span>AnimSequence</div>
+    <div class="card-body">
+      <strong>애니메이션 시퀀스 리터럴.</strong> FBX에서 로드한 애니메이션 시퀀스를 값으로 출력하는 Pure 노드입니다.<br><br>
+      <code>Output: "Value" (UAnimSequence*)</code><br><br>
+      에디터에서 검색 버퍼로 애니메이션 에셋을 선택.
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#d2a8ff;"></span>BlendSpace1D</div>
+    <div class="card-body">
+      <strong>1D 블렌드 스페이스.</strong> 단일 파라미터(예: Speed)에 따라 여러 애니메이션을 선형 보간합니다.<br><br>
+      <code>Output: UBlendSpace1D*</code><br>
+      Properties: <code>MinRange</code>, <code>MaxRange</code>, <code>SampleAnimations[]</code>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#d2a8ff;"></span>BlendSpace2D</div>
+    <div class="card-body">
+      <strong>2D 블렌드 스페이스.</strong> X(Direction), Y(Speed) 2축 파라미터로 Delaunay 삼각분할 기반 블렌딩.<br><br>
+      <code>Output: UBlendSpace2D*</code><br>
+      Properties: <code>MinX/MaxX</code>, <code>MinY/MaxY</code>, 삼각형 수동/자동 설정
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#e3b341;"></span>IsAnimationFinished</div>
+    <div class="card-body">
+      <strong>애니메이션 종료 확인.</strong> 루핑이 아닌 애니메이션이 끝까지 재생됐는지 확인하는 Pure 노드.<br><br>
+      <code>Output: "Finished" (Bool)</code><br><br>
+      주로 공격, 피격 등 1회성 애니메이션 전이 조건으로 사용.
+    </div>
+  </div>
+</div>
+
+<!-- Visual Node Diagram -->
+<h3>Blueprint Graph Example</h3>
+<div class="diagram-wrap">
+<svg width="820" height="320" viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg">
+  <!-- Entry Node -->
+  <rect x="20" y="120" width="100" height="50" rx="8" fill="#1e2736" stroke="#f85149" stroke-width="2"/>
+  <text x="70" y="140" text-anchor="middle" fill="#f85149" font-size="11" font-weight="700">Entry</text>
+  <circle cx="120" cy="150" r="5" fill="#f85149"/>
+  <text x="70" y="157" text-anchor="middle" fill="#8b949e" font-size="9">Entry &rarr;</text>
+
+  <!-- Idle State -->
+  <rect x="175" y="100" width="140" height="85" rx="8" fill="#1e2736" stroke="#3fb950" stroke-width="2"/>
+  <text x="245" y="122" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="700">Idle</text>
+  <text x="245" y="140" text-anchor="middle" fill="#8b949e" font-size="9">Animation: Idle_Anim</text>
+  <text x="245" y="155" text-anchor="middle" fill="#8b949e" font-size="9">Loop: true | Rate: 1.0</text>
+  <text x="245" y="170" text-anchor="middle" fill="#8b949e" font-size="9">RootMotion: false</text>
+  <circle cx="175" cy="142" r="4" fill="#3fb950"/>
+  <circle cx="315" cy="142" r="4" fill="#ffa657"/>
+
+  <!-- Walk State (BlendSpace) -->
+  <rect x="440" y="30" width="160" height="95" rx="8" fill="#1e2736" stroke="#3fb950" stroke-width="2"/>
+  <text x="520" y="52" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="700">Locomotion</text>
+  <text x="520" y="70" text-anchor="middle" fill="#d2a8ff" font-size="9">Src: BlendSpace2D</text>
+  <text x="520" y="85" text-anchor="middle" fill="#8b949e" font-size="9">X: Direction  Y: Speed</text>
+  <text x="520" y="100" text-anchor="middle" fill="#8b949e" font-size="9">Loop: true | Rate: 1.0</text>
+  <text x="520" y="113" text-anchor="middle" fill="#8b949e" font-size="9">RootMotion: true</text>
+  <circle cx="440" cy="77" r="4" fill="#3fb950"/>
+  <circle cx="600" cy="77" r="4" fill="#ffa657"/>
+
+  <!-- Attack State -->
+  <rect x="440" y="190" width="160" height="85" rx="8" fill="#1e2736" stroke="#3fb950" stroke-width="2"/>
+  <text x="520" y="212" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="700">Attack</text>
+  <text x="520" y="230" text-anchor="middle" fill="#8b949e" font-size="9">Animation: Attack_Anim</text>
+  <text x="520" y="245" text-anchor="middle" fill="#8b949e" font-size="9">Loop: false | Rate: 1.2</text>
+  <text x="520" y="260" text-anchor="middle" fill="#8b949e" font-size="9">RootMotion: true</text>
+  <circle cx="440" cy="232" r="4" fill="#3fb950"/>
+  <circle cx="600" cy="232" r="4" fill="#ffa657"/>
+
+  <!-- Transition: Entry -> Idle -->
+  <line x1="120" y1="150" x2="175" y2="142" stroke="#f85149" stroke-width="2"/>
+
+  <!-- Transition Node: Idle -> Walk -->
+  <rect x="340" y="80" width="70" height="35" rx="6" fill="#1e2736" stroke="#ffa657" stroke-width="1.5"/>
+  <text x="375" y="102" text-anchor="middle" fill="#ffa657" font-size="8" font-weight="600">Transition</text>
+  <line x1="315" y1="142" x2="340" y2="97" stroke="#ffa657" stroke-width="1.5"/>
+  <line x1="410" y1="97" x2="440" y2="77" stroke="#ffa657" stroke-width="1.5"/>
+  <text x="375" y="75" text-anchor="middle" fill="#e3b341" font-size="8">Speed &gt; 0.1</text>
+
+  <!-- Transition Node: Walk -> Idle -->
+  <rect x="340" y="145" width="70" height="35" rx="6" fill="#1e2736" stroke="#ffa657" stroke-width="1.5"/>
+  <text x="375" y="167" text-anchor="middle" fill="#ffa657" font-size="8" font-weight="600">Transition</text>
+  <line x1="440" y1="90" x2="410" y2="162" stroke="#ffa657" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="340" y1="162" x2="315" y2="148" stroke="#ffa657" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="375" y="190" text-anchor="middle" fill="#e3b341" font-size="8">Speed &lt;= 0.1</text>
+
+  <!-- Transition: Idle -> Attack -->
+  <rect x="340" y="215" width="70" height="35" rx="6" fill="#1e2736" stroke="#ffa657" stroke-width="1.5"/>
+  <text x="375" y="237" text-anchor="middle" fill="#ffa657" font-size="8" font-weight="600">Transition</text>
+  <line x1="315" y1="155" x2="340" y2="232" stroke="#ffa657" stroke-width="1.5"/>
+  <line x1="410" y1="232" x2="440" y2="232" stroke="#ffa657" stroke-width="1.5"/>
+  <text x="375" y="260" text-anchor="middle" fill="#e3b341" font-size="8">bAttack == true</text>
+
+  <!-- Transition: Attack -> Idle (IsAnimFinished) -->
+  <rect x="640" y="170" width="70" height="35" rx="6" fill="#1e2736" stroke="#ffa657" stroke-width="1.5"/>
+  <text x="675" y="192" text-anchor="middle" fill="#ffa657" font-size="8" font-weight="600">Transition</text>
+  <line x1="600" y1="237" x2="640" y2="187" stroke="#ffa657" stroke-width="1.5"/>
+
+  <rect x="690" y="125" width="110" height="30" rx="6" fill="#1e2736" stroke="#e3b341" stroke-width="1.5"/>
+  <text x="745" y="145" text-anchor="middle" fill="#e3b341" font-size="8" font-weight="600">IsAnimFinished</text>
+  <line x1="710" y1="155" x2="690" y2="175" stroke="#e3b341" stroke-width="1" stroke-dasharray="3,2"/>
+
+  <!-- Legend -->
+  <rect x="650" y="260" width="150" height="50" rx="6" fill="#0d1117" stroke="var(--border)"/>
+  <circle cx="665" cy="275" r="4" fill="#f85149"/>  <text x="675" y="279" fill="#8b949e" font-size="9">Entry</text>
+  <circle cx="665" cy="293" r="4" fill="#3fb950"/>  <text x="675" y="297" fill="#8b949e" font-size="9">State</text>
+  <rect x="720" y="271" width="12" height="8" rx="2" fill="none" stroke="#ffa657"/>  <text x="738" y="279" fill="#8b949e" font-size="9">Transition</text>
+  <rect x="720" y="289" width="12" height="8" rx="2" fill="none" stroke="#e3b341"/>  <text x="738" y="297" fill="#8b949e" font-size="9">Condition</text>
+</svg>
+<p class="diagram-label">Fig 3. Blueprint Graph &#50696;&#49884; - Entry &rarr; Idle &harr; Locomotion(BS2D) &harr; Attack</p>
+</div>
+</div>
+</section>
+
+<!-- ==================== SECTION 3.5: Pin System ==================== -->
+<section id="pin-system">
+<div class="container">
+<h2><span class="icon" style="background:rgba(88,166,255,.15);">&#9679;</span> Pin System</h2>
+
+<p>노드 간 데이터 흐름의 기본 단위는 <strong>핀(UEdGraphPin)</strong>입니다. 노드는 껍데기이고, 핀이 실제 연결과 값 전달을 담당합니다.</p>
+
+<!-- Pin Class Structure -->
+<h3>UEdGraphPin Structure</h3>
+<div class="code-block">
+<div class="code-header">EdGraphPin.h - 핀 클래스 정의</div>
+<pre><span class="kw">class</span> <span class="type">UEdGraphPin</span> : <span class="kw">public</span> <span class="type">UObject</span>
+{
+    <span class="type">uint32</span>                   <span class="param">PinID</span>;        <span class="cmt">// UUID 기반 고유 식별자</span>
+    <span class="type">FString</span>                  <span class="param">PinName</span>;      <span class="cmt">// "Enter", "Animation", "Can Transition" 등</span>
+    <span class="type">FEdGraphPinType</span>          <span class="param">PinType</span>;      <span class="cmt">// Exec, Float, Bool, AnimSequence 등</span>
+    <span class="type">EEdGraphPinDirection</span>     <span class="param">Direction</span>;    <span class="cmt">// Input 또는 Output</span>
+    <span class="type">UEdGraphNode*</span>            <span class="param">OwningNode</span>;   <span class="cmt">// 이 핀을 소유한 노드 (back-reference)</span>
+    <span class="type">TArray</span>&lt;<span class="type">UEdGraphPin*</span>&gt;    <span class="param">LinkedTo</span>;     <span class="cmt">// 연결된 다른 핀들의 목록</span>
+    <span class="type">FString</span>                  <span class="param">DefaultValue</span>; <span class="cmt">// 연결이 없을 때 사용할 기본값</span>
+};</pre>
+</div>
+
+<!-- Pin Categories -->
+<h3>Pin Type Categories</h3>
+<div class="card-grid">
+  <div class="card" style="border-left:3px solid #f85149;">
+    <div class="card-title"><span class="dot" style="background:#f85149;"></span> Exec</div>
+    <div class="card-body">실행 흐름 핀. 상태 머신의 연결 순서를 정의합니다. Entry &rarr; State &rarr; Transition 흐름 제어.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #79c0ff;">
+    <div class="card-title"><span class="dot" style="background:#79c0ff;"></span> Float</div>
+    <div class="card-body">실수 값 전달. PlayRate, Blend Time 등에 사용. 기본값 문자열 파싱 가능 (예: <code>"1.0"</code>).</div>
+  </div>
+  <div class="card" style="border-left:3px solid #3fb950;">
+    <div class="card-title"><span class="dot" style="background:#3fb950;"></span> Bool</div>
+    <div class="card-body">불리언 값 전달. Looping, Can Transition 등 조건 판단에 사용 (예: <code>"false"</code>).</div>
+  </div>
+  <div class="card" style="border-left:3px solid #ffa657;">
+    <div class="card-title"><span class="dot" style="background:#ffa657;"></span> AnimSequence</div>
+    <div class="card-body"><code>UAnimSequence*</code> 포인터 전달. AnimSequence 리터럴 노드의 출력 핀에서 사용.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #d2a8ff;">
+    <div class="card-title"><span class="dot" style="background:#d2a8ff;"></span> BlendSpace1D</div>
+    <div class="card-body"><code>UBlendSpace1D*</code> 포인터 전달. BlendSpace1D 노드의 출력에서 사용.</div>
+  </div>
+  <div class="card" style="border-left:3px solid #58a6ff;">
+    <div class="card-title"><span class="dot" style="background:#58a6ff;"></span> AnimPose</div>
+    <div class="card-body"><code>IAnimPoseProvider</code> 공통 타입. AnimSequence와 BlendSpace 모두 호환 (향후 확장용).</div>
+  </div>
+</div>
+
+<!-- Pin Allocation per Node -->
+<h3>Node Pin Allocation</h3>
+<p>각 노드는 <code>AllocateDefaultPins()</code>에서 <code>CreatePin()</code>을 호출하여 자기 핀을 정의합니다.</p>
+
+<div class="diagram-wrap" style="padding:24px;">
+<svg width="900" height="520" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowPin" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#58a6ff"/></marker>
+    <marker id="arrowExec" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f85149"/></marker>
+    <marker id="arrowData" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#ffa657"/></marker>
+  </defs>
+
+  <!-- === AnimStateEntry Node === -->
+  <rect x="30" y="20" width="220" height="80" rx="10" fill="#1c2333" stroke="#f85149" stroke-width="2"/>
+  <text x="140" y="42" text-anchor="middle" fill="#f85149" font-size="13" font-weight="700">AnimStateEntry</text>
+  <text x="140" y="58" text-anchor="middle" fill="#8b949e" font-size="10">AllocateDefaultPins():</text>
+  <!-- Output pin -->
+  <circle cx="250" cy="80" r="6" fill="#f85149" stroke="#0d1117" stroke-width="2"/>
+  <text x="200" y="84" text-anchor="end" fill="#f85149" font-size="10" font-weight="600">Entry</text>
+  <text x="195" y="70" text-anchor="end" fill="#8b949e" font-size="8">Exec &bull; Output</text>
+
+  <!-- === AnimState Node === -->
+  <rect x="340" y="10" width="260" height="185" rx="10" fill="#1c2333" stroke="#3fb950" stroke-width="2"/>
+  <text x="470" y="35" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">AnimState</text>
+  <text x="470" y="51" text-anchor="middle" fill="#8b949e" font-size="10">AllocateDefaultPins():</text>
+
+  <!-- Input pins -->
+  <circle cx="340" cy="80" r="6" fill="#f85149" stroke="#0d1117" stroke-width="2"/>
+  <text x="350" y="84" fill="#f85149" font-size="10" font-weight="600">Enter</text>
+  <text x="350" y="70" fill="#8b949e" font-size="8">Exec &bull; Input</text>
+
+  <circle cx="340" cy="115" r="6" fill="#ffa657" stroke="#0d1117" stroke-width="2"/>
+  <text x="350" y="119" fill="#ffa657" font-size="10" font-weight="600">Animation</text>
+  <text x="350" y="106" fill="#8b949e" font-size="8">AnimSequence &bull; Input</text>
+
+  <circle cx="340" cy="148" r="6" fill="#3fb950" stroke="#0d1117" stroke-width="2"/>
+  <text x="350" y="152" fill="#3fb950" font-size="10" font-weight="600">Looping</text>
+  <text x="430" y="152" fill="#8b949e" font-size="9">default: "false"</text>
+
+  <circle cx="340" cy="175" r="6" fill="#79c0ff" stroke="#0d1117" stroke-width="2"/>
+  <text x="350" y="179" fill="#79c0ff" font-size="10" font-weight="600">PlayRate</text>
+  <text x="430" y="179" fill="#8b949e" font-size="9">default: "1.0"</text>
+
+  <!-- Output pin -->
+  <circle cx="600" cy="80" r="6" fill="#f85149" stroke="#0d1117" stroke-width="2"/>
+  <text x="545" y="84" text-anchor="end" fill="#f85149" font-size="10" font-weight="600">Exit</text>
+  <text x="545" y="70" text-anchor="end" fill="#8b949e" font-size="8">Exec &bull; Output</text>
+
+  <!-- Connection: Entry -> AnimState Enter -->
+  <line x1="256" y1="80" x2="334" y2="80" stroke="#f85149" stroke-width="2" marker-end="url(#arrowExec)"/>
+
+  <!-- === AnimSequence Node === -->
+  <rect x="30" y="130" width="200" height="70" rx="10" fill="#1c2333" stroke="#ffa657" stroke-width="2"/>
+  <text x="130" y="152" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">AnimSequence</text>
+  <text x="130" y="168" text-anchor="middle" fill="#8b949e" font-size="10">Pure Node</text>
+
+  <!-- Output pin -->
+  <circle cx="230" cy="175" r="6" fill="#ffa657" stroke="#0d1117" stroke-width="2"/>
+  <text x="180" y="185" text-anchor="end" fill="#ffa657" font-size="10" font-weight="600">Value</text>
+
+  <!-- Connection: AnimSequence Value -> AnimState Animation -->
+  <line x1="236" y1="175" x2="282" y2="175" stroke="#ffa657" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="282" y1="175" x2="282" y2="115" stroke="#ffa657" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="282" y1="115" x2="334" y2="115" stroke="#ffa657" stroke-width="1.5" marker-end="url(#arrowData)"/>
+
+  <!-- === AnimTransition Node === -->
+  <rect x="340" y="260" width="260" height="150" rx="10" fill="#1c2333" stroke="#ffa657" stroke-width="2"/>
+  <text x="470" y="285" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">AnimTransition</text>
+  <text x="470" y="301" text-anchor="middle" fill="#8b949e" font-size="10">AllocateDefaultPins():</text>
+
+  <!-- Input pins -->
+  <circle cx="340" cy="325" r="6" fill="#f85149" stroke="#0d1117" stroke-width="2"/>
+  <text x="350" y="329" fill="#f85149" font-size="10" font-weight="600">Execute</text>
+  <text x="350" y="315" fill="#8b949e" font-size="8">Exec &bull; Input</text>
+
+  <circle cx="340" cy="360" r="6" fill="#3fb950" stroke="#0d1117" stroke-width="2"/>
+  <text x="350" y="364" fill="#3fb950" font-size="10" font-weight="600">Can Transition</text>
+  <text x="350" y="350" fill="#8b949e" font-size="8">Bool &bull; Input</text>
+
+  <circle cx="340" cy="390" r="6" fill="#79c0ff" stroke="#0d1117" stroke-width="2"/>
+  <text x="350" y="394" fill="#79c0ff" font-size="10" font-weight="600">Blend Time</text>
+  <text x="350" y="380" fill="#8b949e" font-size="8">Float &bull; Input</text>
+
+  <!-- Output pin -->
+  <circle cx="600" cy="325" r="6" fill="#f85149" stroke="#0d1117" stroke-width="2"/>
+  <text x="530" y="329" text-anchor="end" fill="#f85149" font-size="10" font-weight="600">Transition To</text>
+  <text x="530" y="315" text-anchor="end" fill="#8b949e" font-size="8">Exec &bull; Output</text>
+
+  <!-- Connection: AnimState Exit -> Transition Execute -->
+  <line x1="600" y1="86" x2="600" y2="215" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <line x1="600" y1="215" x2="310" y2="215" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <line x1="310" y1="215" x2="310" y2="325" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <line x1="310" y1="325" x2="334" y2="325" stroke="#f85149" stroke-width="1.5" marker-end="url(#arrowExec)"/>
+
+  <!-- === Condition Nodes feeding into Transition === -->
+  <rect x="50" y="310" width="200" height="55" rx="10" fill="#1c2333" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="150" y="332" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">UK2Node_Greater_FF</text>
+  <text x="150" y="350" text-anchor="middle" fill="#8b949e" font-size="9">Speed > 0.1 &rarr; Bool</text>
+  <circle cx="250" cy="340" r="5" fill="#3fb950" stroke="#0d1117" stroke-width="1.5"/>
+  <line x1="255" y1="340" x2="290" y2="340" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="290" y1="340" x2="290" y2="360" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="290" y1="360" x2="334" y2="360" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrowPin)"/>
+
+  <!-- === How Pin Connection Works === -->
+  <rect x="640" y="30" width="250" height="200" rx="10" fill="rgba(88,166,255,.05)" stroke="var(--border)" stroke-dasharray="4,2"/>
+  <text x="765" y="55" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="700">Pin Connection (MakeLinkTo)</text>
+
+  <text x="660" y="80" fill="#8b949e" font-size="10">1. Output &rarr; Input 방향만 허용</text>
+  <text x="660" y="100" fill="#8b949e" font-size="10">2. 양쪽 LinkedTo에 상호 등록</text>
+
+  <rect x="660" y="115" width="100" height="28" rx="6" fill="#1c2333" stroke="#ffa657"/>
+  <text x="710" y="134" text-anchor="middle" fill="#ffa657" font-size="10">Output Pin</text>
+  <circle cx="760" cy="129" r="5" fill="#ffa657"/>
+
+  <line x1="765" y1="129" x2="790" y2="129" stroke="#ffa657" stroke-width="1.5" marker-end="url(#arrowData)"/>
+
+  <rect x="800" y="115" width="80" height="28" rx="6" fill="#1c2333" stroke="#ffa657"/>
+  <text x="840" y="134" text-anchor="middle" fill="#ffa657" font-size="10">Input Pin</text>
+  <circle cx="800" cy="129" r="5" fill="#ffa657"/>
+
+  <text x="660" y="168" fill="#e6edf3" font-size="9" font-family="monospace">OutputPin.LinkedTo</text>
+  <text x="680" y="183" fill="#8b949e" font-size="9" font-family="monospace">&rarr; [InputPin]</text>
+  <text x="660" y="203" fill="#e6edf3" font-size="9" font-family="monospace">InputPin.LinkedTo</text>
+  <text x="680" y="218" fill="#8b949e" font-size="9" font-family="monospace">&rarr; [OutputPin]</text>
+
+  <!-- === Compiler Value Resolution === -->
+  <rect x="640" y="260" width="250" height="150" rx="10" fill="rgba(248,81,73,.05)" stroke="var(--border)" stroke-dasharray="4,2"/>
+  <text x="765" y="285" text-anchor="middle" fill="#f85149" font-size="12" font-weight="700">Compiler Pin Evaluation</text>
+
+  <text x="660" y="310" fill="#e6edf3" font-size="10" font-weight="600">Case 1: 핀에 연결이 있을 때</text>
+  <text x="660" y="328" fill="#8b949e" font-size="9">LinkedTo.Num() > 0</text>
+  <text x="660" y="343" fill="#8b949e" font-size="9">&rarr; SourceNode->EvaluatePin() 호출</text>
+  <text x="660" y="358" fill="#8b949e" font-size="9">&rarr; 연결된 노드의 값을 재귀 평가</text>
+
+  <text x="660" y="383" fill="#e6edf3" font-size="10" font-weight="600">Case 2: 연결이 없을 때</text>
+  <text x="660" y="400" fill="#8b949e" font-size="9">&rarr; DefaultValue 문자열을 파싱</text>
+  <text x="660" y="415" fill="#8b949e" font-size="9">&rarr; "1.0" &rarr; float(1.0)</text>
+</svg>
+
+<p class="diagram-label">Fig 3.5. Node Pin Layout &mdash; 각 노드의 핀 구성과 연결/평가 방식</p>
+</div>
+
+<!-- Pin Allocation Code -->
+<h3>AllocateDefaultPins() per Node</h3>
+<div class="tab-container">
+  <div class="tab-buttons">
+    <button class="tab-btn active" onclick="switchPinTab(this,'pin-tab-entry')">Entry</button>
+    <button class="tab-btn" onclick="switchPinTab(this,'pin-tab-state')">AnimState</button>
+    <button class="tab-btn" onclick="switchPinTab(this,'pin-tab-transition')">Transition</button>
+    <button class="tab-btn" onclick="switchPinTab(this,'pin-tab-sequence')">AnimSequence</button>
+  </div>
+
+  <div id="pin-tab-entry" class="tab-panel active">
+    <div class="code-block">
+    <div class="code-header">K2Node_Animation.cpp - AnimStateEntry</div>
+<pre><span class="kw">void</span> <span class="type">UK2Node_AnimStateEntry</span>::<span class="fn">AllocateDefaultPins</span>()
+{
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Output</span>, <span class="type">Exec</span>, <span class="str">"Entry"</span>);
+}</pre>
+    </div>
+    <p>진입점 노드. 출력 Exec 핀 하나만 가지며, 초기 상태 노드의 Enter 핀과 연결됩니다.</p>
+  </div>
+
+  <div id="pin-tab-state" class="tab-panel">
+    <div class="code-block">
+    <div class="code-header">K2Node_Animation.cpp - AnimState</div>
+<pre><span class="kw">void</span> <span class="type">UK2Node_AnimState</span>::<span class="fn">AllocateDefaultPins</span>()
+{
+    <span class="cmt">// 실행 흐름 핀</span>
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Input</span>,  <span class="type">Exec</span>,          <span class="str">"Enter"</span>);
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Output</span>, <span class="type">Exec</span>,          <span class="str">"Exit"</span>);
+    <span class="cmt">// 데이터 핀 (FAnimationState 멤버에 대응)</span>
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Input</span>,  <span class="type">AnimSequence</span>,  <span class="str">"Animation"</span>);
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Input</span>,  <span class="type">Bool</span>,          <span class="str">"Looping"</span>,  <span class="str">"false"</span>);
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Input</span>,  <span class="type">Float</span>,         <span class="str">"PlayRate"</span>, <span class="str">"1.0"</span>);
+}</pre>
+    </div>
+    <p>Exec 핀 2개(Enter/Exit)로 흐름을 제어하고, 데이터 핀 3개(Animation, Looping, PlayRate)로 상태 설정값을 받습니다. 연결이 없으면 DefaultValue(<code>"false"</code>, <code>"1.0"</code>)가 사용됩니다.</p>
+  </div>
+
+  <div id="pin-tab-transition" class="tab-panel">
+    <div class="code-block">
+    <div class="code-header">K2Node_Animation.cpp - AnimTransition</div>
+<pre><span class="kw">void</span> <span class="type">UK2Node_AnimTransition</span>::<span class="fn">AllocateDefaultPins</span>()
+{
+    <span class="cmt">// 실행 흐름 핀</span>
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Input</span>,  <span class="type">Exec</span>,  <span class="str">"Execute"</span>);
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Output</span>, <span class="type">Exec</span>,  <span class="str">"Transition To"</span>);
+    <span class="cmt">// 전이 조건 핀</span>
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Input</span>,  <span class="type">Bool</span>,  <span class="str">"Can Transition"</span>);
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Input</span>,  <span class="type">Float</span>, <span class="str">"Blend Time"</span>);
+}</pre>
+    </div>
+    <p>Exec 핀으로 From/To 상태를 연결하고, <code>Can Transition</code> Bool 핀에 조건 노드(Greater, Equal 등)를 연결합니다. 컴파일 시 이 핀의 평가 로직이 람다로 캡처됩니다.</p>
+  </div>
+
+  <div id="pin-tab-sequence" class="tab-panel">
+    <div class="code-block">
+    <div class="code-header">K2Node_Animation.cpp - AnimSequence</div>
+<pre><span class="kw">void</span> <span class="type">UK2Node_AnimSequence</span>::<span class="fn">AllocateDefaultPins</span>()
+{
+    <span class="fn">CreatePin</span>(<span class="type">EGPD_Output</span>, <span class="type">AnimSequence</span>, <span class="str">"Value"</span>);
+}</pre>
+    </div>
+    <p>Pure 노드(실행 핀 없음). 출력 핀 하나로 <code>UAnimSequence*</code> 포인터를 전달합니다. AnimState 노드의 Animation 입력 핀에 연결됩니다.</p>
+  </div>
+</div>
+
+<!-- Ownership Diagram -->
+<h3>Node &harr; Pin Ownership</h3>
+<div class="diagram-wrap" style="padding:20px;">
+<svg width="700" height="250" viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowOwn" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#58a6ff"/></marker>
+  </defs>
+
+  <!-- UEdGraphNode box -->
+  <rect x="20" y="20" width="300" height="210" rx="10" fill="rgba(88,166,255,.05)" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="170" y="48" text-anchor="middle" fill="#58a6ff" font-size="14" font-weight="700">UEdGraphNode</text>
+
+  <text x="40" y="78" fill="#e6edf3" font-size="11" font-family="monospace">TArray&lt;UEdGraphPin*&gt; <span fill="#ffa657">Pins</span></text>
+
+  <!-- Pin instances inside -->
+  <rect x="40" y="95" width="260" height="30" rx="6" fill="#1c2333" stroke="#f85149"/>
+  <text x="50" y="115" fill="#f85149" font-size="10" font-family="monospace">Pins[0]: "Enter" (Exec, Input)</text>
+
+  <rect x="40" y="130" width="260" height="30" rx="6" fill="#1c2333" stroke="#f85149"/>
+  <text x="50" y="150" fill="#f85149" font-size="10" font-family="monospace">Pins[1]: "Exit" (Exec, Output)</text>
+
+  <rect x="40" y="165" width="260" height="30" rx="6" fill="#1c2333" stroke="#ffa657"/>
+  <text x="50" y="185" fill="#ffa657" font-size="10" font-family="monospace">Pins[2]: "Animation" (AnimSeq, Input)</text>
+
+  <!-- Arrow to Pin detail -->
+  <line x1="320" y1="130" x2="380" y2="130" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrowOwn)"/>
+
+  <!-- UEdGraphPin detail box -->
+  <rect x="390" y="20" width="290" height="210" rx="10" fill="rgba(255,166,87,.05)" stroke="#ffa657" stroke-width="1.5"/>
+  <text x="535" y="48" text-anchor="middle" fill="#ffa657" font-size="14" font-weight="700">UEdGraphPin</text>
+
+  <text x="410" y="78" fill="#8b949e" font-size="11" font-family="monospace">PinName: <span fill="#e6edf3">"Animation"</span></text>
+  <text x="410" y="100" fill="#8b949e" font-size="11" font-family="monospace">PinType: <span fill="#e6edf3">AnimSequence</span></text>
+  <text x="410" y="122" fill="#8b949e" font-size="11" font-family="monospace">Direction: <span fill="#e6edf3">EGPD_Input</span></text>
+  <text x="410" y="144" fill="#8b949e" font-size="11" font-family="monospace">OwningNode: <span fill="#58a6ff">&rarr; (back-ref)</span></text>
+  <text x="410" y="166" fill="#8b949e" font-size="11" font-family="monospace">LinkedTo: <span fill="#3fb950">[AnimSeqPin]</span></text>
+  <text x="410" y="188" fill="#8b949e" font-size="11" font-family="monospace">DefaultValue: <span fill="#e6edf3">""</span></text>
+
+  <!-- Back reference arrow -->
+  <path d="M400,148 Q370,148 370,170 Q370,230 170,230 L170,225" fill="none" stroke="#58a6ff" stroke-width="1" stroke-dasharray="4,2" marker-end="url(#arrowOwn)"/>
+  <text x="280" y="242" text-anchor="middle" fill="#8b949e" font-size="9">OwningNode (back-reference)</text>
+</svg>
+<p class="diagram-label">Fig 3.6. Node는 Pin 배열을 소유하고, Pin은 OwningNode로 역참조</p>
+</div>
+
+<!-- Summary Table -->
+<h3>Node Pin Summary</h3>
+<table>
+<tr><th>Node</th><th>Input Pins</th><th>Output Pins</th><th>Pure</th></tr>
+<tr>
+  <td><code>AnimStateEntry</code></td>
+  <td>&mdash;</td>
+  <td>Entry <span style="color:#f85149;">(Exec)</span></td>
+  <td>No</td>
+</tr>
+<tr>
+  <td><code>AnimState</code></td>
+  <td>Enter <span style="color:#f85149;">(Exec)</span>, Animation, Looping, PlayRate</td>
+  <td>Exit <span style="color:#f85149;">(Exec)</span></td>
+  <td>No</td>
+</tr>
+<tr>
+  <td><code>AnimTransition</code></td>
+  <td>Execute <span style="color:#f85149;">(Exec)</span>, Can Transition <span style="color:#3fb950;">(Bool)</span>, Blend Time <span style="color:#79c0ff;">(Float)</span></td>
+  <td>Transition To <span style="color:#f85149;">(Exec)</span></td>
+  <td>No</td>
+</tr>
+<tr>
+  <td><code>AnimSequence</code></td>
+  <td>&mdash;</td>
+  <td>Value <span style="color:#ffa657;">(AnimSequence)</span></td>
+  <td>Yes</td>
+</tr>
+<tr>
+  <td><code>BlendSpace1D</code></td>
+  <td>&mdash;</td>
+  <td>Value <span style="color:#d2a8ff;">(BlendSpace1D)</span></td>
+  <td>Yes</td>
+</tr>
+<tr>
+  <td><code>BlendSpace2D</code></td>
+  <td>&mdash;</td>
+  <td>Value <span style="color:#d2a8ff;">(BlendSpace2D)</span></td>
+  <td>Yes</td>
+</tr>
+<tr>
+  <td><code>IsAnimFinished</code></td>
+  <td>&mdash;</td>
+  <td>Finished <span style="color:#3fb950;">(Bool)</span></td>
+  <td>Yes</td>
+</tr>
+</table>
+
+</div>
+</section>
+
+<script>
+function switchPinTab(btn, panelId) {
+  var container = btn.closest('.tab-container');
+  container.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  container.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+</script>
+
+<!-- ==================== SECTION 4: State Machine ==================== -->
+<section id="statemachine">
+<div class="container">
+<h2><span class="icon" style="background:rgba(63,185,80,.15);">&#9881;</span> Runtime State Machine</h2>
+
+<h3>Core Data Structures</h3>
+<div class="code-block">
+<div class="code-header">AnimationStateMachine.h - FAnimationState</div>
+<pre><span class="kw">struct</span> <span class="type">FAnimationState</span>
+{
+    <span class="type">FName</span>              <span class="param">Name</span>;              <span class="cmt">// "Idle", "Walk", "Run", "Attack"</span>
+    <span class="type">UAnimSequence*</span>     <span class="param">Sequence</span>;          <span class="cmt">// AnimSequence (legacy)</span>
+    <span class="type">IAnimPoseProvider*</span> <span class="param">PoseProvider</span>;      <span class="cmt">// BlendSpace1D/2D or AnimSequence</span>
+    <span class="type">bool</span>               <span class="param">bLoop</span>;             <span class="cmt">// Loop playback</span>
+    <span class="type">float</span>              <span class="param">PlayRate</span>;          <span class="cmt">// Playback speed multiplier</span>
+    <span class="type">bool</span>               <span class="param">bEnableRootMotion</span>; <span class="cmt">// Root motion per-state</span>
+    <span class="type">float</span>              <span class="param">AnimationCutEndTime</span>;<span class="cmt">// Trim end (seconds)</span>
+    <span class="type">std::function</span>&lt;<span class="kw">void</span>()&gt; <span class="param">OnUpdate</span>;    <span class="cmt">// Per-frame callback (BlendSpace params)</span>
+};</pre>
+</div>
+
+<div class="code-block">
+<div class="code-header">AnimationStateMachine.h - FStateTransition</div>
+<pre><span class="kw">struct</span> <span class="type">FStateTransition</span>
+{
+    <span class="type">FName</span>                    <span class="param">FromState</span>;   <span class="cmt">// Source state</span>
+    <span class="type">FName</span>                    <span class="param">ToState</span>;     <span class="cmt">// Destination state</span>
+    <span class="type">std::function</span>&lt;<span class="type">bool</span>()&gt;   <span class="param">Condition</span>;   <span class="cmt">// Lambda transition condition</span>
+    <span class="type">float</span>                    <span class="param">BlendTime</span>;   <span class="cmt">// Cross-fade duration</span>
+};</pre>
+</div>
+
+<h3>ProcessState() - Frame Update Flow</h3>
+<div class="diagram-wrap">
+<svg width="600" height="380" viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg">
+  <!-- Start -->
+  <ellipse cx="300" cy="30" rx="60" ry="20" fill="none" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="300" y="35" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">ProcessState(dt)</text>
+
+  <line x1="300" y1="50" x2="300" y2="75" stroke="#8b949e" stroke-width="1" marker-end="url(#arrowG)"/>
+
+  <!-- OnUpdate -->
+  <rect x="200" y="75" width="200" height="35" rx="6" fill="#1c2333" stroke="#3fb950"/>
+  <text x="300" y="97" text-anchor="middle" fill="#3fb950" font-size="11">CurrentState.OnUpdate()</text>
+
+  <line x1="300" y1="110" x2="300" y2="135" stroke="#8b949e" stroke-width="1" marker-end="url(#arrowG)"/>
+
+  <!-- EvaluateTransitions -->
+  <rect x="175" y="135" width="250" height="35" rx="6" fill="#1c2333" stroke="#ffa657"/>
+  <text x="300" y="157" text-anchor="middle" fill="#ffa657" font-size="11">EvaluateTransitions()</text>
+
+  <line x1="300" y1="170" x2="300" y2="200" stroke="#8b949e" stroke-width="1" marker-end="url(#arrowG)"/>
+
+  <!-- Decision -->
+  <polygon points="300,200 400,235 300,270 200,235" fill="#1c2333" stroke="#e3b341" stroke-width="1.5"/>
+  <text x="300" y="232" text-anchor="middle" fill="#e3b341" font-size="10">Transition</text>
+  <text x="300" y="245" text-anchor="middle" fill="#e3b341" font-size="10">Condition?</text>
+
+  <!-- Yes -->
+  <line x1="400" y1="235" x2="480" y2="235" stroke="#3fb950" stroke-width="1" marker-end="url(#arrowGreen)"/>
+  <text x="435" y="228" fill="#3fb950" font-size="10">true</text>
+  <rect x="480" y="215" width="100" height="40" rx="6" fill="#1c2333" stroke="#3fb950"/>
+  <text x="530" y="233" text-anchor="middle" fill="#3fb950" font-size="10">ChangeState()</text>
+  <text x="530" y="247" text-anchor="middle" fill="#8b949e" font-size="9">BlendTo()</text>
+
+  <!-- No -->
+  <line x1="300" y1="270" x2="300" y2="310" stroke="#f85149" stroke-width="1" marker-end="url(#arrowG)"/>
+  <text x="312" y="295" fill="#f85149" font-size="10">false</text>
+
+  <!-- End -->
+  <ellipse cx="300" cy="330" rx="80" ry="20" fill="none" stroke="#8b949e" stroke-width="1"/>
+  <text x="300" y="335" text-anchor="middle" fill="#8b949e" font-size="10">Keep Current State</text>
+
+  <!-- ChangeState result -->
+  <line x1="530" y1="255" x2="530" y2="310" stroke="#3fb950" stroke-width="1"/>
+  <line x1="530" y1="310" x2="380" y2="330" stroke="#3fb950" stroke-width="1" marker-end="url(#arrowGreen)"/>
+
+  <defs>
+    <marker id="arrowG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#8b949e"/></marker>
+  </defs>
+</svg>
+<p class="diagram-label">Fig 4. ProcessState() Flowchart - &#47588; &#54532;&#47112;&#51076; &#49892;&#54665;</p>
+</div>
+
+<h3>ChangeState() - State Transition</h3>
+<div class="code-block">
+<div class="code-header">AnimationStateMachine.cpp - ChangeState (simplified)</div>
+<pre><span class="kw">void</span> <span class="type">UAnimationStateMachine</span>::<span class="fn">ChangeState</span>(<span class="kw">const</span> <span class="type">FName</span>&amp; <span class="param">NewStateName</span>, <span class="type">float</span> <span class="param">BlendTime</span>)
+{
+    <span class="kw">if</span> (CurrentStateName == NewStateName) <span class="kw">return</span>;
+
+    <span class="kw">const</span> <span class="type">FAnimationState</span>* NewState = <span class="fn">FindState</span>(NewStateName);
+    CurrentStateName = NewStateName;
+
+    Owner-&gt;<span class="fn">SetRootMotionEnabled</span>(NewState-&gt;bEnableRootMotion);
+    Owner-&gt;<span class="fn">SetAnimationCutEndTime</span>(NewState-&gt;AnimationCutEndTime);
+
+    <span class="kw">if</span> (NewState-&gt;Sequence)          <span class="cmt">// AnimSequence path</span>
+        Owner-&gt;<span class="fn">BlendTo</span>(NewState-&gt;Sequence, ...);
+    <span class="kw">else if</span> (NewState-&gt;PoseProvider)  <span class="cmt">// BlendSpace path</span>
+        Owner-&gt;<span class="fn">BlendToPoseProvider</span>(NewState-&gt;PoseProvider, ...);
+}</pre>
+</div>
+</div>
+</section>
+
+<!-- ==================== SECTION 5: BlendSpace ==================== -->
+<section id="blendspace">
+<div class="container">
+<h2><span class="icon" style="background:rgba(210,168,255,.15);">&#9670;</span> BlendSpace System</h2>
+
+<!-- BlendSpace comparison -->
+<div class="card-grid" style="grid-template-columns:1fr 1fr;">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#58a6ff;"></span> BlendSpace1D</div>
+    <div class="card-body">
+      <p><strong>1&#52629; &#54028;&#46972;&#48120;&#53552; &#49440;&#54805; &#48372;&#44036;</strong></p>
+      <p>Speed &#44050;&#50640; &#46384;&#46972; &#51064;&#51217;&#54620; &#46160; &#49368;&#54540; &#49324;&#51060;&#47484; Lerp. &#48376;&#48324; Slerp &#54924;&#51204; &#48372;&#44036;.</p>
+      <br>
+      <table style="font-size:.8rem;">
+        <tr><th>Property</th><th>Value</th></tr>
+        <tr><td>Parameter</td><td>1D (Speed)</td></tr>
+        <tr><td>Interpolation</td><td>Linear (sorted samples)</td></tr>
+        <tr><td>Interface</td><td><code>IAnimPoseProvider</code></td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="card" style="border-color:var(--accent3);">
+    <div class="card-title"><span class="dot" style="background:#d2a8ff;"></span> BlendSpace2D</div>
+    <div class="card-body">
+      <p><strong>2&#52629; &#54028;&#46972;&#48120;&#53552; Delaunay &#49340;&#44033;&#48516;&#54624; + &#47924;&#44172;&#51473;&#49900; &#48372;&#44036;</strong></p>
+      <p>X(Direction), Y(Speed) 2&#52629; &#44277;&#44036;&#50640;&#49436; &#49340;&#44033;&#54805; &#45236;&#48512; Barycentric &#48372;&#44036;.</p>
+      <br>
+      <table style="font-size:.8rem;">
+        <tr><th>Property</th><th>Value</th></tr>
+        <tr><td>Parameters</td><td>2D (Direction, Speed)</td></tr>
+        <tr><td>Interpolation</td><td>Barycentric (triangles)</td></tr>
+        <tr><td>Triangulation</td><td>Delaunay (auto) + Manual</td></tr>
+        <tr><td>Interface</td><td><code>IAnimPoseProvider</code></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<h3>IAnimPoseProvider Interface</h3>
+<div class="code-block">
+<div class="code-header">AnimTypes.h - Common Interface</div>
+<pre><span class="kw">class</span> <span class="type">IAnimPoseProvider</span>
+{
+<span class="kw">public</span>:
+    <span class="kw">virtual void</span>  <span class="fn">EvaluatePose</span>(<span class="type">float</span> Time, <span class="type">float</span> DeltaTime, <span class="type">TArray</span>&lt;<span class="type">FTransform</span>&gt;&amp; OutPose) = <span class="num">0</span>;
+    <span class="kw">virtual float</span> <span class="fn">GetPlayLength</span>() <span class="kw">const</span> = <span class="num">0</span>;
+    <span class="kw">virtual int32</span> <span class="fn">GetNumBoneTracks</span>() <span class="kw">const</span> = <span class="num">0</span>;
+    <span class="kw">virtual</span> <span class="type">UAnimSequence</span>* <span class="fn">GetDominantSequence</span>() <span class="kw">const</span>;  <span class="cmt">// for notifies</span>
+    <span class="kw">virtual float</span> <span class="fn">GetCurrentPlayTime</span>() <span class="kw">const</span>;
+    <span class="kw">virtual float</span> <span class="fn">GetPreviousPlayTime</span>() <span class="kw">const</span>;
+};</pre>
+</div>
+
+<!-- BlendSpace2D Delaunay Visualization -->
+<h3>BlendSpace2D - Delaunay Triangulation</h3>
+<div class="diagram-wrap">
+<svg width="700" height="400" viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grid -->
+  <rect x="50" y="20" width="300" height="300" fill="#0d1117" stroke="var(--border)" rx="4"/>
+  <!-- Grid lines -->
+  <line x1="50" y1="95" x2="350" y2="95" stroke="#1c2333" stroke-width="1"/>
+  <line x1="50" y1="170" x2="350" y2="170" stroke="#1c2333" stroke-width="1"/>
+  <line x1="50" y1="245" x2="350" y2="245" stroke="#1c2333" stroke-width="1"/>
+  <line x1="125" y1="20" x2="125" y2="320" stroke="#1c2333" stroke-width="1"/>
+  <line x1="200" y1="20" x2="200" y2="320" stroke="#1c2333" stroke-width="1"/>
+  <line x1="275" y1="20" x2="275" y2="320" stroke="#1c2333" stroke-width="1"/>
+
+  <!-- Axis labels -->
+  <text x="200" y="345" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">X: Direction</text>
+  <text x="25" y="170" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600" transform="rotate(-90,25,170)">Y: Speed</text>
+
+  <!-- Range labels -->
+  <text x="50" y="340" fill="#8b949e" font-size="9">-180</text>
+  <text x="195" y="340" fill="#8b949e" font-size="9">0</text>
+  <text x="335" y="340" fill="#8b949e" font-size="9">180</text>
+  <text x="35" y="325" fill="#8b949e" font-size="9">0</text>
+  <text x="35" y="25" fill="#8b949e" font-size="9">6</text>
+
+  <!-- Sample Points (9-direction locomotion) -->
+  <!-- Center: Idle (0,0) -->
+  <circle cx="200" cy="320" r="8" fill="#3fb950" stroke="#fff" stroke-width="1.5"/>
+  <text x="200" y="310" text-anchor="middle" fill="#3fb950" font-size="9" font-weight="600">Idle</text>
+
+  <!-- Forward (0, 3) -->
+  <circle cx="200" cy="170" r="8" fill="#58a6ff" stroke="#fff" stroke-width="1.5"/>
+  <text x="200" y="160" text-anchor="middle" fill="#58a6ff" font-size="9" font-weight="600">Walk_F</text>
+
+  <!-- Forward (0, 6) -->
+  <circle cx="200" cy="20" r="8" fill="#d2a8ff" stroke="#fff" stroke-width="1.5"/>
+  <text x="200" y="15" text-anchor="middle" fill="#d2a8ff" font-size="9" font-weight="600">Run_F</text>
+
+  <!-- Left (-180, 3) -->
+  <circle cx="50" cy="170" r="8" fill="#58a6ff" stroke="#fff" stroke-width="1.5"/>
+  <text x="55" y="160" fill="#58a6ff" font-size="9" font-weight="600">Walk_L</text>
+
+  <!-- Right (180, 3) -->
+  <circle cx="350" cy="170" r="8" fill="#58a6ff" stroke="#fff" stroke-width="1.5"/>
+  <text x="340" y="160" text-anchor="end" fill="#58a6ff" font-size="9" font-weight="600">Walk_R</text>
+
+  <!-- Back (0, -3) but since speed can't be negative, let's adjust -->
+  <!-- Forward-Left -->
+  <circle cx="50" cy="20" r="8" fill="#d2a8ff" stroke="#fff" stroke-width="1.5"/>
+  <text x="55" y="15" fill="#d2a8ff" font-size="9" font-weight="600">Run_L</text>
+
+  <!-- Forward-Right -->
+  <circle cx="350" cy="20" r="8" fill="#d2a8ff" stroke="#fff" stroke-width="1.5"/>
+  <text x="340" y="15" text-anchor="end" fill="#d2a8ff" font-size="9" font-weight="600">Run_R</text>
+
+  <!-- Delaunay Triangles -->
+  <!-- Triangle: Idle - Walk_F - Walk_L -->
+  <polygon points="200,320 200,170 50,170" fill="rgba(88,166,255,.08)" stroke="rgba(88,166,255,.4)" stroke-width="1"/>
+  <!-- Triangle: Idle - Walk_F - Walk_R -->
+  <polygon points="200,320 200,170 350,170" fill="rgba(63,185,80,.08)" stroke="rgba(63,185,80,.4)" stroke-width="1"/>
+  <!-- Triangle: Walk_F - Walk_L - Run_L -->
+  <polygon points="200,170 50,170 50,20" fill="rgba(210,168,255,.08)" stroke="rgba(210,168,255,.4)" stroke-width="1"/>
+  <!-- Triangle: Walk_F - Walk_R - Run_R -->
+  <polygon points="200,170 350,170 350,20" fill="rgba(255,166,87,.08)" stroke="rgba(255,166,87,.4)" stroke-width="1"/>
+  <!-- Triangle: Walk_F - Run_F - Run_L -->
+  <polygon points="200,170 200,20 50,20" fill="rgba(248,81,73,.08)" stroke="rgba(248,81,73,.4)" stroke-width="1"/>
+  <!-- Triangle: Walk_F - Run_F - Run_R -->
+  <polygon points="200,170 200,20 350,20" fill="rgba(227,179,65,.08)" stroke="rgba(227,179,65,.4)" stroke-width="1"/>
+
+  <!-- Current Parameter Point -->
+  <circle cx="160" cy="140" r="6" fill="#f85149" stroke="#fff" stroke-width="2"/>
+  <text x="170" y="135" fill="#f85149" font-size="10" font-weight="700">P</text>
+  <text x="162" y="128" fill="#f85149" font-size="8">(-30, 3.5)</text>
+
+  <!-- Right side: Algorithm explanation -->
+  <text x="400" y="45" fill="#e6edf3" font-size="14" font-weight="700">Delaunay Algorithm</text>
+
+  <text x="400" y="75" fill="#f85149" font-size="12" font-weight="600">1. Super Triangle</text>
+  <text x="415" y="95" fill="#8b949e" font-size="11">&#47784;&#46304; &#49368;&#54540;&#51012; &#54252;&#54632;&#54616;&#45716; &#52488;&#45824;&#54805; &#49340;&#44033;&#54805;</text>
+
+  <text x="400" y="125" fill="#ffa657" font-size="12" font-weight="600">2. Point Insertion</text>
+  <text x="415" y="145" fill="#8b949e" font-size="11">&#54252;&#51064;&#53944; &#52628;&#44032; &#8594; Circumcircle &#44160;&#49324;</text>
+  <text x="415" y="163" fill="#8b949e" font-size="11">Bad Triangles &#51228;&#44144; &#8594; &#51116;&#49340;&#44033;&#54868;</text>
+
+  <text x="400" y="195" fill="#3fb950" font-size="12" font-weight="600">3. IsPointInCircumcircle()</text>
+  <text x="415" y="215" fill="#8b949e" font-size="11">Determinant method (CW/CCW &#52376;&#47532;)</text>
+  <text x="415" y="233" fill="#8b949e" font-size="11">&#50808;&#51217;&#50896; &#45236;&#48512; &#54032;&#51221;</text>
+
+  <text x="400" y="263" fill="#d2a8ff" font-size="12" font-weight="600">4. Barycentric Interpolation</text>
+  <text x="415" y="283" fill="#8b949e" font-size="11">P&#51216;&#51060; &#49549;&#54620; &#49340;&#44033;&#54805; &#52286;&#44592;</text>
+  <text x="415" y="301" fill="#8b949e" font-size="11">U, V, W &#47924;&#44172;&#51473;&#49900; &#51340;&#54364; &#44228;&#49328;</text>
+  <text x="415" y="319" fill="#8b949e" font-size="11">3&#44060; &#54252;&#51592; &#44032;&#51473; &#54217;&#44512; &#48660;&#47116;&#46377;</text>
+
+  <text x="400" y="349" fill="#58a6ff" font-size="12" font-weight="600">5. Rotation Blending</text>
+  <text x="415" y="369" fill="#8b949e" font-size="11">Sequential Slerp (&#44032;&#51109; &#53360; &#44032;&#51473;&#52824; &#44592;&#51456;)</text>
+  <text x="415" y="387" fill="#8b949e" font-size="11">Position/Scale: Weighted Average</text>
+</svg>
+<p class="diagram-label">Fig 5. BlendSpace2D - Delaunay &#49340;&#44033;&#48516;&#54624; + Barycentric &#48372;&#44036; &#49884;&#44033;&#54868;</p>
+</div>
+
+<!-- BlendSpace2D Update Flow -->
+<h3>Update() - Edge Case Handling</h3>
+<div class="card-grid" style="grid-template-columns:repeat(4,1fr);">
+  <div class="card">
+    <div class="card-title" style="color:var(--accent);">1 Sample</div>
+    <div class="card-body">&#51649;&#51217; &#52636;&#47141;. &#48372;&#44036; &#50630;&#51060; &#45800;&#51068; &#49368;&#54540; &#50528;&#45768;&#47700;&#51060;&#49496; &#51116;&#49373;.</div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--accent2);">2 Samples</div>
+    <div class="card-body">&#46160; &#51216; &#49324;&#51060; &#49440;&#54805; &#48372;&#44036;. &#53804;&#50689; &#44144;&#47532; &#44228;&#49328;&#51004;&#47196; Alpha &#52628;&#52636;.</div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--accent3);">3+ Samples</div>
+    <div class="card-body">Delaunay &#49340;&#44033;&#48516;&#54624; &#8594; &#54252;&#54632; &#49340;&#44033;&#54805; &#52286;&#44592; &#8594; Barycentric &#48372;&#44036;.</div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--red);">Out of Bounds</div>
+    <div class="card-body">&#49340;&#44033;&#54805; &#50808;&#48512;: &#44032;&#51109; &#44032;&#44620;&#50868; &#49368;&#54540; &#52286;&#50500; &#54644;&#45817; &#50528;&#45768;&#47700;&#51060;&#49496; &#51116;&#49373;.</div>
+  </div>
+</div>
+</div>
+</section>
+
+<!-- ==================== SECTION 6: Compiler ==================== -->
+<section id="compiler">
+<div class="container">
+<h2><span class="icon" style="background:rgba(248,81,73,.15);">&#9881;</span> AnimBlueprint Compiler</h2>
+
+<p><code>FAnimBlueprintCompiler::Compile()</code>&#45716; &#50640;&#46356;&#53552;&#51032; &#48708;&#51452;&#50620; &#44536;&#47000;&#54532;&#47484; &#49692;&#54924;&#54616;&#50668; &#47088;&#53440;&#51076;&#50857; <code>UAnimationStateMachine</code>&#51012; &#48716;&#46300;&#54633;&#45768;&#45796;.</p>
+
+<div class="code-block">
+<div class="code-header">AnimBlueprintCompiler.cpp - Compile (annotated)</div>
+<pre><span class="kw">void</span> <span class="type">FAnimBlueprintCompiler</span>::<span class="fn">Compile</span>(
+    <span class="type">UAnimationGraph</span>* InGraph,
+    <span class="type">UAnimInstance</span>* InAnimInstance,
+    <span class="type">UAnimationStateMachine</span>* OutStateMachine)
+{
+    OutStateMachine-&gt;<span class="fn">Clear</span>();
+    <span class="type">FBlueprintContext</span> Context(InAnimInstance);
+
+    <span class="cmt">// ========== Pass #1: State Registration ==========</span>
+    <span class="kw">for</span> (<span class="type">UEdGraphNode</span>* Node : InGraph-&gt;Nodes) {
+        <span class="kw">if</span> (<span class="type">UK2Node_AnimState</span>* StateNode = <span class="fn">Cast</span>&lt;...&gt;(Node)) {
+            <span class="cmt">// Animation pin evaluation - type dispatch</span>
+            <span class="type">FBlueprintValue</span> Result = SourcePin-&gt;OwningNode-&gt;<span class="fn">EvaluatePin</span>(...);
+
+            <span class="kw">if</span> (holds_alternative&lt;<span class="type">UAnimSequence</span>*&gt;(Result))
+                NewState.PoseProvider = Result.Get&lt;<span class="type">UAnimSequence</span>*&gt;();
+            <span class="kw">else if</span> (holds_alternative&lt;<span class="type">UBlendSpace1D</span>*&gt;(Result))
+                NewState.PoseProvider = Result.Get&lt;<span class="type">UBlendSpace1D</span>*&gt;();
+            <span class="kw">else if</span> (holds_alternative&lt;<span class="type">UBlendSpace2D</span>*&gt;(Result))
+                NewState.PoseProvider = Result.Get&lt;<span class="type">UBlendSpace2D</span>*&gt;();
+
+            <span class="cmt">// OnUpdate lambda: re-evaluates BlendSpace params each frame</span>
+            NewState.OnUpdate = [SourceNode, InAnimInstance]() {
+                <span class="type">FBlueprintContext</span> RuntimeContext(InAnimInstance);
+                SourceNode-&gt;<span class="fn">EvaluatePin</span>(SourcePin, &amp;RuntimeContext);
+            };
+            OutStateMachine-&gt;<span class="fn">AddState</span>(NewState);
+        }
+    }
+
+    <span class="cmt">// ========== Pass #2: Entry Point ==========</span>
+    <span class="type">UK2Node_AnimStateEntry</span>* EntryNode = InGraph-&gt;<span class="fn">GetEntryNode</span>();
+    <span class="type">UEdGraphNode</span>* InitialState = <span class="fn">GetConnectedNode</span>(EntryNode-&gt;FindPin(<span class="str">"Entry"</span>));
+    OutStateMachine-&gt;<span class="fn">SetInitialState</span>(NodeToStateMap[InitialState]);
+
+    <span class="cmt">// ========== Pass #3: Transition Rules ==========</span>
+    <span class="kw">for</span> (<span class="type">UK2Node_AnimTransition</span>* TransNode : ...) {
+        <span class="kw">auto</span> Condition = [TransNode, InAnimInstance]() -&gt; <span class="type">bool</span> {
+            <span class="type">FBlueprintContext</span> ctx(InAnimInstance);
+            <span class="kw">return</span> <span class="fn">EvaluateInput</span>&lt;<span class="type">bool</span>&gt;(TransNode-&gt;FindPin(<span class="str">"Can Transition"</span>), &amp;ctx);
+        };
+        OutStateMachine-&gt;<span class="fn">AddTransition</span>({FromName, ToName, Condition, BlendTime});
+    }
+}</pre>
+</div>
+
+<h3>Key Design: Lambda Capture Pattern</h3>
+<div class="card" style="border-color:var(--accent3);">
+<div class="card-body">
+<p style="color:var(--text);">&#52980;&#54028;&#51068;&#47084;&#51032; &#54645;&#49900; &#46356;&#51088;&#51064; &#54056;&#53556;&#51008; <strong>&#47100;&#45796; &#52897;&#52376;</strong>&#51077;&#45768;&#45796;. &#48708;&#51452;&#50620; &#44536;&#47000;&#54532;&#51032; &#45765;&#46300;/&#54592; &#52280;&#51312;&#47484; C++ &#47100;&#45796;&#50640; &#52897;&#52376;&#54616;&#50668;, &#47088;&#53440;&#51076;&#50640; &#51204;&#51060; &#51312;&#44148;&#51012; &#54217;&#44032;&#54624; &#46412; &#48660;&#47336;&#54532;&#47536;&#53944; &#44536;&#47000;&#54532;&#51032; &#45765;&#46300;&#47484; &#51649;&#51217; &#51116;&#54217;&#44032;&#54633;&#45768;&#45796;.</p>
+<br>
+<p style="color:var(--text);">&#51060; &#48169;&#49885;&#51004;&#47196; &#48660;&#47336;&#54532;&#47536;&#53944; &#50640;&#46356;&#53552;&#50640;&#49436; &#50672;&#44208;&#54620; &#45432;&#46300; &#44536;&#47000;&#54532;&#44032; &#47088;&#53440;&#51076;&#50640;&#49436;&#46020; &#46041;&#51068;&#54616;&#44172; &#46041;&#51089;&#54633;&#45768;&#45796;.</p>
+<br>
+<ul>
+<li><strong>Transition Condition</strong>: <code>"Can Transition"</code> &#54592;&#50640; &#50672;&#44208;&#46108; &#45765;&#46300; &#44536;&#47000;&#54532;&#47484; &#47588; &#54532;&#47112;&#51076; &#47100;&#45796;&#47196; &#54217;&#44032;</li>
+<li><strong>OnUpdate</strong>: BlendSpace &#54028;&#46972;&#48120;&#53552;&#47484; &#47588; &#54532;&#47112;&#51076; &#51116;&#54217;&#44032;&#54616;&#50668; &#49892;&#49884;&#44036; &#48660;&#47116;&#46377; &#50629;&#45936;&#51060;&#53944;</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ==================== SECTION 7: AnimInstance ==================== -->
+<section id="animinstance">
+<div class="container">
+<h2><span class="icon" style="background:rgba(88,166,255,.15);">&#9654;</span> UAnimInstance</h2>
+
+<p>&#49828;&#52992;&#47112;&#53448; &#47700;&#49884; &#52980;&#54252;&#45324;&#53944;&#51032; &#50528;&#45768;&#47700;&#51060;&#49496; &#51116;&#49373;&#51012; &#44288;&#47532;&#54616;&#45716; &#54840;&#49828;&#53944; &#53364;&#47000;&#49828;&#51077;&#45768;&#45796;.</p>
+
+<h3>Animation Layer System</h3>
+<div class="layer-stack">
+  <div class="layer" style="background:rgba(210,168,255,.15); border:1px solid var(--accent3);">
+    <strong>Montage Layer</strong> (Overlay) - UAnimMontage<br>
+    <span style="font-size:.8rem;color:var(--text-dim);">&#49345;&#53468;&#47672;&#49888;&#44284; &#48324;&#44060;&#47196; &#46041;&#51089;, &#50724;&#48260;&#47112;&#51060; &#48169;&#49885;</span>
+  </div>
+  <div class="layer" style="background:rgba(255,166,87,.15); border:1px solid var(--accent5);">
+    <strong>Upper Body Layer</strong> (EAnimLayer::Upper)<br>
+    <span style="font-size:.8rem;color:var(--text-dim);">&#49345;&#52404; &#48516;&#47532; &#50528;&#45768;&#47700;&#51060;&#49496; (&#48376; &#47560;&#49828;&#53433; &#44592;&#48152;)</span>
+  </div>
+  <div class="layer" style="background:rgba(63,185,80,.15); border:1px solid var(--accent2);">
+    <strong>Base Layer</strong> (EAnimLayer::Base)<br>
+    <span style="font-size:.8rem;color:var(--text-dim);">&#51204;&#49888; &#50528;&#45768;&#47700;&#51060;&#49496; (StateMachine &#44288;&#47532;)</span>
+  </div>
+</div>
+
+<h3>Key APIs</h3>
+<table>
+<tr><th>Category</th><th>Method</th><th>Description</th></tr>
+<tr><td rowspan="4">Playback</td><td><code>PlaySequence()</code></td><td>&#50528;&#45768;&#47700;&#51060;&#49496; &#49884;&#53008;&#49828; &#51649;&#51217; &#51116;&#49373;</td></tr>
+<tr><td><code>BlendTo()</code></td><td>&#53440;&#44191; &#49884;&#53008;&#49828;&#47196; &#53356;&#47196;&#49828;&#54168;&#51060;&#46300;</td></tr>
+<tr><td><code>PlayPoseProvider()</code></td><td>BlendSpace &#46321; PoseProvider &#51116;&#49373;</td></tr>
+<tr><td><code>BlendToPoseProvider()</code></td><td>PoseProvider&#47196; &#48660;&#47116;&#46300; &#51204;&#54872;</td></tr>
+<tr><td rowspan="3">Montage</td><td><code>Montage_Play()</code></td><td>&#47805;&#53440;&#51452; &#51116;&#49373; (BlendIn/Out)</td></tr>
+<tr><td><code>Montage_Stop()</code></td><td>&#47805;&#53440;&#51452; &#51221;&#51648; (&#48660;&#47116;&#46300; &#50500;&#50883;)</td></tr>
+<tr><td><code>Montage_IsPlaying()</code></td><td>&#51116;&#49373; &#49345;&#53468; &#54869;&#51064;</td></tr>
+<tr><td rowspan="2">Root Motion</td><td><code>ConsumeRootMotionTranslation()</code></td><td>&#47336;&#53944; &#47784;&#49496; &#51060;&#46041;&#47049; &#49548;&#48708;</td></tr>
+<tr><td><code>ConsumeRootMotionRotation()</code></td><td>&#47336;&#53944; &#47784;&#49496; &#54924;&#51204;&#47049; &#49548;&#48708;</td></tr>
+<tr><td rowspan="2">Parameters</td><td><code>SetMovementSpeed()</code></td><td>&#51060;&#46041; &#49549;&#46020; &#54028;&#46972;&#48120;&#53552; (&#51204;&#51060; &#51312;&#44148;&#50857;)</td></tr>
+<tr><td><code>SetIsMoving()</code></td><td>&#51060;&#46041; &#50668;&#48512; &#54028;&#46972;&#48120;&#53552;</td></tr>
+</table>
+
+<h3>Game Loop Integration</h3>
+<div class="diagram-wrap">
+<svg width="700" height="180" viewBox="0 0 700 180" xmlns="http://www.w3.org/2000/svg">
+  <rect x="10" y="60" width="120" height="50" rx="8" fill="#1c2333" stroke="#ffa657"/>
+  <text x="70" y="82" text-anchor="middle" fill="#ffa657" font-size="10" font-weight="600">SkeletalMesh</text>
+  <text x="70" y="97" text-anchor="middle" fill="#ffa657" font-size="10" font-weight="600">TickComponent()</text>
+
+  <line x1="130" y1="85" x2="160" y2="85" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrowG)"/>
+
+  <rect x="160" y="60" width="130" height="50" rx="8" fill="#1c2333" stroke="#58a6ff"/>
+  <text x="225" y="82" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="600">AnimInstance</text>
+  <text x="225" y="97" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="600">NativeUpdate(dt)</text>
+
+  <line x1="290" y1="85" x2="320" y2="85" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrowG)"/>
+
+  <rect x="320" y="60" width="130" height="50" rx="8" fill="#1c2333" stroke="#3fb950"/>
+  <text x="385" y="82" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600">StateMachine</text>
+  <text x="385" y="97" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="600">ProcessState(dt)</text>
+
+  <line x1="450" y1="85" x2="480" y2="85" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrowG)"/>
+
+  <rect x="480" y="60" width="100" height="50" rx="8" fill="#1c2333" stroke="#d2a8ff"/>
+  <text x="530" y="82" text-anchor="middle" fill="#d2a8ff" font-size="10" font-weight="600">EvaluatePose()</text>
+  <text x="530" y="97" text-anchor="middle" fill="#8b949e" font-size="9">Bone Transforms</text>
+
+  <line x1="580" y1="85" x2="610" y2="85" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrowG)"/>
+
+  <rect x="610" y="60" width="80" height="50" rx="8" fill="#1c2333" stroke="#e3b341"/>
+  <text x="650" y="82" text-anchor="middle" fill="#e3b341" font-size="10" font-weight="600">Render</text>
+  <text x="650" y="97" text-anchor="middle" fill="#8b949e" font-size="9">GPU Skinning</text>
+
+  <!-- Labels below -->
+  <text x="70" y="135" text-anchor="middle" fill="#8b949e" font-size="9">Component</text>
+  <text x="225" y="135" text-anchor="middle" fill="#8b949e" font-size="9">Update Params</text>
+  <text x="385" y="135" text-anchor="middle" fill="#8b949e" font-size="9">Eval Transitions</text>
+  <text x="530" y="135" text-anchor="middle" fill="#8b949e" font-size="9">Blend Poses</text>
+  <text x="650" y="135" text-anchor="middle" fill="#8b949e" font-size="9">Draw</text>
+
+  <text x="350" y="160" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">&#8592; Per Frame &#8594;</text>
+</svg>
+<p class="diagram-label">Fig 6. Game Loop &#53685;&#54633; &#54980;&#47492; - TickComponent &rarr; Render</p>
+</div>
+</div>
+</section>
+
+<!-- ==================== SECTION 8: Notify System ==================== -->
+<section id="notify">
+<div class="container">
+<h2><span class="icon" style="background:rgba(227,179,65,.15);">&#9888;</span> Animation Notify System</h2>
+
+<p>&#50528;&#45768;&#47700;&#51060;&#49496; &#51116;&#49373; &#51473; &#53945;&#51221; &#49884;&#51216;&#50640; &#51060;&#48292;&#53944;&#47484; &#53944;&#47532;&#44144;&#54616;&#45716; &#45765;&#53440;&#54028;&#51060; &#49884;&#49828;&#53596;&#51077;&#45768;&#45796;.</p>
+
+<div class="card-grid" style="grid-template-columns:1fr 1fr;">
+  <div class="card">
+    <div class="card-title" style="color:var(--yellow);">Single-Shot Notify</div>
+    <div class="card-body">
+      <code>Duration == 0</code><br>
+      &#53945;&#51221; &#49884;&#44036;&#50640; 1&#54924; &#53944;&#47532;&#44144;<br><br>
+      <strong>&#44396;&#54788; &#50696;:</strong>
+      <ul>
+        <li><code>AnimNotify_PlaySound</code></li>
+        <li><code>AnimNotify_PlayParticle</code></li>
+        <li><code>AnimNotify_EnableWeaponCollision</code></li>
+        <li><code>AnimNotify_ComboWindow</code></li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--accent3);">State Notify</div>
+    <div class="card-body">
+      <code>Duration > 0</code><br>
+      &#44396;&#44036; &#46041;&#50504; Begin/Tick/End &#53944;&#47532;&#44144;<br><br>
+      <strong>&#44396;&#54788; &#50696;:</strong>
+      <ul>
+        <li><code>AnimNotifyState_Trail</code></li>
+      </ul>
+      <br>
+      <code>EPendingNotifyType</code>: Trigger, StateBegin, StateTick, StateEnd
+    </div>
+  </div>
+</div>
+
+<div class="code-block">
+<div class="code-header">AnimTypes.h - FAnimNotifyEvent</div>
+<pre><span class="kw">struct</span> <span class="type">FAnimNotifyEvent</span>
+{
+    <span class="type">UAnimNotify</span>*      <span class="param">Notify</span>       = <span class="kw">nullptr</span>;  <span class="cmt">// Single-shot</span>
+    <span class="type">UAnimNotifyState</span>* <span class="param">NotifyState</span>  = <span class="kw">nullptr</span>;  <span class="cmt">// Duration-based</span>
+    <span class="type">float</span>             <span class="param">Duration</span>     = <span class="num">0.0f</span>;
+    <span class="type">float</span>             <span class="param">TriggerTime</span>  = <span class="num">0.0f</span>;
+    <span class="type">FName</span>             <span class="param">NotifyName</span>;
+
+    <span class="type">bool</span> <span class="fn">IsState</span>() <span class="kw">const</span>     { <span class="kw">return</span> Duration &gt; <span class="num">0.0f</span> &amp;&amp; NotifyState; }
+    <span class="type">bool</span> <span class="fn">IsSingleShot</span>() <span class="kw">const</span> { <span class="kw">return</span> Duration &lt;= <span class="num">0.0f</span> &amp;&amp; Notify; }
+};</pre>
+</div>
+
+</div>
+</section>
+
+<!-- Footer -->
+<footer style="padding:32px 0; text-align:center; border-top:1px solid var(--border);">
+<div class="container">
+  <p style="font-size:.85rem;">Mundi Engine &mdash; Custom DirectX 11 Animation State Machine Blueprint System</p>
+  <p style="font-size:.75rem; color:var(--text-dim); margin-top:4px;">Generated from source code analysis &bull; AnimationStateMachine.h/.cpp, K2Node_Animation.h/.cpp, AnimBlueprintCompiler.cpp, BlendSpace2D.h/.cpp</p>
+</div>
+</footer>
+
+<script>
+// Simple tab functionality
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const container = btn.closest('.tab-container');
+    container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    container.querySelector(btn.dataset.target).classList.add('active');
+  });
+});
+
+// Active nav highlight
+const sections = document.querySelectorAll('section');
+const navLinks = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(section => {
+    if (window.scrollY >= section.offsetTop - 100) {
+      current = section.getAttribute('id');
+    }
+  });
+  navLinks.forEach(link => {
+    link.classList.remove('active');
+    if (link.getAttribute('href') === '#' + current) {
+      link.classList.add('active');
+    }
+  });
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/ShinobiVoices/audio (8).wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: audio (8).wav",
+      "TriggerTime" : 0.308657
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Footsteps/wav/Banks17_537.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks17_537.wav",
+      "TriggerTime" : 0.351343
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

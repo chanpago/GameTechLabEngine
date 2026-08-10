@@ -1,0 +1,73 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : true
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Enable",
+      "TriggerTime" : 0.006608
+    }, {
+      "Class" : "UAnimNotify_EnableWeaponCollision",
+      "Data" : {
+        "bEnable" : false
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "WeaponCollision: Disable",
+      "TriggerTime" : 0.290737
+    }, {
+      "Class" : "UAnimNotify_PlayParticle",
+      "Data" : {
+        "AbsoluteWorld" : false,
+        "AttachBone" : "Invalid",
+        "AttachToOwner" : false,
+        "LifeTime" : 1.500000,
+        "LocationOffset" : [1.000000, 0.000000, 0.000000],
+        "ParticlePath" : "Data/Particle/G_Electric2.particle",
+        "RotationOffset" : [0.000000, 0.000000, 0.000000],
+        "ScaleOffset" : [1.000000, 1.000000, 1.000000]
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlayParticle: G_Electric2.particle",
+      "TriggerTime" : 0.449321
+    }, {
+      "Class" : "UAnimNotify_PlayCamera",
+      "Data" : {
+        "Camera" : {
+          "AmpLoc" : 0.150000,
+          "AmpRot" : 0.150000,
+          "Duration" : 0.500000,
+          "Frequency" : 15.000000,
+          "Priority" : 0,
+          "Type" : "Shake"
+        }
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "Invalid",
+      "TriggerTime" : 0.906903
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Crash/Banks17_75.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks17_75.wav",
+      "TriggerTime" : 0.713628
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks10_679.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks10_679.wav",
+      "TriggerTime" : 0.143717
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

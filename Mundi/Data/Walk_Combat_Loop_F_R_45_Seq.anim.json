@@ -1,0 +1,23 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Footsteps/wav/Banks0_957.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks0_957.wav",
+      "TriggerTime" : 0.334769
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Footsteps/wav/Banks0_958.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks0_958.wav",
+      "TriggerTime" : 0.864821
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

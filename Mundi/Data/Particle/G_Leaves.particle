@@ -1,0 +1,98 @@
+{
+        "Emitters" : [{
+            "LODLevels" : [{
+                "LODIndex" : 0,
+                "Modules" : [{
+                    "Lifetime_Max" : 40.000000,
+                    "Lifetime_Min" : 29.850000,
+                    "Lifetime_bUseRange" : true,
+                    "Type" : "Lifetime",
+                    "bEnabled" : true
+                  }, {
+                    "StartSize_Max" : [0.500000, 0.100000, 1.000000],
+                    "StartSize_Min" : [0.500000, 0.100000, 1.000000],
+                    "StartSize_bUseRange" : true,
+                    "Type" : "Size",
+                    "bEnabled" : true
+                  }, {
+                    "Gravity" : [0.000000, 0.000000, -2.000000],
+                    "StartVelocity_Max" : [3.000000, 1.000000, 1.000000],
+                    "StartVelocity_Min" : [-1.000000, -1.000000, -1.000000],
+                    "StartVelocity_bUseRange" : true,
+                    "Type" : "Velocity",
+                    "bEnabled" : true
+                  }, {
+                    "BoxExtent" : [100.000000, 100.000000, 100.000000],
+                    "CylinderHeight" : 200.000000,
+                    "CylinderRadius" : 100.000000,
+                    "DistributionType" : 0,
+                    "SphereRadius" : 100.000000,
+                    "StartLocation_Max" : [30.000000, 30.000000, 13.000000],
+                    "StartLocation_Min" : [-30.000000, -30.000000, 10.000000],
+                    "StartLocation_bUseRange" : true,
+                    "Type" : "Location",
+                    "bEnabled" : true
+                  }, {
+                    "StartRotation_Max" : [3.140000, 0.000000, 0.000000],
+                    "StartRotation_Min" : [0.000000, 0.000000, 0.000000],
+                    "StartRotation_bUseRange" : true,
+                    "Type" : "Rotation",
+                    "bEnabled" : true
+                  }, {
+                    "StartColor_Max" : [0.528957, 0.265981, 0.059227, 1.000000],
+                    "StartColor_Min" : [1.000000, 1.000000, 1.000000, 1.000000],
+                    "StartColor_bUseRange" : true,
+                    "Type" : "Color",
+                    "bEnabled" : true
+                  }, {
+                    "InitialRotation_Max" : [6.280000, 0.000000, 0.000000],
+                    "InitialRotation_Min" : [0.000000, 0.000000, 0.000000],
+                    "InitialRotation_bUseRange" : true,
+                    "StartRotationRate_Max" : [3.140000, 0.000000, 0.000000],
+                    "StartRotationRate_Min" : [0.000000, 0.000000, 0.000000],
+                    "StartRotationRate_bUseRange" : true,
+                    "Type" : "RotationRate",
+                    "bEnabled" : true
+                  }],
+                "RequiredModule" : {
+                  "BlendMode" : 1,
+                  "DiffuseTexture" : "Data/Textures/Sicka Dynasty/Game/SICKA_DYNASTY/Textures/T_Leave.PNG",
+                  "EmitterDelay" : 0.000000,
+                  "EmitterDuration" : 1.000000,
+                  "EmitterLoops" : 0,
+                  "InitialColor_Max" : [1.000000, 1.000000, 1.000000, 1.000000],
+                  "InitialColor_Min" : [1.000000, 1.000000, 1.000000, 1.000000],
+                  "InitialColor_bUseRange" : false,
+                  "InitialRotation_Max" : [0.000000, 0.000000, 0.000000],
+                  "InitialRotation_Min" : [0.000000, 0.000000, 0.000000],
+                  "InitialRotation_bUseRange" : false,
+                  "InitialSize_Max" : [50.000000, 50.000000, 1.000000],
+                  "InitialSize_Min" : [50.000000, 50.000000, 1.000000],
+                  "InitialSize_bUseRange" : false,
+                  "Material" : "GatlingGun_Turret_Mat",
+                  "MaxParticles" : 1000,
+                  "ScreenAlignment" : 0,
+                  "SortMode" : 1,
+                  "SpawnRateBase" : 10.000000,
+                  "SubImages_Horizontal" : 1,
+                  "SubImages_Vertical" : 1,
+                  "bUseLocalSpace" : false
+                },
+                "SpawnModule" : {
+                  "BurstList" : [],
+                  "SpawnRateOverTime_Max" : 50.000000,
+                  "SpawnRateOverTime_Min" : 10.000000,
+                  "SpawnRateOverTime_bUseRange" : true,
+                  "SpawnRateType" : 0,
+                  "SpawnRate_Max" : 15.000000,
+                  "SpawnRate_Min" : 10.000000,
+                  "SpawnRate_bUseRange" : true
+                },
+                "bEnabled" : true
+              }],
+            "Name" : "UParticleEmitter_70",
+            "RenderType" : 0
+          }],
+        "Name" : "UParticleSystem_28",
+        "Type" : "ParticleSystem"
+      }

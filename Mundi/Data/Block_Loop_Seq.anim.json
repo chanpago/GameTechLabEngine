@@ -1,0 +1,29 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlayParticle",
+      "Data" : {
+        "AttachBone" : "Invalid",
+        "AttachToOwner" : true,
+        "LifeTime" : 1.000000,
+        "LocationOffset" : [-0.180000, -0.170000, 1.000000],
+        "ParticlePath" : "Data/Particle/G_Charging1.particle",
+        "RotationOffset" : [0.000000, 0.000000, 0.000000],
+        "ScaleOffset" : [1.000000, 1.000000, 1.000000]
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlayParticle: G_Charging1.particle",
+      "TriggerTime" : 0.013253
+    }, {
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Slashes/wav/Banks17_666.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Banks17_666.wav",
+      "TriggerTime" : 0.024683
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}

@@ -1,0 +1,14 @@
+{
+  "Notifies" : [{
+      "Class" : "UAnimNotify_PlaySound",
+      "Data" : {
+        "SoundPath" : "Data/Audio/SFX/Minimum_9.wav"
+      },
+      "Duration" : 0.000000,
+      "Kind" : "Single",
+      "NotifyName" : "PlaySound: Minimum_9.wav",
+      "TriggerTime" : 0.058695
+    }],
+  "Type" : "AnimSequenceMeta",
+  "Version" : 1
+}
