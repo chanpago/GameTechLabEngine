@@ -10,6 +10,8 @@
     <FxCompile Include="Shaders\Common\LightingBuffers.hlsl" />
     <FxCompile Include="Shaders\Common\LightingCommon.hlsl" />
     <FxCompile Include="Shaders\Common\LightStructures.hlsl" />
+    <FxCompile Include="Shaders\Lighting\TileDepthRange_CS.hlsl" />
+    <FxCompile Include="Shaders\Lighting\TileLightCulling_CS.hlsl" />
 	<FxCompile Include="Shaders\Occlusion\OcclusionHZBInit_CS.hlsl" />
 	<FxCompile Include="Shaders\Occlusion\OcclusionHZBReduce_CS.hlsl" />
 	<FxCompile Include="Shaders\Occlusion\OcclusionCull_CS.hlsl" />
@@ -470,6 +472,7 @@
       <Filter>Generated</Filter>
     </ClCompile><ClCompile Include="Generated\APlayerCharacter.generated.cpp">
       <Filter>Generated</Filter>
+    </ClCompile>
     <ClCompile Include="Generated\AGameState.generated.cpp">
       <Filter>Generated</Filter>
     </ClCompile><ClCompile Include="Generated\AGameStateBase.generated.cpp">
@@ -962,6 +965,7 @@
       <Filter>Generated</Filter>
     </ClInclude><ClInclude Include="Generated\APlayerCharacter.generated.h">
       <Filter>Generated</Filter>
+    </ClInclude>
     <ClInclude Include="Generated\AGameState.generated.h">
       <Filter>Generated</Filter>
     </ClInclude><ClInclude Include="Generated\AGameStateBase.generated.h">

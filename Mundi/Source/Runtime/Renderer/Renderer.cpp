@@ -31,12 +31,15 @@
 #include "DecalStatManager.h"
 #include "SceneRenderer.h"
 #include "SceneView.h"
+#include "TileLightCuller.h"
 #include "GPUOcclusionCuller.h"
 
 #include <Windows.h>
 #include "DirectionalLightComponent.h"
 URenderer::URenderer(D3D11RHI* InDevice) : RHIDevice(InDevice)
 {
+	TileLightCuller = std::make_unique<FTileLightCuller>();
+	TileLightCuller->Initialize(RHIDevice);
 	InitializeLineBatch();
 }
 
@@ -48,6 +51,7 @@ URenderer::~URenderer()
 		Pair.second.Culler = nullptr;
 	}
 	GPUOcclusionContexts.Empty();
+	TileLightCuller.reset();
 	if (LineBatchData)
 	{
 		delete LineBatchData;

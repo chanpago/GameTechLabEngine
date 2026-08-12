@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Mundi Rendering Architecture</title>
+  <style>
+    :root {
+      --bg: #071014;
+      --bg-2: #0a171c;
+      --panel: rgba(14, 29, 35, .82);
+      --panel-solid: #0e1d23;
+      --panel-2: #11262d;
+      --line: rgba(174, 216, 225, .14);
+      --line-strong: rgba(174, 216, 225, .28);
+      --text: #edf7f5;
+      --muted: #92a9ac;
+      --lime: #b7f36b;
+      --cyan: #5dd9f5;
+      --orange: #ffb66e;
+      --violet: #bda7ff;
+      --red: #ff7f78;
+      --shadow: 0 22px 70px rgba(0, 0, 0, .28);
+      --radius: 22px;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: Pretendard, "Noto Sans KR", "Segoe UI", AppleSDGothicNeo, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { max-width: 100%; overflow-x: hidden; scroll-behavior: smooth; scroll-padding-top: 86px; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 80% 6%, rgba(93, 217, 245, .10), transparent 27rem),
+        radial-gradient(circle at 7% 24%, rgba(183, 243, 107, .07), transparent 26rem),
+        var(--bg);
+      font-family: var(--sans);
+      line-height: 1.65;
+      letter-spacing: -.015em;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: .14;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(to bottom, black, transparent 70%);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    code { font-family: var(--mono); }
+    button { font: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 64px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 16, 20, .78);
+      backdrop-filter: blur(18px);
+    }
+
+    .topbar-inner {
+      width: min(1420px, calc(100% - 40px));
+      height: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 720; }
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      color: #071014;
+      font-family: var(--mono);
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--lime), var(--cyan));
+      box-shadow: 0 0 28px rgba(93, 217, 245, .2);
+    }
+    .top-meta { color: var(--muted); font: 12px/1 var(--mono); }
+
+    .layout {
+      width: min(1420px, calc(100% - 40px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 50px;
+    }
+
+    .side-nav {
+      position: sticky;
+      top: 95px;
+      align-self: start;
+      padding: 18px 0 80px;
+    }
+    .side-label {
+      margin: 0 0 12px 13px;
+      color: #668086;
+      font: 700 10px/1 var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .side-nav a {
+      position: relative;
+      display: block;
+      margin: 2px 0;
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      border-radius: 9px;
+      transition: .2s ease;
+    }
+    .side-nav a:hover,
+    .side-nav a.active { color: var(--text); background: rgba(255,255,255,.045); }
+    .side-nav a.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 9px;
+      bottom: 9px;
+      width: 2px;
+      border-radius: 2px;
+      background: var(--lime);
+    }
+
+    main { min-width: 0; padding-bottom: 120px; }
+    section { margin-top: 112px; }
+
+    .hero {
+      min-height: 650px;
+      margin-top: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(310px, .75fr);
+      align-items: center;
+      gap: 48px;
+      padding: 72px 0 50px;
+    }
+    .hero > * { min-width: 0; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--lime);
+      font: 700 11px/1 var(--mono);
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 24px;
+      height: 1px;
+      background: currentColor;
+    }
+    h1 {
+      max-width: 780px;
+      margin: 23px 0 24px;
+      font-size: clamp(48px, 6.4vw, 88px);
+      line-height: .98;
+      letter-spacing: -.065em;
+      font-weight: 780;
+    }
+    h1 span {
+      display: block;
+      color: transparent;
+      background: linear-gradient(105deg, var(--lime), #dfffa9 36%, var(--cyan) 86%);
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+    .hero-copy {
+      max-width: 720px;
+      margin: 0;
+      color: #b5c8ca;
+      font-size: 18px;
+      line-height: 1.8;
+      overflow-wrap: anywhere;
+    }
+    .hero-copy strong { color: var(--text); font-weight: 720; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+    .chip {
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.025);
+      font: 11px/1.2 var(--mono);
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .chip.accent { color: var(--lime); border-color: rgba(183,243,107,.25); background: rgba(183,243,107,.06); }
+
+    .hero-visual {
+      position: relative;
+      aspect-ratio: 1 / 1.08;
+      display: grid;
+      place-items: center;
+    }
+    .orbit {
+      position: absolute;
+      border: 1px solid rgba(183,243,107,.18);
+      border-radius: 50%;
+      transform: rotate(-18deg);
+    }
+    .orbit.one { width: 92%; height: 55%; animation: breathe 5s ease-in-out infinite; }
+    .orbit.two { width: 68%; height: 96%; border-color: rgba(93,217,245,.17); animation: breathe 5s 1.2s ease-in-out infinite; }
+    .core {
+      position: relative;
+      width: 205px;
+      height: 205px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background:
+        radial-gradient(circle at 35% 30%, rgba(255,255,255,.24), transparent 18%),
+        linear-gradient(145deg, rgba(183,243,107,.16), rgba(93,217,245,.07));
+      border: 1px solid rgba(198,239,225,.25);
+      box-shadow: inset 0 0 46px rgba(93,217,245,.08), 0 0 100px rgba(93,217,245,.08);
+    }
+    .core::after {
+      content: "";
+      position: absolute;
+      inset: 16px;
+      border: 1px dashed rgba(255,255,255,.14);
+      border-radius: 50%;
+      animation: spin 25s linear infinite;
+    }
+    .core b { position: relative; z-index: 1; display: block; font: 700 16px/1.3 var(--mono); }
+    .core small { position: relative; z-index: 1; display: block; margin-top: 8px; color: var(--muted); font-size: 11px; }
+    .satellite {
+      position: absolute;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: #b9cdcf;
+      background: rgba(7,16,20,.88);
+      box-shadow: var(--shadow);
+      font: 11px/1 var(--mono);
+    }
+    .satellite.a { left: 0; top: 22%; }
+    .satellite.b { right: 0; top: 34%; }
+    .satellite.c { right: 13%; bottom: 8%; }
+    .satellite.d { left: 5%; bottom: 18%; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes breathe { 50% { transform: rotate(-18deg) scale(1.035); opacity: .65; } }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    .section-number { color: var(--lime); font: 700 11px/1 var(--mono); letter-spacing: .13em; }
+    h2 { margin: 8px 0 0; font-size: clamp(30px, 4vw, 48px); line-height: 1.12; letter-spacing: -.045em; }
+    .section-desc { max-width: 510px; margin: 0; color: var(--muted); font-size: 14px; }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .summary-card {
+      min-height: 176px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(150deg, rgba(255,255,255,.038), rgba(255,255,255,.012));
+    }
+    .summary-card .num { color: var(--lime); font: 700 11px/1 var(--mono); }
+    .summary-card h3 { margin: 30px 0 8px; font-size: 18px; letter-spacing: -.02em; }
+    .summary-card p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .statement {
+      margin-top: 14px;
+      padding: 24px 28px;
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 25px;
+      align-items: center;
+      border: 1px solid rgba(183,243,107,.18);
+      border-radius: 18px;
+      background: linear-gradient(90deg, rgba(183,243,107,.075), rgba(93,217,245,.025));
+    }
+    .statement-label { color: var(--lime); font: 700 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+    .statement p { margin: 0; font-size: 16px; color: #ccdddd; }
+    .statement strong { color: white; }
+
+    .architecture {
+      padding: 30px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(10, 23, 28, .75);
+      box-shadow: var(--shadow);
+    }
+    .arch-row {
+      display: grid;
+      grid-template-columns: 136px repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+    .arch-row + .arch-row { margin-top: 20px; }
+    .layer-label {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      color: var(--muted);
+      font: 700 10px/1.4 var(--mono);
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .layer-label b { display: block; margin-bottom: 5px; color: var(--text); font-size: 13px; letter-spacing: 0; text-transform: none; }
+    .arch-node {
+      min-height: 98px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.025);
+    }
+    .arch-node.wide { grid-column: span 2; }
+    .arch-node.full { grid-column: 2 / -1; }
+    .arch-node .kind { display: block; margin-bottom: 9px; color: var(--cyan); font: 10px/1 var(--mono); text-transform: uppercase; }
+    .arch-node b { display: block; font: 700 13px/1.4 var(--mono); overflow-wrap: anywhere; }
+    .arch-node p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    .arch-node.accent { border-color: rgba(183,243,107,.26); background: rgba(183,243,107,.055); }
+    .arch-node.accent .kind { color: var(--lime); }
+    .arch-node.gpu { border-color: rgba(189,167,255,.25); background: rgba(189,167,255,.045); }
+    .arch-node.gpu .kind { color: var(--violet); }
+    .down-arrow {
+      height: 44px;
+      margin: -3px 0 -3px 136px;
+      display: grid;
+      place-items: center;
+      color: #526c72;
+      font: 22px/1 var(--mono);
+    }
+
+    .callout {
+      margin-top: 16px;
+      padding: 17px 20px;
+      border-left: 2px solid var(--cyan);
+      border-radius: 0 12px 12px 0;
+      color: #acc1c4;
+      background: rgba(93,217,245,.04);
+      font-size: 13px;
+    }
+    .callout strong { color: var(--cyan); }
+
+    .flow {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .flow::before {
+      content: "";
+      position: absolute;
+      left: 5%;
+      right: 5%;
+      top: 27px;
+      height: 1px;
+      z-index: 0;
+      background: linear-gradient(90deg, rgba(183,243,107,.7), rgba(93,217,245,.35), rgba(189,167,255,.35));
+    }
+    .flow-step {
+      position: relative;
+      z-index: 1;
+      min-height: 142px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel-solid);
+    }
+    .flow-step .dot {
+      width: 22px;
+      height: 22px;
+      margin-bottom: 22px;
+      display: grid;
+      place-items: center;
+      color: #071014;
+      border-radius: 50%;
+      background: var(--lime);
+      font: 800 9px/1 var(--mono);
+      box-shadow: 0 0 0 6px var(--panel-solid);
+    }
+    .flow-step:nth-child(n+5) .dot { background: var(--cyan); }
+    .flow-step h3 { margin: 0 0 7px; font-size: 14px; }
+    .flow-step p { margin: 0; color: var(--muted); font-size: 12px; }
+    .flow-step code { color: #d6e8e8; font-size: 11px; }
+
+    .pass-shell {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(10,23,28,.68);
+    }
+    .pass-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; color: var(--muted); font-size: 11px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 7px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); }
+    .legend-dot.cpu { background: var(--cyan); }
+    .legend-dot.gpu { background: var(--violet); }
+    .legend-dot.opt { background: var(--orange); }
+
+    .pass-list { counter-reset: pass; }
+    .pass-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 45px 190px 1fr 120px;
+      gap: 14px;
+      align-items: center;
+      min-height: 72px;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+    }
+    .pass-row:first-child { border-top: 0; }
+    .pass-row::before {
+      counter-increment: pass;
+      content: counter(pass, decimal-leading-zero);
+      color: #658087;
+      font: 700 11px/1 var(--mono);
+    }
+    .pass-name { font-weight: 700; font-size: 14px; }
+    .pass-detail { color: var(--muted); font-size: 12px; }
+    .pass-target { justify-self: end; color: #b7c9cb; font: 10px/1.35 var(--mono); text-align: right; }
+    .tag {
+      display: inline-flex;
+      padding: 4px 7px;
+      margin-left: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font: 9px/1 var(--mono);
+      vertical-align: 1px;
+    }
+    .tag.optional { color: var(--orange); border-color: rgba(255,182,110,.25); }
+
+    .target-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
+    .target-stage {
+      min-height: 420px;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(10,23,28,.72);
+    }
+    .target-stage h3 { margin: 0 0 6px; font-size: 18px; }
+    .target-stage > p { margin: 0 0 26px; color: var(--muted); font-size: 12px; }
+    .buffer-pair { display: grid; grid-template-columns: 1fr 54px 1fr; align-items: center; gap: 10px; }
+    .buffer {
+      min-height: 138px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border: 1px solid rgba(93,217,245,.23);
+      border-radius: 16px;
+      background:
+        linear-gradient(135deg, rgba(93,217,245,.08), transparent),
+        repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,.018) 8px 9px);
+    }
+    .buffer.target { border-color: rgba(183,243,107,.28); background: linear-gradient(135deg, rgba(183,243,107,.08), transparent); }
+    .buffer b { font: 700 13px/1.4 var(--mono); }
+    .buffer span { color: var(--muted); font-size: 11px; }
+    .swap { text-align: center; color: var(--lime); font: 10px/1.5 var(--mono); }
+    .swap strong { display: block; font-size: 26px; }
+    .resource-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 18px; }
+    .resource {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,.018);
+    }
+    .resource b { display: block; margin-bottom: 4px; font: 700 11px/1.4 var(--mono); }
+    .resource span { color: var(--muted); font-size: 11px; }
+    .resource.orange { border-color: rgba(255,182,110,.22); }
+    .resource.violet { border-color: rgba(189,167,255,.22); }
+
+    .shadow-stack { display: grid; gap: 10px; }
+    .shadow-item {
+      min-height: 88px;
+      padding: 15px 16px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255,255,255,.02);
+    }
+    .shadow-item .icon { float: right; color: var(--violet); font: 700 20px/1 var(--mono); }
+    .shadow-item b { display: block; font-size: 13px; }
+    .shadow-item p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .tab {
+      padding: 9px 13px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: transparent;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+    .tab:hover { color: var(--text); border-color: var(--line-strong); }
+    .tab.active { color: #071014; border-color: var(--lime); background: var(--lime); font-weight: 720; }
+    .tab-panel {
+      display: none;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(10,23,28,.7);
+    }
+    .tab-panel.active { display: block; animation: panelIn .24s ease-out; }
+    @keyframes panelIn { from { opacity: .25; transform: translateY(4px); } }
+    .path-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .path-node {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: #cfe0e1;
+      font: 11px/1.35 var(--mono);
+      background: rgba(255,255,255,.022);
+    }
+    .path-node.main { color: var(--lime); border-color: rgba(183,243,107,.25); }
+    .path-arrow { color: #546d72; }
+    .path-notes { margin: 20px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
+    .path-notes li { position: relative; padding-left: 16px; color: var(--muted); font-size: 12px; }
+    .path-notes li::before { content: "·"; position: absolute; left: 0; color: var(--cyan); }
+
+    .batch-layout { display: grid; grid-template-columns: .8fr 1.2fr; gap: 14px; }
+    .batch-card, .draw-card {
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(10,23,28,.7);
+    }
+    .batch-card h3, .draw-card h3 { margin: 0 0 6px; }
+    .batch-card > p, .draw-card > p { margin: 0 0 22px; color: var(--muted); font-size: 12px; }
+    .field-list { display: grid; gap: 8px; }
+    .field {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,.018);
+    }
+    .field code { color: var(--cyan); font-size: 11px; }
+    .field span { color: var(--muted); font-size: 11px; }
+    .draw-pipeline { display: grid; gap: 9px; }
+    .draw-row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 11px; }
+    .draw-index { color: #607b81; font: 700 10px/1 var(--mono); }
+    .draw-bar { padding: 11px 13px; border-left: 2px solid var(--cyan); background: rgba(93,217,245,.035); font-size: 12px; }
+    .draw-cache { color: var(--lime); font: 9px/1 var(--mono); }
+
+    .viewport-diagram {
+      display: grid;
+      grid-template-columns: 1fr 100px 1fr;
+      gap: 18px;
+      align-items: center;
+    }
+    .viewport-source { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .mini-viewport {
+      aspect-ratio: 1.5;
+      padding: 12px;
+      display: flex;
+      align-items: end;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background:
+        linear-gradient(155deg, rgba(93,217,245,.11), transparent 55%),
+        repeating-linear-gradient(0deg, transparent 0 20px, rgba(255,255,255,.025) 20px 21px),
+        #0d1b21;
+      color: #a9bdc0;
+      font: 10px/1.3 var(--mono);
+    }
+    .sequential { text-align: center; color: var(--muted); font: 10px/1.5 var(--mono); }
+    .sequential b { display: block; color: var(--lime); font-size: 24px; }
+    .backbuffer {
+      aspect-ratio: 1.35;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 5px;
+      border: 1px solid rgba(183,243,107,.24);
+      border-radius: 17px;
+      background: rgba(183,243,107,.035);
+    }
+    .backbuffer div { display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: #89a1a5; font: 9px/1 var(--mono); }
+
+    .note-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .note {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: rgba(255,255,255,.02);
+    }
+    .note .priority { color: var(--orange); font: 700 10px/1 var(--mono); letter-spacing: .08em; }
+    .note.high { border-color: rgba(255,127,120,.23); }
+    .note.high .priority { color: var(--red); }
+    .note h3 { margin: 20px 0 8px; font-size: 16px; }
+    .note p { margin: 0; color: var(--muted); font-size: 12px; }
+
+    .source-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(10,23,28,.65);
+    }
+    .source-table th, .source-table td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; }
+    .source-table tr:last-child td { border-bottom: 0; }
+    .source-table th { color: #789297; font: 700 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; background: rgba(255,255,255,.02); }
+    .source-table td { color: var(--muted); font-size: 12px; }
+    .source-table td:first-child { color: var(--text); font-weight: 650; }
+    .source-table code { color: var(--cyan); font-size: 10px; overflow-wrap: anywhere; }
+    .source-table a:hover code { text-decoration: underline; text-underline-offset: 3px; }
+
+    .footer {
+      margin-top: 100px;
+      padding-top: 28px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      border-top: 1px solid var(--line);
+      color: #658087;
+      font: 10px/1.5 var(--mono);
+    }
+
+    @media (max-width: 1120px) {
+      .layout { grid-template-columns: 1fr; }
+      .side-nav { display: none; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .arch-row { grid-template-columns: 110px repeat(2, 1fr); }
+      .arch-node.full { grid-column: 2 / -1; }
+      .down-arrow { margin-left: 110px; }
+      .flow { grid-template-columns: repeat(2, 1fr); }
+      .flow::before { display: none; }
+      .target-grid, .batch-layout { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .topbar-inner, .layout { width: calc(100vw - 26px); margin-left: 13px; margin-right: 13px; }
+      main, section, .hero, .hero > div, .hero-copy, .chips, .section-head, .section-desc { width: 100%; max-width: 100%; min-width: 0; }
+      .top-meta { display: none; }
+      .hero { min-height: 0; grid-template-columns: 1fr; padding-top: 70px; }
+      .hero-visual { display: none; }
+      h1 { font-size: clamp(46px, 16vw, 72px); }
+      .hero-copy { font-size: 16px; }
+      .section-head { display: block; }
+      .section-desc { margin-top: 14px; }
+      section { margin-top: 86px; }
+      .summary-grid, .note-grid { grid-template-columns: 1fr; }
+      .statement { grid-template-columns: 1fr; gap: 10px; }
+      .architecture { padding: 16px; }
+      .arch-row { grid-template-columns: 1fr; }
+      .layer-label, .arch-node, .arch-node.wide, .arch-node.full { grid-column: 1; }
+      .layer-label { padding-top: 8px; }
+      .down-arrow { margin-left: 0; height: 28px; }
+      .flow { grid-template-columns: 1fr; }
+      .pass-row { grid-template-columns: 34px 1fr; gap: 8px; padding: 14px 0; }
+      .pass-detail, .pass-target { grid-column: 2; justify-self: start; text-align: left; }
+      .target-stage { min-height: 0; padding: 18px; }
+      .buffer-pair { grid-template-columns: 1fr; }
+      .swap strong { transform: rotate(90deg); }
+      .resource-row { grid-template-columns: 1fr; }
+      .path-notes { grid-template-columns: 1fr; }
+      .field { grid-template-columns: 1fr; gap: 3px; }
+      .viewport-diagram { grid-template-columns: 1fr; }
+      .sequential b { transform: rotate(90deg); }
+      .source-table { display: block; overflow-x: auto; }
+      .footer { display: block; }
+    }
+
+    @media print {
+      :root { --bg: #fff; --text: #10191b; --muted: #526267; --line: #dbe3e5; }
+      body { background: white; color: var(--text); }
+      body::before, .topbar, .side-nav, .hero-visual { display: none; }
+      .layout { display: block; width: 100%; }
+      main { padding: 0 18px; }
+      .hero { min-height: auto; display: block; padding: 40px 0; }
+      h1 span { color: #263d40; }
+      section { break-inside: avoid; margin-top: 55px; }
+      .architecture, .pass-shell, .target-stage, .tab-panel, .batch-card, .draw-card, .source-table { background: white; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#top"><span class="brand-mark">M</span><span>Mundi / Rendering Map</span></a>
+      <div class="top-meta">WORKTREE · 2026-08-11 · HEAD 3394952</div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="side-nav" aria-label="문서 목차">
+      <p class="side-label">Contents</p>
+      <a href="#overview">한눈에 보기</a>
+      <a href="#layers">계층 구조</a>
+      <a href="#frame">프레임 진입 흐름</a>
+      <a href="#passes">Lit 패스 순서</a>
+      <a href="#targets">GPU 리소스</a>
+      <a href="#modes">뷰 모드 분기</a>
+      <a href="#batches">드로우 배치</a>
+      <a href="#viewport">멀티 뷰포트</a>
+      <a href="#notes">구조적 관찰</a>
+      <a href="#sources">코드 지도</a>
+    </nav>
+
+    <main id="top">
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Rendering architecture / code-derived</div>
+          <h1>Mundi의 <span>렌더링 구조</span></h1>
+          <p class="hero-copy">
+            현재 작업 트리를 기준으로 추적한 결과, 이 엔진은 <strong>DirectX 11 포워드 렌더러</strong>입니다.
+            각 뷰포트가 <strong>임시 <code>FSceneRenderer</code></strong>를 만들고, 월드에서 가시 컴포넌트를 수집한 뒤
+            그림자 → 불투명/데칼 → 파티클 → 후처리 → 에디터 오버레이 → 백버퍼 합성 순서로 실행합니다.
+          </p>
+          <div class="chips">
+            <span class="chip accent">Forward shading</span>
+            <span class="chip">D3D11</span>
+            <span class="chip">Per-view renderer</span>
+            <span class="chip">GPU depth-bounded Forward+</span>
+            <span class="chip">Ping-pong post FX</span>
+            <span class="chip">MRT Object ID</span>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="orbit one"></div>
+          <div class="orbit two"></div>
+          <div class="core"><div><b>FSceneRenderer</b><small>one view · one execution</small></div></div>
+          <span class="satellite a">FSceneView</span>
+          <span class="satellite b">MeshBatch</span>
+          <span class="satellite c">D3D11RHI</span>
+          <span class="satellite d">Post FX</span>
+        </div>
+      </section>
+
+      <section id="overview">
+        <div class="section-head">
+          <div><div class="section-number">01 / OVERVIEW</div><h2>한눈에 보면</h2></div>
+          <p class="section-desc">렌더링의 소유권, 셰이딩 방식, 가시성 처리, 최종 출력 방식만 압축한 현재 구조의 핵심입니다.</p>
+        </div>
+        <div class="summary-grid">
+          <article class="summary-card"><span class="num">01</span><h3>포워드 셰이딩</h3><p><code>UberLit</code> 픽셀 셰이더가 재질과 모든 라이트를 즉시 계산합니다. G-Buffer나 별도 디퍼드 라이팅 패스는 없습니다.</p></article>
+          <article class="summary-card"><span class="num">02</span><h3>뷰 단위 실행</h3><p><code>FViewportClient::Draw</code>마다 <code>FSceneView</code>와 transient <code>FSceneRenderer</code>를 만들고 전체 패스를 실행합니다.</p></article>
+          <article class="summary-card"><span class="num">03</span><h3>CPU 가시성 + GPU Forward+</h3><p>메시는 BVH/Frustum과 CPU HZB로 거르고, Tile ShowFlag를 켜면 카메라 Depth에서 16×16 타일별 Min/Max를 만든 뒤 GPU가 라이트 목록을 생성합니다.</p></article>
+          <article class="summary-card"><span class="num">04</span><h3>SceneColor 핑퐁</h3><p>두 장의 전체 해상도 SceneColor를 <code>FSwapGuard</code>로 교대하며 후처리하고 마지막에 BackBuffer로 Blit합니다.</p></article>
+        </div>
+        <div class="statement">
+          <div class="statement-label">Architecture<br/>in one line</div>
+          <p><strong>World Component → MeshBatch 제출 → FSceneRenderer 패스 조립 → D3D11RHI 명령 → BackBuffer 합성</strong> 구조입니다.</p>
+        </div>
+      </section>
+
+      <section id="layers">
+        <div class="section-head">
+          <div><div class="section-number">02 / LAYERS</div><h2>누가 무엇을 책임지나</h2></div>
+          <p class="section-desc">위로 갈수록 프레임과 화면의 의미를 알고, 아래로 갈수록 GPU 상태와 리소스에 가까워집니다.</p>
+        </div>
+        <div class="architecture">
+          <div class="arch-row">
+            <div class="layer-label"><b>Application</b>프레임 소유</div>
+            <div class="arch-node full"><span class="kind">Frame owner</span><b>UEditorEngine</b><p>Win32 메시지 → Tick → BeginFrame → UI/Slate 렌더 → EndFrame/Present</p></div>
+          </div>
+          <div class="down-arrow">↓</div>
+          <div class="arch-row">
+            <div class="layer-label"><b>Viewport</b>화면 관점</div>
+            <div class="arch-node"><span class="kind">Layout</span><b>SViewportWindow</b><p>화면 Rect와 툴바</p></div>
+            <div class="arch-node"><span class="kind">Dispatch</span><b>FViewport</b><p>Client에 Draw 위임</p></div>
+            <div class="arch-node"><span class="kind">Camera / World</span><b>FViewportClient</b><p>Editor 또는 PIE 카메라 선택</p></div>
+            <div class="arch-node"><span class="kind">Immutable-ish input</span><b>FSceneView</b><p>View/Proj, Frustum, ViewRect, Modifiers</p></div>
+          </div>
+          <div class="down-arrow">↓</div>
+          <div class="arch-row">
+            <div class="layer-label"><b>Orchestration</b>패스 조립</div>
+            <div class="arch-node"><span class="kind">Frame facade</span><b>URenderer</b><p>Begin/EndFrame, line batch, per-view 진입</p></div>
+            <div class="arch-node accent wide"><span class="kind">Core orchestrator</span><b>FSceneRenderer</b><p>Gather, shadow, base, particle, post FX, editor, composite</p></div>
+            <div class="arch-node"><span class="kind">Thin accessor</span><b>URenderManager</b><p>현재는 Renderer 포인터 전달 중심</p></div>
+          </div>
+          <div class="down-arrow">↓</div>
+          <div class="arch-row">
+            <div class="layer-label"><b>Submission</b>드로우 데이터</div>
+            <div class="arch-node wide"><span class="kind">Scene producers</span><b>Mesh / Billboard / Decal / Particle Components</b><p><code>CollectMeshBatches()</code>로 렌더 명령의 재료를 제출</p></div>
+            <div class="arch-node wide"><span class="kind">Atomic draw unit</span><b>FMeshBatchElement</b><p>Shader, Material, VB/IB, Transform, ObjectID, Instancing</p></div>
+          </div>
+          <div class="down-arrow">↓</div>
+          <div class="arch-row">
+            <div class="layer-label"><b>GPU backend</b>명령·자원</div>
+            <div class="arch-node gpu wide"><span class="kind">Backend</span><b>D3D11RHI</b><p>RTV/DSV/SRV, state, constant buffer, shader bind, draw, present</p></div>
+            <div class="arch-node gpu"><span class="kind">Resource</span><b>UResourceManager</b><p>Shader variant / texture / mesh</p></div>
+            <div class="arch-node gpu"><span class="kind">Native API</span><b>ID3D11DeviceContext</b><p>실제 Direct3D 11 명령 제출</p></div>
+          </div>
+        </div>
+        <div class="callout"><strong>중심축은 <code>FSceneRenderer</code>.</strong> 이름과 달리 <code>URenderManager</code>는 현재 고수준 렌더 조립자가 아니라, 전역 <code>URenderer</code> 접근과 Begin/End 위임만 담당하는 얇은 계층입니다.</div>
+      </section>
+
+      <section id="frame">
+        <div class="section-head">
+          <div><div class="section-number">03 / FRAME ENTRY</div><h2>한 프레임이 들어오는 길</h2></div>
+          <p class="section-desc">메인 루프에서 개별 뷰의 <code>FSceneRenderer::Render()</code>까지 이어지는 실제 호출 순서입니다.</p>
+        </div>
+        <div class="flow">
+          <article class="flow-step"><span class="dot">1</span><h3>MainLoop</h3><p>Win32 메시지를 비우고 <code>Tick()</code> 후 <code>Render()</code> 호출</p></article>
+          <article class="flow-step"><span class="dot">2</span><h3>BeginFrame</h3><p>BackBuffer/SceneColor/ID/Depth clear, GPU profiling 시작</p></article>
+          <article class="flow-step"><span class="dot">3</span><h3>ImGui Begin</h3><p><code>UI.Render()</code>가 새 ImGui 프레임과 UI 명령 수집 시작</p></article>
+          <article class="flow-step"><span class="dot">4</span><h3>Slate Render</h3><p>레이아웃의 각 <code>SViewportWindow::OnRender()</code> 실행</p></article>
+          <article class="flow-step"><span class="dot">5</span><h3>Viewport</h3><p><code>FViewport::Render()</code>가 <code>ViewportClient::Draw()</code>에 위임</p></article>
+          <article class="flow-step"><span class="dot">6</span><h3>SceneView</h3><p>Editor/PIE 카메라에서 행렬, Frustum, ViewRect, PP Modifier 구성</p></article>
+          <article class="flow-step"><span class="dot">7</span><h3>SceneRenderer</h3><p>뷰마다 임시 객체를 생성하여 씬 렌더 파이프라인 전체 실행</p></article>
+          <article class="flow-step"><span class="dot">8</span><h3>UI + Present</h3><p>ImGui 제출 → 특수 뷰포트 → D2D Overlay → VSync off Present</p></article>
+        </div>
+        <div class="callout"><strong>Editor와 PIE의 차이는 주로 View 생성 시점에 있습니다.</strong> PIE에서는 <code>APlayerCameraManager</code>의 <code>FMinimalViewInfo</code>와 PostProcess Modifier를 사용하고, 카메라가 없으면 에디터 카메라로 폴백합니다.</div>
+      </section>
+
+      <section id="passes">
+        <div class="section-head">
+          <div><div class="section-number">04 / LIT PATH</div><h2>Lit 뷰의 실제 패스 순서</h2></div>
+          <p class="section-desc">Phong/Gouraud/Lambert에서 실행되는 가장 완전한 경로입니다. 뒤의 디버그·에디터 패스는 PIE 여부와 ShowFlag에 따라 달라집니다.</p>
+        </div>
+        <div class="pass-shell">
+          <div class="pass-legend">
+            <span class="legend-item"><i class="legend-dot"></i>공통</span>
+            <span class="legend-item"><i class="legend-dot cpu"></i>CPU 준비</span>
+            <span class="legend-item"><i class="legend-dot gpu"></i>GPU 렌더</span>
+            <span class="legend-item"><i class="legend-dot opt"></i>ShowFlag / 상태 의존</span>
+          </div>
+          <div class="pass-list">
+            <div class="pass-row"><div class="pass-name">Prepare View</div><div class="pass-detail">Viewport, View/Proj·역행렬, Camera·Viewport 상수 버퍼 갱신</div><div class="pass-target">CPU → CBuffer</div></div>
+            <div class="pass-row"><div class="pass-name">Gather & Cull</div><div class="pass-detail">BVH Frustum query → 컴포넌트 분류 → CPU HZB Occlusion <span class="tag optional">optional</span></div><div class="pass-target">Proxy arrays</div></div>
+            <div class="pass-row"><div class="pass-name">Shadow Maps</div><div class="pass-detail">Directional/Spot 2D atlas, Point cube array. PCF 또는 VSM</div><div class="pass-target">Shadow atlas</div></div>
+            <div class="pass-row"><div class="pass-name">Light Update</div><div class="pass-detail">Point/Spot structured buffers와 Ambient/Directional CBuffer 갱신</div><div class="pass-target">t3 · t4 · b8</div></div>
+            <div class="pass-row"><div class="pass-name">Camera Depth Prepass</div><div class="pass-detail">보이는 Mesh를 depth-only로 그려 현재 카메라의 SceneDepth 생성 <span class="tag optional">Forward+ only</span></div><div class="pass-target">Depth DSV</div></div>
+            <div class="pass-row"><div class="pass-name">Forward+ Compute</div><div class="pass-detail">GPU가 16×16 타일의 Min/Max depth를 읽고, 그 짧아진 3D frustum과 겹치는 Point/Spot만 기록</div><div class="pass-target">Depth range + t2</div></div>
+            <div class="pass-row"><div class="pass-name">Sky</div><div class="pass-detail">카메라 중심 스카이 스피어, depth write 없이 배경 렌더</div><div class="pass-target">SceneColor</div></div>
+            <div class="pass-row"><div class="pass-name">Opaque Base</div><div class="pass-detail">Mesh/일반 Billboard 배치 수집·Material sort·Forward lighting·GPU skinning</div><div class="pass-target">Color + ID + Depth</div></div>
+            <div class="pass-row"><div class="pass-name">Decal</div><div class="pass-detail">Decal OBB와 BVH 교차 메시를 재렌더, translucent + depth read-only</div><div class="pass-target">SceneColor</div></div>
+            <div class="pass-row"><div class="pass-name">Particles</div><div class="pass-detail">Opaque → Translucent → Additive 그룹. Sprite/Mesh/Ribbon/Beam batch</div><div class="pass-target">Color + ID + Depth</div></div>
+            <div class="pass-row"><div class="pass-name">Post Process</div><div class="pass-detail">Priority 정렬 Modifier: Fog, Fade, Vignette, Bloom, Gamma, DOF 3-stage</div><div class="pass-target">Ping ↔ Pong</div></div>
+            <div class="pass-row"><div class="pass-name">Debug / Editor</div><div class="pass-detail">Grid·bounds·BVH line, editor icon, transform gizmo. 일반 PP 뒤에 렌더</div><div class="pass-target">SceneColor + ID</div></div>
+            <div class="pass-row"><div class="pass-name">FXAA</div><div class="pass-detail">ShowFlag가 켜지면 SceneColor 전체에 최종 화면 효과 적용</div><div class="pass-target">Ping ↔ Pong</div></div>
+            <div class="pass-row"><div class="pass-name">Composite + Overlay</div><div class="pass-detail">Blit으로 현재 ViewRect를 BackBuffer에 합성 후 Always-on-top line</div><div class="pass-target">BackBuffer</div></div>
+          </div>
+        </div>
+        <div class="callout"><strong>디버그 확인법:</strong> Viewport의 <code>GPU Forward+ 라이트 컬링</code> 메뉴에서 <code>라이트 개수 히트맵</code>을 켜면 파랑→빨강으로 타일별 라이트 수가 보입니다. <code>Min/Max 깊이 범위</code>는 타일 왼쪽을 최소 깊이(파랑), 오른쪽을 최대 깊이(주황)로 표시하며, 자홍색은 카메라 depth가 없는 타일입니다. 둘을 함께 켜면 깊이 범위가 각 타일 아래쪽 띠로 표시됩니다.</div>
+      </section>
+
+      <section id="targets">
+        <div class="section-head">
+          <div><div class="section-number">05 / GPU RESOURCES</div><h2>렌더 타깃과 데이터 흐름</h2></div>
+          <p class="section-desc">씬 컬러는 두 장을 교대하고, Depth와 Object ID는 별도 전역 버퍼로 유지합니다. DOF와 Bloom은 축소 해상도 전용 타깃을 씁니다.</p>
+        </div>
+        <div class="target-grid">
+          <article class="target-stage">
+            <h3>Scene Color Ping-Pong</h3>
+            <p><code>FSwapGuard</code> 생성 시 Source/Target index 교체, 성공 시 Commit, 실패/early return 시 자동 롤백과 SRV unbind.</p>
+            <div class="buffer-pair">
+              <div class="buffer"><b>SceneColor[Source]</b><span>SRV · 이전 패스 결과를 읽음<br/>BGRA8 sRGB · full resolution</span></div>
+              <div class="swap"><strong>⇄</strong>each<br/>screen pass</div>
+              <div class="buffer target"><b>SceneColor[Target]</b><span>RTV · 현재 패스 결과를 씀<br/>다음 Commit 후 Source가 됨</span></div>
+            </div>
+            <div class="resource-row">
+              <div class="resource"><b>Depth / Stencil</b><span>R24G8 typeless · DSV + depth SRV</span></div>
+              <div class="resource"><b>Object ID</b><span>R32_UINT MRT · 1×1 staging readback</span></div>
+              <div class="resource orange"><b>DOF × 4</b><span>1/2 res · RGBA16F · near/far/temp H/V</span></div>
+              <div class="resource violet"><b>Bloom × 2</b><span>1/2 res · prefilter + blur temp</span></div>
+            </div>
+          </article>
+          <article class="target-stage">
+            <h3>Lighting & Shadow inputs</h3>
+            <p>Forward shader가 Base Pass에서 아래 리소스를 직접 샘플링합니다.</p>
+            <div class="shadow-stack">
+              <div class="shadow-item"><span class="icon">▦</span><b>2D Shadow Atlas · 4096²</b><p>Directional / Cascades / Spot. PCF용 depth atlas.</p></div>
+              <div class="shadow-item"><span class="icon">◇</span><b>Point Shadow Cube Array</b><p>1024² cube × 최대 8 slices, face별 depth render.</p></div>
+              <div class="shadow-item"><span class="icon">≈</span><b>VSM 2D Atlas</b><p>Moment RTV/SRV. 설정에 따라 DepthOnly PS를 함께 사용.</p></div>
+              <div class="shadow-item"><span class="icon">Z</span><b>Tile Depth Range Buffer</b><p>타일별 float2(device-Z Min/Max). Compute UAV/SRV이며 디버그 패스에서는 PS t5.</p></div>
+              <div class="shadow-item"><span class="icon">#</span><b>Tile Light Index Buffer</b><p>GPU가 직접 쓰는 타일당 256 uint 슬롯: count + packed(type/index). UberLit PS t2.</p></div>
+              <div class="shadow-item"><span class="icon">●</span><b>Light Structured Buffers</b><p>Point t3, Spot t4 + ambient/directional CBuffer b8.</p></div>
+            </div>
+          </article>
+        </div>
+        <div class="callout"><strong>왜 디퍼드가 아닌가?</strong> Base Pass의 <code>UberLit.hlsl</code>이 <code>SV_Target0 = Color</code>, <code>SV_Target1 = Object ID</code>를 바로 출력하고, 그 픽셀 셰이더 안에서 라이트·그림자를 계산합니다. Normal/Albedo/Material을 여러 G-Buffer에 쌓는 단계가 없습니다.</div>
+      </section>
+
+      <section id="modes">
+        <div class="section-head">
+          <div><div class="section-number">06 / VIEW MODES</div><h2>ViewMode에 따른 분기</h2></div>
+          <p class="section-desc">버튼을 눌러 각 모드의 실제 경로 차이를 확인할 수 있습니다. 공통 후단은 Debug/Editor → FXAA → Composite입니다.</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="뷰 모드">
+          <button class="tab active" data-tab="lit" role="tab">Lit</button>
+          <button class="tab" data-tab="unlit" role="tab">Unlit / Normal</button>
+          <button class="tab" data-tab="wire" role="tab">Wireframe</button>
+          <button class="tab" data-tab="depth" role="tab">Scene Depth</button>
+        </div>
+        <div class="tab-panel active" data-panel="lit" role="tabpanel">
+          <div class="path-line"><span class="path-node">Prepare/Gather</span><span class="path-arrow">→</span><span class="path-node">Shadow</span><span class="path-arrow">→</span><span class="path-node">Depth Prepass</span><span class="path-arrow">→</span><span class="path-node">Forward+ CS</span><span class="path-arrow">→</span><span class="path-node main">Sky + Opaque + Decal</span><span class="path-arrow">→</span><span class="path-node main">Particle</span><span class="path-arrow">→</span><span class="path-node main">Post FX</span><span class="path-arrow">→</span><span class="path-node">Common tail</span></div>
+          <ul class="path-notes"><li>Phong / Gouraud / Lambert는 shader macro variant로 선택</li><li>Tile ShowFlag는 기본 OFF이며, 꺼지거나 GPU 준비에 실패하면 PS가 전체 Point/Spot 목록을 순회</li><li>빈 depth 타일은 Billboard/투명 표면 누락을 막기 위해 Near~Far 전체 범위를 보수적으로 사용</li><li>Viewport 메뉴에서 라이트 히트맵과 Min/Max 깊이를 각각 또는 함께 확인 가능</li></ul>
+        </div>
+        <div class="tab-panel" data-panel="unlit" role="tabpanel">
+          <div class="path-line"><span class="path-node">Prepare/Gather</span><span class="path-arrow">→</span><span class="path-node">Shadow</span><span class="path-arrow">→</span><span class="path-node main">RenderLitPath</span><span class="path-arrow">→</span><span class="path-node">Common tail</span></div>
+          <ul class="path-notes"><li>함수 이름은 LitPath지만 ViewShaderMacros에 lighting model이 없음</li><li>Light buffer / tile culling 단계는 실행하지 않음</li><li>현재 코드상 Particle과 Modifier Post FX를 실행하지 않음</li><li>ShadowMaps는 모드 분기 전에 호출되어 여전히 수행됨</li></ul>
+        </div>
+        <div class="tab-panel" data-panel="wire" role="tabpanel">
+          <div class="path-line"><span class="path-node">Prepare/Gather</span><span class="path-arrow">→</span><span class="path-node">Shadow</span><span class="path-arrow">→</span><span class="path-node main">Solid → ID only</span><span class="path-arrow">→</span><span class="path-node main">Wireframe → Color</span><span class="path-arrow">→</span><span class="path-node">Common tail</span></div>
+          <ul class="path-notes"><li>피킹 ID를 위해 먼저 Solid/Unlit로 ID 타깃만 작성</li><li>Depth clear 후 Wireframe rasterizer로 SceneColor 작성</li><li>끝에서 rasterizer를 Solid로 복원</li><li>Particle/Decal/Post Modifier 경로는 없음</li></ul>
+        </div>
+        <div class="tab-panel" data-panel="depth" role="tabpanel">
+          <div class="path-line"><span class="path-node">Prepare/Gather</span><span class="path-arrow">→</span><span class="path-node">Shadow</span><span class="path-arrow">→</span><span class="path-node main">Opaque depth build</span><span class="path-arrow">→</span><span class="path-node main">Depth visualize</span><span class="path-arrow">→</span><span class="path-node">Common tail</span></div>
+          <ul class="path-notes"><li>Unlit Base로 SceneDepth를 먼저 채움</li><li><code>SceneDepth_PS.hlsl</code>가 near/far와 projection을 사용해 시각화</li><li>현재 구현은 중간에 BackBuffer 전체 clear를 수행</li><li>멀티 뷰포트에서 앞서 합성한 영역과 간섭할 가능성이 있음</li></ul>
+        </div>
+      </section>
+
+      <section id="batches">
+        <div class="section-head">
+          <div><div class="section-number">07 / DRAW SUBMISSION</div><h2>드로우 콜의 원자 단위</h2></div>
+          <p class="section-desc">컴포넌트는 GPU를 직접 그리지 않고 <code>FMeshBatchElement</code>를 채웁니다. 렌더러가 이를 정렬하고 상태 변경을 줄이며 Draw를 실행합니다.</p>
+        </div>
+        <div class="batch-layout">
+          <article class="batch-card">
+            <h3>FMeshBatchElement</h3><p>한 번의 DrawIndexed 또는 DrawIndexedInstanced에 필요한 데이터 묶음.</p>
+            <div class="field-list">
+              <div class="field"><code>VS / PS / Layout</code><span>shader variant와 IA layout</span></div>
+              <div class="field"><code>Material / SRV</code><span>재질, diffuse/normal/ORM, instance texture</span></div>
+              <div class="field"><code>VB / IB / Topology</code><span>geometry와 draw range</span></div>
+              <div class="field"><code>World / ObjectID</code><span>모델 행렬과 GPU picking UUID</span></div>
+              <div class="field"><code>Skinning / Instance</code><span>GPU skin matrices, instance VB/count</span></div>
+              <div class="field"><code>Particle fields</code><span>SubUV, alignment, blend, priority</span></div>
+            </div>
+          </article>
+          <article class="draw-card">
+            <h3>DrawMeshBatches()</h3><p>Material sorting이 활성화되면 shader → material → geometry 순으로 묶어 D3D11 상태 변경을 억제합니다.</p>
+            <div class="draw-pipeline">
+              <div class="draw-row"><span class="draw-index">01</span><div class="draw-bar">입력 유효성 검사 · shader / geometry / instance count</div><span class="draw-cache">VALIDATE</span></div>
+              <div class="draw-row"><span class="draw-index">02</span><div class="draw-bar">VS / PS / InputLayout 변경 시에만 재바인딩</div><span class="draw-cache">CACHED</span></div>
+              <div class="draw-row"><span class="draw-index">03</span><div class="draw-bar">Material/SRV 변경 시 texture, sampler, pixel CBuffer 갱신</div><span class="draw-cache">CACHED</span></div>
+              <div class="draw-row"><span class="draw-index">04</span><div class="draw-bar">GPU skinning SRV · VB/IB · topology 선택</div><span class="draw-cache">CACHED</span></div>
+              <div class="draw-row"><span class="draw-index">05</span><div class="draw-bar">Model / Color / ObjectID / Wind / SubUV 상수 갱신</div><span class="draw-cache">PER DRAW</span></div>
+              <div class="draw-row"><span class="draw-index">06</span><div class="draw-bar">DrawIndexed 또는 DrawIndexedInstanced 제출</div><span class="draw-cache">SUBMIT</span></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="viewport">
+        <div class="section-head">
+          <div><div class="section-number">08 / MULTI VIEWPORT</div><h2>여러 뷰포트는 어떻게 합쳐지나</h2></div>
+          <p class="section-desc">뷰마다 별도 SceneColor를 소유하지 않습니다. 전체 창 크기의 공용 scratch target을 순차 재사용하고 각 ViewRect만 BackBuffer에 합성합니다.</p>
+        </div>
+        <div class="architecture">
+          <div class="viewport-diagram">
+            <div class="viewport-source">
+              <div class="mini-viewport">Perspective<br/>FSceneRenderer #1</div>
+              <div class="mini-viewport">Top<br/>FSceneRenderer #2</div>
+              <div class="mini-viewport">Front<br/>FSceneRenderer #3</div>
+              <div class="mini-viewport">Right<br/>FSceneRenderer #4</div>
+            </div>
+            <div class="sequential"><b>→</b>shared scratch<br/>sequential</div>
+            <div class="backbuffer"><div>ViewRect #1</div><div>ViewRect #2</div><div>ViewRect #3</div><div>ViewRect #4</div></div>
+          </div>
+        </div>
+        <div class="callout"><strong>중요한 해석:</strong> <code>ClearRenderTargetView</code>는 ViewRect가 아니라 텍스처 전체를 지우지만, 이전 뷰는 이미 BackBuffer에 합성되어 있으므로 일반 Lit 경로는 순차 scratch 재사용이 가능합니다. 다만 BackBuffer 자체를 전체 clear하는 특수 경로는 예외입니다.</div>
+      </section>
+
+      <section id="notes">
+        <div class="section-head">
+          <div><div class="section-number">09 / OBSERVATIONS</div><h2>현재 코드에서 보이는 지점</h2></div>
+          <p class="section-desc">구조 설명과 별개로, 다음은 유지보수·성능 관점에서 실제 코드가 드러내는 우선 확인 후보입니다.</p>
+        </div>
+        <div class="note-grid">
+          <article class="note"><span class="priority">IMPLEMENTED · PERSISTENT GPU</span><h3>Forward+ 버퍼를 Renderer가 재사용</h3><p><code>URenderer</code>가 Culler를 소유하고, DepthRange/LightIndex SRV·UAV는 필요한 최대 타일 수까지 grow-only로 확장한 뒤 뷰와 프레임 사이에서 재사용합니다.</p></article>
+          <article class="note high"><span class="priority">HIGH · GPU STALL</span><h3>Object ID 피킹이 동기 Map</h3><p>1×1 staging buffer로 복사한 직후 <code>Map(D3D11_MAP_READ)</code>을 호출합니다. 코드 주석대로 클릭 프레임에 CPU↔GPU 동기화 stall이 생길 수 있어 비동기 readback이 적합합니다.</p></article>
+          <article class="note"><span class="priority">MEDIUM · PASS POLICY</span><h3>모든 ViewMode가 먼저 Shadow를 그림</h3><p><code>RenderShadowMaps()</code>가 ViewMode 분기 앞에 있어 Wireframe, SceneDepth, Unlit에서도 호출됩니다. 디버그 뷰가 그림자를 소비하지 않는다면 명시적 조건으로 비용을 줄일 수 있습니다.</p></article>
+          <article class="note"><span class="priority">MEDIUM · FEATURE PARITY</span><h3>Particle/Post FX가 Lit 모드에만 묶임</h3><p>Unlit/WorldNormal은 이름상 같은 <code>RenderLitPath()</code>를 타지만 Particle과 Modifier 후처리를 건너뜁니다. 의도인지, 뷰 모드와 콘텐츠 패스가 과결합된 것인지 확인이 필요합니다.</p></article>
+          <article class="note"><span class="priority">MEDIUM · MULTI VIEW</span><h3>SceneDepth가 BackBuffer 전체를 clear</h3><p>일반 경로의 ViewRect 합성과 달리 SceneDepth 경로는 중간에 BackBuffer RTV 전체를 지웁니다. 4분할 중 하나만 Depth 모드일 때 이전 뷰 결과를 지울 수 있습니다.</p></article>
+          <article class="note"><span class="priority">DESIGN · OWNERSHIP</span><h3>RenderManager와 SceneRenderer 역할명 불균형</h3><p>실제 orchestration은 모두 <code>FSceneRenderer</code>에 있고 <code>URenderManager</code>는 얇은 accessor입니다. 향후 render scene 캐시나 persistent resource 소유권을 둘 위치를 명확히 하기 좋습니다.</p></article>
+          <article class="note"><span class="priority">DESIGN · SHADOW CULLING</span><h3>Shadow caster가 카메라 Frustum 기반</h3><p>현재 shadow batch는 카메라에서 보이는 컴포넌트를 중심으로 모읍니다. 화면 밖 오브젝트가 화면 안으로 그림자만 드리우는 경우 누락 여부를 테스트할 가치가 있습니다.</p></article>
+          <article class="note"><span class="priority">DESIGN · POST ORDER</span><h3>Editor primitive도 FXAA는 통과함</h3><p>Editor/Debug는 Modifier 후처리 뒤에 그려지지만 FXAA 앞에 있습니다. “후처리 미적용” 주석은 일반 PP에는 맞지만 최종 FXAA까지 제외한다는 뜻은 아닙니다.</p></article>
+        </div>
+      </section>
+
+      <section id="sources">
+        <div class="section-head">
+          <div><div class="section-number">10 / CODE MAP</div><h2>어디부터 읽으면 되나</h2></div>
+          <p class="section-desc">문서는 아래 파일의 현재 작업 트리를 직접 대조해 작성했습니다. 경로를 누르면 로컬 소스 파일을 열 수 있습니다.</p>
+        </div>
+        <table class="source-table">
+          <thead><tr><th>역할</th><th>핵심 심볼</th><th>소스</th></tr></thead>
+          <tbody>
+            <tr><td>프레임 소유</td><td><code>UEditorEngine::Render / MainLoop</code></td><td><a href="Mundi/Source/Runtime/Engine/GameFramework/EditorEngine.cpp"><code>EditorEngine.cpp : 257, 289</code></a></td></tr>
+            <tr><td>뷰포트 진입</td><td><code>FViewport::Render</code></td><td><a href="Mundi/Source/Runtime/Renderer/FViewport.cpp"><code>FViewport.cpp : 61</code></a></td></tr>
+            <tr><td>Camera → View</td><td><code>FViewportClient::Draw</code></td><td><a href="Mundi/Source/Runtime/Renderer/FViewportClient.cpp"><code>FViewportClient.cpp : 91</code></a></td></tr>
+            <tr><td>뷰 데이터</td><td><code>FSceneView</code></td><td><a href="Mundi/Source/Runtime/Renderer/SceneView.cpp"><code>SceneView.cpp</code></a></td></tr>
+            <tr><td>프레임 facade</td><td><code>URenderer</code></td><td><a href="Mundi/Source/Runtime/Renderer/Renderer.cpp"><code>Renderer.cpp : 50–74</code></a></td></tr>
+            <tr><td>패스 orchestration</td><td><code>FSceneRenderer::Render</code></td><td><a href="Mundi/Source/Runtime/Renderer/SceneRenderer.cpp"><code>SceneRenderer.cpp : 83</code></a></td></tr>
+            <tr><td>가시성 수집</td><td><code>GatherVisibleProxies</code></td><td><a href="Mundi/Source/Runtime/Renderer/SceneRenderer.cpp"><code>SceneRenderer.cpp : 704</code></a></td></tr>
+            <tr><td>그림자</td><td><code>RenderShadowMaps</code></td><td><a href="Mundi/Source/Runtime/Renderer/SceneRenderer.cpp"><code>SceneRenderer.cpp : 252</code></a></td></tr>
+            <tr><td>Forward+ 조립</td><td><code>RenderCameraDepthPrePass / PerformTileLightCulling</code></td><td><a href="Mundi/Source/Runtime/Renderer/SceneRenderer.cpp"><code>SceneRenderer.cpp</code></a></td></tr>
+            <tr><td>GPU 타일 컬링</td><td><code>FTileLightCuller::CullLights</code></td><td><a href="Mundi/Source/Runtime/Renderer/TileLightCuller.cpp"><code>TileLightCuller.cpp</code></a></td></tr>
+            <tr><td>타일 깊이 Compute</td><td><code>TileDepthRange_CS</code></td><td><a href="Mundi/Shaders/Lighting/TileDepthRange_CS.hlsl"><code>Shaders/Lighting/TileDepthRange_CS.hlsl</code></a></td></tr>
+            <tr><td>타일 라이트 Compute</td><td><code>TileLightCulling_CS</code></td><td><a href="Mundi/Shaders/Lighting/TileLightCulling_CS.hlsl"><code>Shaders/Lighting/TileLightCulling_CS.hlsl</code></a></td></tr>
+            <tr><td>Forward+ 디버그</td><td><code>Light heatmap / Depth Min-Max</code></td><td><a href="Mundi/Shaders/PostProcess/TileDebugVisualization_PS.hlsl"><code>TileDebugVisualization_PS.hlsl</code></a></td></tr>
+            <tr><td>드로우 배치</td><td><code>FMeshBatchElement / DrawMeshBatches</code></td><td><a href="Mundi/Source/Runtime/Renderer/MeshBatchElement.h"><code>MeshBatchElement.h</code></a></td></tr>
+            <tr><td>후처리 정책</td><td><code>FPostProcessModifier / Pass</code></td><td><a href="Mundi/Source/Runtime/Renderer/PostProcessing/PostProcessing.h"><code>PostProcessing.h</code></a></td></tr>
+            <tr><td>핑퐁 안전장치</td><td><code>FSwapGuard</code></td><td><a href="Mundi/Source/Runtime/RHI/SwapGuard.h"><code>SwapGuard.h</code></a></td></tr>
+            <tr><td>D3D11 backend</td><td><code>D3D11RHI</code></td><td><a href="Mundi/Source/Runtime/RHI/D3D11RHI.cpp"><code>D3D11RHI.cpp</code></a></td></tr>
+            <tr><td>Forward surface shader</td><td><code>UberLit PS</code></td><td><a href="Mundi/Shaders/Materials/UberLit.hlsl"><code>Shaders/Materials/UberLit.hlsl</code></a></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer class="footer">
+        <span>MUNDI RENDERING ARCHITECTURE · GENERATED FROM CURRENT WORKTREE</span>
+        <span>2026-08-11 · Asia/Seoul · HEAD 3394952</span>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const panels = document.querySelectorAll('.tab-panel');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const name = tab.dataset.tab;
+        tabs.forEach((item) => item.classList.toggle('active', item === tab));
+        panels.forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === name));
+      });
+    });
+
+    const navLinks = [...document.querySelectorAll('.side-nav a')];
+    const observed = navLinks
+      .map((link) => document.querySelector(link.getAttribute('href')))
+      .filter(Boolean);
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      navLinks.forEach((link) => {
+        link.classList.toggle('active', link.getAttribute('href') === `#${visible.target.id}`);
+      });
+    }, { rootMargin: '-15% 0px -68% 0px', threshold: [0, .1, .3] });
+    observed.forEach((section) => observer.observe(section));
+  </script>
+</body>
+</html>

@@ -1852,20 +1852,38 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		}
 
 		// 서브메뉴
-		if (ImGui::BeginMenu(" 타일 기반 라이트 컬링"))
+		if (ImGui::BeginMenu(" GPU Forward+ 라이트 컬링"))
 		{
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "타일 기반 라이트 컬링");
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "GPU Depth-Bounded Forward+");
 			ImGui::Separator();
 
-			// 디버그 시각화 체크박스
+			// 타일별 라이트 개수 시각화
 			bool bDebugVis = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileCullingDebug);
-			if (ImGui::Checkbox(" 디버그 시각화", &bDebugVis))
+			if (ImGui::Checkbox(" 라이트 개수 히트맵", &bDebugVis))
 			{
 				RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_TileCullingDebug);
+				if (bDebugVis)
+				{
+					RenderSettings.EnableShowFlag(EEngineShowFlags::SF_TileCulling);
+				}
 			}
 			if (ImGui::IsItemHovered())
 			{
-				ImGui::SetTooltip("타일 컬링 결과를 화면에 색상으로 시각화합니다.");
+				ImGui::SetTooltip("파랑(적음)에서 빨강(많음)까지 타일별 라이트 수를 표시합니다.");
+			}
+
+			bool bDepthDebugVis = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileDepthDebug);
+			if (ImGui::Checkbox(" Min/Max 깊이 범위", &bDepthDebugVis))
+			{
+				RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_TileDepthDebug);
+				if (bDepthDebugVis)
+				{
+					RenderSettings.EnableShowFlag(EEngineShowFlags::SF_TileCulling);
+				}
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("각 타일의 왼쪽은 최소 깊이(파랑), 오른쪽은 최대 깊이(주황)입니다. 자홍색은 깊이가 없는 타일입니다.");
 			}
 
 			ImGui::Separator();
@@ -1888,7 +1906,7 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 				if (tempTileSize >= 4 && tempTileSize <= 64)
 				{
 					RenderSettings.SetTileSize(tempTileSize);
-					// TileLightCuller는 매 프레임 생성되므로 다음 프레임에 자동 적용됨
+					// 영구 GPU 버퍼는 다음 프레임에 필요한 크기로 자동 확장됨
 				}
 			}
 			if (ImGui::IsItemHovered())
@@ -1903,7 +1921,7 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		}
 		if (ImGui::IsItemHovered())
 		{
-			ImGui::SetTooltip("타일 기반 라이트 컬링 설정");
+			ImGui::SetTooltip("카메라 깊이로 3D 범위를 줄이는 GPU Forward+ 설정");
 		}
 
 		// ===== 그림자 안티 에일리어싱 =====

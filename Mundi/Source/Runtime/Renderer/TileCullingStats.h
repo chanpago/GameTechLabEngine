@@ -28,6 +28,7 @@ struct FTileCullingStats
 	// 성능 메트릭
 	float ComputeShaderTimeMS = 0.0f;
 	uint32 LightIndexBufferSizeBytes = 0;
+	bool bGPUGenerated = false; // GPU readback 없이 생성된 통계인지 여부
 
 	// 시각화 모드
 	enum class EVisualizationMode : uint8
@@ -58,6 +59,7 @@ struct FTileCullingStats
 		TotalLightsPassed = 0;
 		ComputeShaderTimeMS = 0.0f;
 		LightIndexBufferSizeBytes = 0;
+		bGPUGenerated = false;
 	}
 
 	// 파생 통계 계산

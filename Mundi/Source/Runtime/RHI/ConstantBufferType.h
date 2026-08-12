@@ -255,7 +255,12 @@ struct FTileCullingBufferType
     uint32 bUseTileCulling;   // íƒ€ì¼ ì»¬ë§ í™œì„±í™” ì—¬ë¶€ (0=ë¹„í™œì„±í™”, 1=í™œì„±í™”)
     uint32 ViewportStartX;    // ë·°í¬íŠ¸ ì‹œìž‘ X ì¢Œí‘œ
     uint32 ViewportStartY;    // ë·°í¬íŠ¸ ì‹œìž‘ Y ì¢Œí‘œ
-    uint32 Padding[2];
+    uint32 bUseDepthBounds;   // Camera depth Min/Max를 사용한 Forward+ 여부
+    uint32 DebugMode;         // 0=None, 1=Light count, 2=Depth range, 3=Combined
+    float NearClip;
+    float FarClip;
+    uint32 bOrthographic;
+    uint32 Padding;
 };
 
 struct FPointLightShadowBufferType

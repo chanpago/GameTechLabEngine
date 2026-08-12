@@ -94,6 +94,7 @@ private:
 
 	void RenderShadowMaps();
 	void RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, const TArray<FMeshBatchElement>& InShadowBatches);
+	bool RenderCameraDepthPrePass();
 
 	/** @brief 렌더링에 필요한 포인터들이 유효한지 확인합니다. */
 	bool IsValid() const;
@@ -171,9 +172,10 @@ private:
 	// 각 패스에서 수집된 드로우 콜 정보 리스트
 	TArray<FMeshBatchElement> MeshBatchElements;
 
-	// 타일 기반 라이트 컬링 시스템 (매 프레임 생성되고 소멸되어서 스마트 포인터로 설정)
-	std::unique_ptr<FTileLightCuller> TileLightCuller;
+	// URenderer가 소유하며 뷰/프레임 사이에서 GPU 버퍼를 재사용합니다.
+	FTileLightCuller* TileLightCuller = nullptr;
 	FGPUOcclusionCuller* GPUOcclusionCuller = nullptr;
+	bool bForwardPlusCullingReady = false;
 
 	// TODO : 자동으로 등록되게 바꾸기!, bloom 빼고 다 stateless해서 걔네는 static(etc..) 등 하이브리도 구조로 바꾸기
 	// PostProcessing

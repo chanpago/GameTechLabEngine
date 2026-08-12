@@ -40,7 +40,12 @@ cbuffer TileCullingBuffer : register(b11)
     uint bUseTileCulling;   // 타일 컬링 활성화 여부 (0=비활성화, 1=활성화)
     uint ViewportStartX;    // 뷰포트 시작 X 좌표
     uint ViewportStartY;    // 뷰포트 시작 Y 좌표
-    uint2 Padding;          // 16바이트 정렬을 위한 패딩
+    uint bUseDepthBounds;
+    uint TileDebugMode;
+    float TileNearClip;
+    float TileFarClip;
+    uint bTileOrthographic;
+    uint TilePadding;
 };
 
 TextureCubeArray g_PointShadowMapArray : register(t10);

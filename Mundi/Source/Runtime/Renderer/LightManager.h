@@ -165,6 +165,8 @@ public:
 
     TArray<FPointLightInfo>& GetPointLightInfoList() { return PointLightInfoList; }
     TArray<FSpotLightInfo>& GetSpotLightInfoList() { return SpotLightInfoList; }
+    ID3D11ShaderResourceView* GetPointLightBufferSRV() const { return PointLightBufferSRV; }
+    ID3D11ShaderResourceView* GetSpotLightBufferSRV() const { return SpotLightBufferSRV; }
 
     template<typename T>
     void RegisterLight(T* LightComponent);

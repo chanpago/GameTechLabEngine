@@ -13,6 +13,7 @@ class UBillboardComponent;
 class UPrimitiveComponent;
 class UCameraComponent;
 class FSceneView;
+class FTileLightCuller;
 class FGPUOcclusionCuller;
 class FViewport;
 class UWorld;
@@ -73,6 +74,7 @@ public:
 	void ClearLineBatch();
 
 	D3D11RHI* GetRHIDevice() { return RHIDevice; }
+	FTileLightCuller* GetTileLightCuller() const { return TileLightCuller.get(); }
 	FStaticMeshDrawCache& GetStaticMeshDrawCache(UWorld* World, uint64 ViewShaderKey);
 	FGPUOcclusionCuller* GetGPUOcclusionCuller(UWorld* World, FViewport* Viewport);
 
@@ -81,6 +83,7 @@ public:
 
 private:
 	D3D11RHI* RHIDevice;    // NOTE: 개발 편의성을 위해서 DX11를 종속적으로 사용한다 (URHIDevice를 사용하지 않음)
+	std::unique_ptr<FTileLightCuller> TileLightCuller;
 	TMap<UWorld*, FWorldStaticMeshDrawCaches> StaticMeshDrawCaches;
 	TMap<FViewport*, FGPUOcclusionContext> GPUOcclusionContexts;
 	uint64 RenderFrameNumber = 0;

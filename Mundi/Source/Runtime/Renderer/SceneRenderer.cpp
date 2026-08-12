@@ -71,10 +71,13 @@ FSceneRenderer::FSceneRenderer(
 {
 	//OcclusionCPU = std::make_unique<FOcclusionCullingManagerCPU>();
 
-	// 타일 라이트 컬러 초기화
-	TileLightCuller = std::make_unique<FTileLightCuller>();
+	// Renderer 소유의 Forward+ 리소스를 뷰 사이에서 재사용합니다.
+	TileLightCuller = OwnerRenderer->GetTileLightCuller();
 	uint32 TileSize = World->GetRenderSettings().GetTileSize();
-	TileLightCuller->Initialize(RHIDevice, TileSize);
+	if (TileLightCuller)
+	{
+		TileLightCuller->Initialize(RHIDevice, TileSize);
+	}
 
 	// 라인 수집 시작
 	OwnerRenderer->BeginLineBatch();
@@ -113,6 +116,10 @@ void FSceneRenderer::Render()
 		View->RenderSettings->GetViewMode() == EViewMode::VMI_Lit_Lambert)
 	{
 		World->GetLightManager()->UpdateLightBuffer(RHIDevice);
+		if (World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_TileCulling))
+		{
+			RenderCameraDepthPrePass();
+		}
 		PerformTileLightCulling();	// 타일 기반 라이트 컬링 수행
 		RenderLitPath();
 		RenderParticlePass();
@@ -630,6 +637,124 @@ void FSceneRenderer::RenderShadowDepthPass(FShadowRenderRequest& ShadowRequest, 
 	}
 }
 
+bool FSceneRenderer::RenderCameraDepthPrePass()
+{
+	bForwardPlusCullingReady = false;
+	ID3D11DepthStencilView* SceneDSV = RHIDevice->GetSceneDSV();
+	if (!SceneDSV)
+	{
+		return false;
+	}
+
+	UShader* DepthVS = UResourceManager::GetInstance().Load<UShader>("Shaders/Shadows/DepthOnly_VS.hlsl");
+	if (!DepthVS)
+	{
+		return false;
+	}
+
+	FShaderVariant* StaticVariant = DepthVS->GetOrCompileShaderVariant({});
+	if (!StaticVariant || !StaticVariant->VertexShader)
+	{
+		return false;
+	}
+
+	const bool bGPUSkinningEnabled = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_GPUSkinning);
+	FShaderVariant* SkinnedVariant = nullptr;
+	if (bGPUSkinningEnabled)
+	{
+		TArray<FShaderMacro> SkinningMacros;
+		SkinningMacros.Add({ "USE_GPU_SKINNING", "1" });
+		SkinnedVariant = DepthVS->GetOrCompileShaderVariant(SkinningMacros);
+	}
+
+	TArray<FMeshBatchElement> DepthBatches;
+	for (UMeshComponent* MeshComponent : Proxies.Meshes)
+	{
+		if (MeshComponent)
+		{
+			MeshComponent->CollectMeshBatches(DepthBatches, View);
+		}
+	}
+
+	// 이전 후처리 패스에서 남은 depth SRV를 DSV로 다시 묶기 전에 해제합니다.
+	ID3D11ShaderResourceView* NullSRVs[2] = { nullptr, nullptr };
+	RHIDevice->GetDeviceContext()->PSSetShaderResources(0, 2, NullSRVs);
+	RHIDevice->UnbindComputeResources();
+	RHIDevice->OMSetCustomRenderTargets(0, nullptr, SceneDSV);
+	RHIDevice->GetDeviceContext()->ClearDepthStencilView(
+		SceneDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+	RHIDevice->RSSetState(ERasterizerMode::Solid);
+	RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual);
+	RHIDevice->GetDeviceContext()->PSSetShader(nullptr, nullptr, 0);
+
+	ID3D11Buffer* CurrentVertexBuffer = nullptr;
+	ID3D11Buffer* CurrentIndexBuffer = nullptr;
+	UINT CurrentVertexStride = 0;
+	D3D11_PRIMITIVE_TOPOLOGY CurrentTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+	ID3D11ShaderResourceView* CurrentSkinMatrixSRV = nullptr;
+	ID3D11ShaderResourceView* CurrentSkinNormalMatrixSRV = nullptr;
+	FShaderVariant* CurrentVariant = nullptr;
+
+	for (const FMeshBatchElement& Batch : DepthBatches)
+	{
+		if (!Batch.VertexBuffer || !Batch.IndexBuffer || Batch.VertexStride == 0 || Batch.IndexCount == 0 || Batch.bInstancedDraw)
+		{
+			continue;
+		}
+
+		const bool bSkinnedBatch = bGPUSkinningEnabled && Batch.GPUSkinMatrixSRV != nullptr;
+		FShaderVariant* RequiredVariant = bSkinnedBatch ? SkinnedVariant : StaticVariant;
+		if (!RequiredVariant || !RequiredVariant->VertexShader)
+		{
+			continue;
+		}
+
+		if (RequiredVariant != CurrentVariant)
+		{
+			RHIDevice->GetDeviceContext()->IASetInputLayout(RequiredVariant->InputLayout);
+			RHIDevice->GetDeviceContext()->VSSetShader(RequiredVariant->VertexShader, nullptr, 0);
+			CurrentVariant = RequiredVariant;
+			CurrentVertexBuffer = nullptr;
+		}
+
+		if (Batch.VertexBuffer != CurrentVertexBuffer || Batch.IndexBuffer != CurrentIndexBuffer ||
+			Batch.VertexStride != CurrentVertexStride || Batch.PrimitiveTopology != CurrentTopology)
+		{
+			UINT Stride = Batch.VertexStride;
+			UINT Offset = 0;
+			RHIDevice->GetDeviceContext()->IASetVertexBuffers(0, 1, &Batch.VertexBuffer, &Stride, &Offset);
+			RHIDevice->GetDeviceContext()->IASetIndexBuffer(Batch.IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+			RHIDevice->GetDeviceContext()->IASetPrimitiveTopology(Batch.PrimitiveTopology);
+			CurrentVertexBuffer = Batch.VertexBuffer;
+			CurrentIndexBuffer = Batch.IndexBuffer;
+			CurrentVertexStride = Batch.VertexStride;
+			CurrentTopology = Batch.PrimitiveTopology;
+		}
+
+		if (Batch.GPUSkinMatrixSRV != CurrentSkinMatrixSRV || Batch.GPUSkinNormalMatrixSRV != CurrentSkinNormalMatrixSRV)
+		{
+			ID3D11ShaderResourceView* SkinSRVs[2] = { Batch.GPUSkinMatrixSRV, Batch.GPUSkinNormalMatrixSRV };
+			RHIDevice->GetDeviceContext()->VSSetShaderResources(12, 2, SkinSRVs);
+			CurrentSkinMatrixSRV = Batch.GPUSkinMatrixSRV;
+			CurrentSkinNormalMatrixSRV = Batch.GPUSkinNormalMatrixSRV;
+		}
+
+		RHIDevice->SetAndUpdateConstantBuffer(
+			ModelBufferType(Batch.WorldMatrix, Batch.WorldMatrix.InverseAffine().Transpose()));
+		RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
+	}
+
+	if (CurrentSkinMatrixSRV || CurrentSkinNormalMatrixSRV)
+	{
+		RHIDevice->GetDeviceContext()->VSSetShaderResources(12, 2, NullSRVs);
+	}
+
+	// Compute shader가 같은 텍스처를 SRV로 읽을 수 있게 DSV를 해제합니다.
+	RHIDevice->OMSetCustomRenderTargets(0, nullptr, nullptr);
+	bForwardPlusCullingReady = true;
+	return true;
+}
+
 
 //====================================================================================
 // Private 헬퍼 함수 구현
@@ -1031,59 +1156,73 @@ void FSceneRenderer::UpdateOcclusionStatsFromGPU()
 
 void FSceneRenderer::PerformTileLightCulling()
 {
-	if (!TileLightCuller)
-		return;
-
-	// ShowFlag 확인
 	URenderSettings& RenderSettings = World->GetRenderSettings();
-	bool bTileCullingEnabled = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileCulling);
+	const bool bTileCullingRequested = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileCulling);
+	const UINT ViewportWidth = static_cast<UINT>(View->ViewRect.Width());
+	const UINT ViewportHeight = static_cast<UINT>(View->ViewRect.Height());
+	const uint32 TileSize = std::max<uint32>(1, RenderSettings.GetTileSize());
 
-	// 뷰포트 크기 가져오기
-	UINT ViewportWidth = static_cast<UINT>(View->ViewRect.Width());
-	UINT ViewportHeight = static_cast<UINT>(View->ViewRect.Height());
-
-	// 타일 컬링이 활성화된 경우에만 컬링 수행
-	if (bTileCullingEnabled)
+	bool bCullingSucceeded = false;
+	if (bTileCullingRequested && bForwardPlusCullingReady && TileLightCuller)
 	{
-		// PointLight와 SpotLight 정보 수집
-		TArray<FPointLightInfo>& PointLights = World->GetLightManager()->GetPointLightInfoList();
-		TArray<FSpotLightInfo>& SpotLights = World->GetLightManager()->GetSpotLightInfoList();
-
-		// 타일 컬링 수행
-		TileLightCuller->CullLights(
-			PointLights,
-			SpotLights,
+		FLightManager* LightManager = World->GetLightManager();
+		TileLightCuller->Initialize(RHIDevice, TileSize);
+		bCullingSucceeded = TileLightCuller->CullLights(
+			RHIDevice->GetSRV(RHI_SRV_Index::SceneDepth),
+			LightManager->GetPointLightBufferSRV(),
+			LightManager->GetSpotLightBufferSRV(),
+			static_cast<UINT>(LightManager->GetPointLightInfoList().Num()),
+			static_cast<UINT>(LightManager->GetSpotLightInfoList().Num()),
 			View->ViewMatrix,
 			View->ProjectionMatrix,
+			View->ProjectionMode == ECameraProjectionMode::Orthographic,
 			View->NearClip,
 			View->FarClip,
+			static_cast<UINT>(View->ViewRect.MinX),
+			static_cast<UINT>(View->ViewRect.MinY),
 			ViewportWidth,
 			ViewportHeight
 		);
 
-		// ??? ?? ???? ????
-		FTileCullingStatManager::GetInstance().UpdateStats(TileLightCuller->GetStats());
+		if (bCullingSucceeded)
+		{
+			FTileCullingStatManager::GetInstance().UpdateStats(TileLightCuller->GetStats());
+		}
+	}
+	bForwardPlusCullingReady = bCullingSucceeded;
+	if (!bCullingSucceeded)
+	{
+		FTileCullingStatManager::GetInstance().ResetStats();
 	}
 
-	// ?? ?? ?? ?? ????
-	uint32 TileSize = RenderSettings.GetTileSize();
-	FTileCullingBufferType TileCullingBuffer;
+	const bool bLightDebug = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileCullingDebug);
+	const bool bDepthDebug = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileDepthDebug);
+	FTileCullingBufferType TileCullingBuffer{};
 	TileCullingBuffer.TileSize = TileSize;
 	TileCullingBuffer.TileCountX = (ViewportWidth + TileSize - 1) / TileSize;
 	TileCullingBuffer.TileCountY = (ViewportHeight + TileSize - 1) / TileSize;
-	TileCullingBuffer.bUseTileCulling = bTileCullingEnabled ? 1 : 0;  // ShowFlag? ?? ??
-	TileCullingBuffer.ViewportStartX = View->ViewRect.MinX;  // ShowFlag? ?? ??
-	TileCullingBuffer.ViewportStartY = View->ViewRect.MinY;  // ShowFlag? ?? ??
+	TileCullingBuffer.bUseTileCulling = bCullingSucceeded ? 1u : 0u;
+	TileCullingBuffer.ViewportStartX = View->ViewRect.MinX;
+	TileCullingBuffer.ViewportStartY = View->ViewRect.MinY;
+	TileCullingBuffer.bUseDepthBounds = bCullingSucceeded ? 1u : 0u;
+	TileCullingBuffer.DebugMode = bLightDebug && bDepthDebug ? 3u : (bDepthDebug ? 2u : (bLightDebug ? 1u : 0u));
+	TileCullingBuffer.NearClip = View->NearClip;
+	TileCullingBuffer.FarClip = View->FarClip;
+	TileCullingBuffer.bOrthographic = View->ProjectionMode == ECameraProjectionMode::Orthographic ? 1u : 0u;
 
 	RHIDevice->SetAndUpdateConstantBuffer(TileCullingBuffer);
 
-	// Structured Buffer SRV? t2 ??? ??? (?? ?? ??? ???)
-	if (bTileCullingEnabled)
+	ID3D11ShaderResourceView* TileLightIndexSRV = bCullingSucceeded
+		? TileLightCuller->GetLightIndexBufferSRV()
+		: nullptr;
+	RHIDevice->GetDeviceContext()->PSSetShaderResources(2, 1, &TileLightIndexSRV);
+	if (!bCullingSucceeded && bTileCullingRequested)
 	{
-		ID3D11ShaderResourceView* TileLightIndexSRV = TileLightCuller->GetLightIndexBufferSRV();
-		if (TileLightIndexSRV)
+		static bool bLoggedForwardPlusFallback = false;
+		if (!bLoggedForwardPlusFallback)
 		{
-			RHIDevice->GetDeviceContext()->PSSetShaderResources(2, 1, &TileLightIndexSRV);
+			UE_LOG("Forward+: GPU depth/light culling unavailable; using the full light list.\n");
+			bLoggedForwardPlusFallback = true;
 		}
 	}
 }
@@ -1744,8 +1883,10 @@ void FSceneRenderer::RenderSceneDepthPostProcess()
 
 void FSceneRenderer::RenderTileCullingDebug()
 {
-	// SF_TileCullingDebug가 비활성화되어 있으면 아무것도 하지 않음
-	if (!World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_TileCullingDebug))
+	const URenderSettings& RenderSettings = World->GetRenderSettings();
+	const bool bLightDebug = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileCullingDebug);
+	const bool bDepthDebug = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_TileDepthDebug);
+	if ((!bLightDebug && !bDepthDebug) || !bForwardPlusCullingReady || !TileLightCuller)
 	{
 		return;
 	}
@@ -1760,6 +1901,24 @@ void FSceneRenderer::RenderTileCullingDebug()
 	// Depth State: Depth Test/Write 모두 OFF
 	RHIDevice->OMSetDepthStencilState(EComparisonFunc::Always);
 	RHIDevice->OMSetBlendState(EMaterialBlendMode::Opaque);
+
+	// Particle pass가 b11을 비활성 값으로 덮어쓰므로 디버그 패스용 값을 다시 바인딩합니다.
+	const uint32 DebugTileSize = std::max<uint32>(1, RenderSettings.GetTileSize());
+	const uint32 DebugViewportWidth = static_cast<uint32>(View->ViewRect.Width());
+	const uint32 DebugViewportHeight = static_cast<uint32>(View->ViewRect.Height());
+	FTileCullingBufferType DebugConstants{};
+	DebugConstants.TileSize = DebugTileSize;
+	DebugConstants.TileCountX = (DebugViewportWidth + DebugTileSize - 1) / DebugTileSize;
+	DebugConstants.TileCountY = (DebugViewportHeight + DebugTileSize - 1) / DebugTileSize;
+	DebugConstants.bUseTileCulling = 1;
+	DebugConstants.ViewportStartX = View->ViewRect.MinX;
+	DebugConstants.ViewportStartY = View->ViewRect.MinY;
+	DebugConstants.bUseDepthBounds = 1;
+	DebugConstants.DebugMode = bLightDebug && bDepthDebug ? 3u : (bDepthDebug ? 2u : 1u);
+	DebugConstants.NearClip = View->NearClip;
+	DebugConstants.FarClip = View->FarClip;
+	DebugConstants.bOrthographic = View->ProjectionMode == ECameraProjectionMode::Orthographic ? 1u : 0u;
+	RHIDevice->SetAndUpdateConstantBuffer(DebugConstants);
 
 	// 셰이더 설정
 	UShader* FullScreenTriangleVS = UResourceManager::GetInstance().Load<UShader>("Shaders/Utility/FullScreenTriangle_VS.hlsl");
@@ -1784,14 +1943,24 @@ void FSceneRenderer::RenderTileCullingDebug()
 	RHIDevice->GetDeviceContext()->PSSetShaderResources(0, 1, &SceneSRV);
 	RHIDevice->GetDeviceContext()->PSSetSamplers(0, 1, &SamplerState);
 
-	// t2: 타일 라이트 인덱스 버퍼 (이미 PerformTileLightCulling에서 바인딩됨)
-	// 별도 바인딩 불필요, 유지됨
+	ID3D11ShaderResourceView* TileDebugSRVs[2] = {
+		TileLightCuller->GetLightIndexBufferSRV(),
+		TileLightCuller->GetDepthRangeBufferSRV()
+	};
+	if (!TileDebugSRVs[0] || !TileDebugSRVs[1])
+	{
+		return;
+	}
+	RHIDevice->GetDeviceContext()->PSSetShaderResources(2, 1, &TileDebugSRVs[0]);
+	RHIDevice->GetDeviceContext()->PSSetShaderResources(5, 1, &TileDebugSRVs[1]);
 
 	// b11: 타일 컬링 상수 버퍼 (이미 PerformTileLightCulling에서 설정됨)
 	// 별도 업데이트 불필요, 유지됨
 
 	// 전체 화면 쿼드 그리기
 	RHIDevice->DrawFullScreenQuad();
+	ID3D11ShaderResourceView* NullDepthRangeSRV = nullptr;
+	RHIDevice->GetDeviceContext()->PSSetShaderResources(5, 1, &NullDepthRangeSRV);
 
 	// 모든 작업이 성공적으로 끝났으므로 Commit 호출
 	SwapGuard.Commit();

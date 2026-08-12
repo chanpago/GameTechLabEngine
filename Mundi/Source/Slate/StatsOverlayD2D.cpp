@@ -342,18 +342,33 @@ void UStatsOverlayD2D::Draw()
 		const FTileCullingStats& TileStats = FTileCullingStatManager::GetInstance().GetStats();
 
 		wchar_t Buf[512];
-		swprintf_s(Buf, L"[Tile Culling Stats]\nTiles: %u x %u (%u)\nLights: %u (P:%u S:%u)\nMin/Avg/Max: %u / %.1f / %u\nCulling Eff: %.1f%%\nBuffer: %u KB",
-			TileStats.TileCountX,
-			TileStats.TileCountY,
-			TileStats.TotalTileCount,
-			TileStats.TotalLights,
-			TileStats.TotalPointLights,
-			TileStats.TotalSpotLights,
-			TileStats.MinLightsPerTile,
-			TileStats.AvgLightsPerTile,
-			TileStats.MaxLightsPerTile,
-			TileStats.CullingEfficiency,
-			TileStats.LightIndexBufferSizeBytes / 1024);
+		if (TileStats.bGPUGenerated)
+		{
+			swprintf_s(Buf, L"[Forward+ GPU]\nTiles: %u x %u (%u)\nLights: %u (P:%u S:%u)\nDepth bounds: GPU Min/Max\nLight tests: %u\nBuffer: %u KB",
+				TileStats.TileCountX,
+				TileStats.TileCountY,
+				TileStats.TotalTileCount,
+				TileStats.TotalLights,
+				TileStats.TotalPointLights,
+				TileStats.TotalSpotLights,
+				TileStats.TotalLightTests,
+				TileStats.LightIndexBufferSizeBytes / 1024);
+		}
+		else
+		{
+			swprintf_s(Buf, L"[Tile Culling Stats]\nTiles: %u x %u (%u)\nLights: %u (P:%u S:%u)\nMin/Avg/Max: %u / %.1f / %u\nCulling Eff: %.1f%%\nBuffer: %u KB",
+				TileStats.TileCountX,
+				TileStats.TileCountY,
+				TileStats.TotalTileCount,
+				TileStats.TotalLights,
+				TileStats.TotalPointLights,
+				TileStats.TotalSpotLights,
+				TileStats.MinLightsPerTile,
+				TileStats.AvgLightsPerTile,
+				TileStats.MaxLightsPerTile,
+				TileStats.CullingEfficiency,
+				TileStats.LightIndexBufferSizeBytes / 1024);
+		}
 
 		const float tilePanelHeight = 160.0f;
 		D2D1_RECT_F rc = D2D1::RectF(Margin, NextY, Margin + PanelWidth, NextY + tilePanelHeight);

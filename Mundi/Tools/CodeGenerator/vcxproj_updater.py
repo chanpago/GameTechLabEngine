@@ -294,9 +294,9 @@ def main():
     print()
     print("=" * 60)
     if vcxproj_updated or filters_updated:
-        print(" ✅ Project files updated!")
+        print(" [OK] Project files updated!")
     else:
-        print(" ⏭️  No changes needed")
+        print(" [OK] No changes needed")
     print("=" * 60)
 
 

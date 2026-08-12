@@ -1,123 +1,125 @@
-//================================================================================================
-// Filename:      TileDebugVisualization_PS.hlsl
-// Description:   타일 기반 라이트 컬링 디버그 시각화 픽셀 셰이더
-//                각 타일의 라이트 개수를 히트맵으로 표시
-//================================================================================================
+// Forward+ debug overlay.
+// Mode 1: tile light-count heatmap
+// Mode 2: tile depth range (left=min, right=max)
+// Mode 3: heatmap plus a depth-range strip at the bottom of every tile
 
-// b11: 타일 컬링 설정 상수 버퍼
 cbuffer TileCullingBuffer : register(b11)
 {
-    uint TileSize;          // 타일 크기 (픽셀, 기본 16)
-    uint TileCountX;        // 가로 타일 개수
-    uint TileCountY;        // 세로 타일 개수
-    uint bUseTileCulling;   // 타일 컬링 활성화 여부 (0=비활성화, 1=활성화)
-    uint ViewportStartX;    // 뷰포트 시작 X 좌표
-    uint ViewportStartY;    // 뷰포트 시작 Y 좌표
-    uint2 Padding;          // 16바이트 정렬을 위한 패딩
+    uint TileSize;
+    uint TileCountX;
+    uint TileCountY;
+    uint bUseTileCulling;
+    uint ViewportStartX;
+    uint ViewportStartY;
+    uint bUseDepthBounds;
+    uint TileDebugMode;
+    float TileNearClip;
+    float TileFarClip;
+    uint bTileOrthographic;
+    uint TilePadding;
 };
 
-// t0: 원본 씬 텍스처
 Texture2D g_SceneTexture : register(t0);
 SamplerState g_SamplerLinear : register(s0);
-
-// t2: 타일별 라이트 인덱스 Structured Buffer
-// 구조: [TileIndex * MaxLightsPerTile] = LightCount
-//       [TileIndex * MaxLightsPerTile + 1 ~ ...] = LightIndices
 StructuredBuffer<uint> g_TileLightIndices : register(t2);
+StructuredBuffer<float2> g_TileDepthRanges : register(t5);
 
-// 타일 인덱스 계산
-uint CalculateTileIndex(float2 screenPos)
+float3 LightCountToHeatmap(uint LightCount)
 {
-    // 뷰포트 오프셋을 빼서 뷰포트 로컬 좌표로 변환
-    uint localX = uint(screenPos.x) - ViewportStartX;
-    uint localY = uint(screenPos.y) - ViewportStartY;
-    
-    uint tileX = localX / TileSize;
-    uint tileY = localY / TileSize;
-    
-    return tileY * TileCountX + tileX;
+    float T = saturate(float(LightCount) / 16.0f);
+    if (T < 0.25f)
+        return lerp(float3(0.0f, 0.05f, 0.8f), float3(0.0f, 0.9f, 1.0f), T * 4.0f);
+    if (T < 0.5f)
+        return lerp(float3(0.0f, 0.9f, 1.0f), float3(0.0f, 1.0f, 0.1f), (T - 0.25f) * 4.0f);
+    if (T < 0.75f)
+        return lerp(float3(0.0f, 1.0f, 0.1f), float3(1.0f, 0.95f, 0.0f), (T - 0.5f) * 4.0f);
+    return lerp(float3(1.0f, 0.95f, 0.0f), float3(1.0f, 0.0f, 0.0f), (T - 0.75f) * 4.0f);
 }
 
-// 타일별 라이트 인덱스 데이터의 시작 오프셋 계산
-uint GetTileDataOffset(uint tileIndex)
+float DeviceDepthToViewDistance(float DeviceDepth)
 {
-    const uint MaxLightsPerTile = 256;
-    return tileIndex * MaxLightsPerTile;
+    if (bTileOrthographic != 0)
+    {
+        return lerp(TileNearClip, TileFarClip, DeviceDepth);
+    }
+    return (TileNearClip * TileFarClip) /
+        max(TileFarClip - DeviceDepth * (TileFarClip - TileNearClip), 0.00001f);
 }
 
-// 라이트 개수를 색상으로 변환 (히트맵)
-// 0 = 파란색(차가운), 많을수록 빨간색(뜨거운)
-float3 LightCountToHeatmap(uint lightCount)
+float NormalizeViewDistance(float DeviceDepth)
 {
-    // 정규화 (0~16개를 0.0~1.0으로)
-    float normalized = saturate(float(lightCount) / 16.0f);
-
-    // 히트맵 색상 계산 (Blue -> Cyan -> Green -> Yellow -> Red)
-    float3 color;
-    if (normalized < 0.25f)
-    {
-        // Blue -> Cyan
-        float t = normalized / 0.25f;
-        color = lerp(float3(0.0f, 0.0f, 1.0f), float3(0.0f, 1.0f, 1.0f), t);
-    }
-    else if (normalized < 0.5f)
-    {
-        // Cyan -> Green
-        float t = (normalized - 0.25f) / 0.25f;
-        color = lerp(float3(0.0f, 1.0f, 1.0f), float3(0.0f, 1.0f, 0.0f), t);
-    }
-    else if (normalized < 0.75f)
-    {
-        // Green -> Yellow
-        float t = (normalized - 0.5f) / 0.25f;
-        color = lerp(float3(0.0f, 1.0f, 0.0f), float3(1.0f, 1.0f, 0.0f), t);
-    }
-    else
-    {
-        // Yellow -> Red
-        float t = (normalized - 0.75f) / 0.25f;
-        color = lerp(float3(1.0f, 1.0f, 0.0f), float3(1.0f, 0.0f, 0.0f), t);
-    }
-
-    return color;
+    float Distance = max(DeviceDepthToViewDistance(DeviceDepth), TileNearClip);
+    float Range = max(TileFarClip / max(TileNearClip, 0.0001f), 1.0f);
+    return saturate(log2(Distance / max(TileNearClip, 0.0001f)) / max(log2(Range), 0.0001f));
 }
 
-//================================================================================================
-// Pixel Shader Entry Point
-//================================================================================================
-float4 mainPS(float4 Pos : SV_Position, float2 TexCoord : TEXCOORD0) : SV_Target
+float3 DepthColor(float DeviceDepth, bool bMaximum)
 {
-    // 원본 씬 색상
-    float3 sceneColor = g_SceneTexture.Sample(g_SamplerLinear, TexCoord).rgb;
+    float T = NormalizeViewDistance(DeviceDepth);
+    float3 NearColor = bMaximum ? float3(0.35f, 0.02f, 0.0f) : float3(0.0f, 0.04f, 0.35f);
+    float3 FarColor = bMaximum ? float3(1.0f, 0.85f, 0.05f) : float3(0.05f, 1.0f, 1.0f);
+    return lerp(NearColor, FarColor, T);
+}
 
-    if (!bUseTileCulling)
+float4 mainPS(float4 Position : SV_Position, float2 TexCoord : TEXCOORD0) : SV_Target
+{
+    float3 SceneColor = g_SceneTexture.Sample(g_SamplerLinear, TexCoord).rgb;
+    if (bUseTileCulling == 0 || bUseDepthBounds == 0 || TileDebugMode == 0)
     {
-        // 타일 컬링이 비활성화되어 있으면 원본 그대로 출력
-        return float4(sceneColor, 1.0f);
+        return float4(SceneColor, 1.0f);
     }
 
-    // 현재 픽셀이 속한 타일 계산
-    uint tileIndex = CalculateTileIndex(Pos.xy);
-    uint tileDataOffset = GetTileDataOffset(tileIndex);
-
-    // 타일의 라이트 개수
-    uint lightCount = g_TileLightIndices[tileDataOffset];
-
-    // 히트맵 색상 계산
-    float3 heatmapColor = LightCountToHeatmap(lightCount);
-
-    // 타일 경계선 그리기 (선택적)
-    float2 tileLocalPos = fmod(Pos.xy, float(TileSize));
-    bool isBorder = (tileLocalPos.x < 1.0f || tileLocalPos.y < 1.0f);
-
-    // 원본 씬과 히트맵을 블렌딩 (50% 투명도)
-    float3 finalColor = lerp(sceneColor, heatmapColor, 0.25f);
-
-    // 경계선은 흰색으로 표시
-    if (isBorder)
+    uint2 LocalPixel = uint2(Position.xy) - uint2(ViewportStartX, ViewportStartY);
+    uint2 TileCoordinate = LocalPixel / TileSize;
+    if (TileCoordinate.x >= TileCountX || TileCoordinate.y >= TileCountY)
     {
-        finalColor = lerp(finalColor, float3(1.0f, 1.0f, 1.0f), 0.3f);
+        return float4(SceneColor, 1.0f);
     }
 
-    return float4(finalColor, 1.0f);
+    uint TileIndex = TileCoordinate.y * TileCountX + TileCoordinate.x;
+    uint TileOffset = TileIndex * 256;
+    uint LightCount = g_TileLightIndices[TileOffset];
+    float2 DepthRange = g_TileDepthRanges[TileIndex];
+    bool bEmpty = DepthRange.x > DepthRange.y;
+    uint2 TileLocalPixel = LocalPixel % TileSize;
+    bool bBorder = TileLocalPixel.x == 0 || TileLocalPixel.y == 0;
+
+    float3 Result = SceneColor;
+    uint DepthStripStart = TileSize > 3 ? TileSize - 3 : 0;
+    if (TileDebugMode == 1 || TileDebugMode == 3)
+    {
+        Result = lerp(Result, LightCountToHeatmap(LightCount), 0.35f);
+    }
+
+    if (TileDebugMode == 2)
+    {
+        if (bEmpty)
+        {
+            Result = lerp(Result, float3(0.85f, 0.0f, 0.85f), 0.65f);
+        }
+        else
+        {
+            bool bShowMaximum = TileLocalPixel.x >= TileSize / 2;
+            float Depth = bShowMaximum ? DepthRange.y : DepthRange.x;
+            Result = lerp(Result, DepthColor(Depth, bShowMaximum), 0.72f);
+        }
+    }
+    else if (TileDebugMode == 3 && TileLocalPixel.y >= DepthStripStart)
+    {
+        if (bEmpty)
+        {
+            Result = float3(0.85f, 0.0f, 0.85f);
+        }
+        else
+        {
+            bool bShowMaximum = TileLocalPixel.x >= TileSize / 2;
+            Result = DepthColor(bShowMaximum ? DepthRange.y : DepthRange.x, bShowMaximum);
+        }
+    }
+
+    if (bBorder)
+    {
+        Result = lerp(Result, float3(1.0f, 1.0f, 1.0f), 0.45f);
+    }
+    return float4(Result, 1.0f);
 }
