@@ -397,6 +397,14 @@ void USceneComponent::OnRegister(UWorld* InWorld)
 {
     Super::OnRegister(InWorld);
 
+    if (InWorld)
+    {
+        if (UWorldPartitionManager* Partition = InWorld->GetPartitionManager())
+        {
+            Partition->Register(this);
+        }
+    }
+
     if (!std::strcmp(this->GetClass()->Name , USceneComponent::StaticClass()->Name) && !SpriteComponent && !InWorld->bPie)
     {
         CREATE_EDITOR_COMPONENT(SpriteComponent, UBillboardComponent);
@@ -405,6 +413,27 @@ void USceneComponent::OnRegister(UWorld* InWorld)
 
     // Notify transform update so shapes can refresh overlaps
     OnTransformUpdated();
+}
+
+bool USceneComponent::IsVisible() const
+{
+    const UWorld* OwningWorld = UActorComponent::GetWorld();
+    return OwningWorld && OwningWorld->bPie
+        ? (bIsActive && bIsVisible && !bHiddenInGame)
+        : (bIsActive && bIsVisible);
+}
+
+void USceneComponent::OnUnregister()
+{
+    if (UWorld* World = GetWorld())
+    {
+        if (UWorldPartitionManager* Partition = World->GetPartitionManager())
+        {
+            Partition->Unregister(this);
+        }
+    }
+
+    Super::OnUnregister();
 }
 
 void USceneComponent::OnTransformUpdated()

@@ -6,6 +6,7 @@
 // 전방 선언
 class UShader;
 class UMaterial;
+class UStaticMeshComponent;
 
 /**
  * @struct FMeshBatchElement
@@ -52,6 +53,10 @@ struct FMeshBatchElement
 
 	// 이 오브젝트의 월드 변환 행렬입니다. (Model Matrix)
 	FMatrix WorldMatrix;
+
+	// 영구 정적 메시 드로우 캐시에서 현재 변환과 가시성을 다시 확인하기 위한 원본입니다.
+	// 일반(프레임 단위) 배치는 nullptr을 유지합니다.
+	UStaticMeshComponent* SourceStaticMeshComponent = nullptr;
 
 	// 피킹(Picking) 등에 사용될 고유 ID입니다.
 	uint32 ObjectID = 0;

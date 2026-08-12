@@ -206,14 +206,13 @@ bool IsAABBVisible(const FFrustum& Frustum, const FAABB& Bound)
     const FVector Extents3 = (Bound.Max - Bound.Min) * 0.5f; // 항상 양수
     const FVector4 Center = FVector4::FromPoint(Center3);
     const FVector4 Extents = FVector4::FromDirection(Extents3); // 항상 양수
-    // 측면 4개만 체크 (Near/Far는 제외하여 카메라 앞뒤로 잘리는 문제 방지)
+    // 여섯 평면을 모두 검사해 카메라 뒤와 FarClip 밖의 바운드도 제거한다.
     return Intersects(Frustum.LeftFace, Center, Extents) &&
         Intersects(Frustum.RightFace, Center, Extents) &&
         Intersects(Frustum.TopFace, Center, Extents) &&
-        Intersects(Frustum.BottomFace, Center, Extents);
-        // Near/Far 체크 제거
-        // Intersects(Frustum.NearFace, Center, Extents) &&
-        // Intersects(Frustum.FarFace, Center, Extents);
+        Intersects(Frustum.BottomFace, Center, Extents) &&
+        Intersects(Frustum.NearFace, Center, Extents) &&
+        Intersects(Frustum.FarFace, Center, Extents);
 }
 
 bool IsAABBIntersects(const FFrustum& F, const FAABB& B)

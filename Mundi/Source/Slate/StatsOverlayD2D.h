@@ -16,6 +16,7 @@ public:
     void SetShowPicking(bool b)  { bShowPicking = b; }
     void SetShowDecal(bool b)  { bShowDecal = b; }
     void SetShowTileCulling(bool b)  { bShowTileCulling = b; }
+    void SetShowCulling(bool b) { bShowCulling = b; }
     void SetShowLights(bool b) { bShowLights = b; }
     void SetShowShadow(bool b) { bShowShadow = b; }
     void SetShowSkinning(bool b) { bShowSkinning = b; }
@@ -26,6 +27,7 @@ public:
     void TogglePicking() { bShowPicking = !bShowPicking; }
     void ToggleDecal() { bShowDecal = !bShowDecal; }
     void ToggleTileCulling() { bShowTileCulling = !bShowTileCulling; }
+    void ToggleCulling() { bShowCulling = !bShowCulling; }
     void ToggleLights() { bShowLights = !bShowLights; }
     void ToggleShadow() { bShowShadow = !bShowShadow; }
     void ToggleSkinning() { bShowSkinning = !bShowSkinning; }
@@ -36,6 +38,7 @@ public:
     bool IsPickingVisible() const { return bShowPicking; }
     bool IsDecalVisible() const { return bShowDecal; }
     bool IsTileCullingVisible() const { return bShowTileCulling; }
+    bool IsCullingVisible() const { return bShowCulling; }
     bool IsLightsVisible() const { return bShowLights; }
     bool IsShadowVisible() const { return bShowShadow; }
     bool IsSkinningVisible() const { return bShowSkinning; }
@@ -58,6 +61,7 @@ private:
     bool bShowPicking = false;
     bool bShowDecal = false;
     bool bShowTileCulling = false;
+    bool bShowCulling = false;
     bool bShowShadow = false;
     bool bShowLights = false;
     bool bShowSkinning = false;

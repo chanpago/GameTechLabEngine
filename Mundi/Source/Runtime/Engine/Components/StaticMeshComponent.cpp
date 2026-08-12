@@ -157,6 +157,10 @@ void UStaticMeshComponent::OnStaticMeshReleased(UStaticMesh* ReleasedMesh)
 	}
 
 	StaticMesh = nullptr;
+	if (UWorld* World = GetWorld())
+	{
+		World->MarkStaticMeshDrawCacheDirty();
+	}
 }
 
 void UStaticMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMeshBatchElements, const FSceneView* View)
@@ -251,6 +255,7 @@ void UStaticMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMesh
 		BatchElement.StartIndex = StartIndex;
 		BatchElement.BaseVertexIndex = 0;
 		BatchElement.WorldMatrix = GetWorldMatrix();
+		BatchElement.SourceStaticMeshComponent = this;
 		BatchElement.ObjectID = InternalIndex;
 		BatchElement.PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -264,6 +269,11 @@ void UStaticMeshComponent::CollectMeshBatches(TArray<FMeshBatchElement>& OutMesh
 
 void UStaticMeshComponent::SetStaticMesh(const FString& PathFileName)
 {
+	if (UWorld* World = GetWorld())
+	{
+		World->MarkStaticMeshDrawCacheDirty();
+	}
+
 	// 새 메시를 설정하기 전에, 기존에 생성된 모든 MID와 슬롯 정보를 정리합니다.
 	ClearDynamicMaterials();
 

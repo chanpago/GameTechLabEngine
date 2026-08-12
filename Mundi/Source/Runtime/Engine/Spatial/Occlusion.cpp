@@ -1,228 +1,540 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "Occlusion.h"
-#include "Frustum.h"
 
-// NDC Z가 [-1..1]인 프로젝션이면 아래 변환을 켜세요.
-// static inline float To01(float z_ndc) { return z_ndc * 0.5f + 0.5f; }
-static inline void Clamp01(float& v) { v = std::max(0.0f, std::min(1.0f, v)); }
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 
-// 헬퍼: 뷰공간 Z → [0..1] 선형
-static inline float LinearizeZ01(float zView, float zNear, float zFar) {
-	// LH 기준, 카메라 앞 z가 + 방향일 때
-	float z = (zView - zNear) / (zFar - zNear);
-	return std::max(0.f, std::min(1.f, z));
+namespace
+{
+    constexpr float ProjectionEpsilon = 1.0e-5f;
+    constexpr int MaxHZBSamplesPerCandidate = 16;
+
+    inline float Clamp01(float Value)
+    {
+        return std::max(0.0f, std::min(1.0f, Value));
+    }
+
+    inline float LinearizeZ01(float ViewZ, float NearClip, float FarClip)
+    {
+        const float DepthRange = FarClip - NearClip;
+        if (DepthRange <= ProjectionEpsilon)
+        {
+            return 1.0f;
+        }
+        return Clamp01((ViewZ - NearClip) / DepthRange);
+    }
+
+    void MakeAabbCornersMinMax(const FAABB& Bound, FVector Corners[8])
+    {
+        const FVector& Min = Bound.Min;
+        const FVector& Max = Bound.Max;
+        Corners[0] = { Min.X, Min.Y, Min.Z };
+        Corners[1] = { Max.X, Min.Y, Min.Z };
+        Corners[2] = { Min.X, Max.Y, Min.Z };
+        Corners[3] = { Max.X, Max.Y, Min.Z };
+        Corners[4] = { Min.X, Min.Y, Max.Z };
+        Corners[5] = { Max.X, Min.Y, Max.Z };
+        Corners[6] = { Min.X, Max.Y, Max.Z };
+        Corners[7] = { Max.X, Max.Y, Max.Z };
+    }
 }
 
-// FBound(Min/Max) → 8코너
-static inline void MakeAabbCornersMinMax(const FAABB& B, FVector Corners[8])
+void FOcclusionGrid::Initialize(int InWidth, int InHeight)
 {
-	const FVector& mn = B.Min;
-	const FVector& mx = B.Max;
-	Corners[0] = { mn.X, mn.Y, mn.Z };
-	Corners[1] = { mx.X, mn.Y, mn.Z };
-	Corners[2] = { mn.X, mx.Y, mn.Z };
-	Corners[3] = { mx.X, mx.Y, mn.Z };
-	Corners[4] = { mn.X, mn.Y, mx.Z };
-	Corners[5] = { mx.X, mn.Y, mx.Z };
-	Corners[6] = { mn.X, mx.Y, mx.Z };
-	Corners[7] = { mx.X, mx.Y, mx.Z };
+    Width = std::max(1, InWidth);
+    Height = std::max(1, InHeight);
+    Depth.assign(static_cast<size_t>(Width) * Height, 1.0f);
+
+    BuildLevels.clear();
+    LevelWidths.clear();
+    LevelHeights.clear();
+
+    int LevelWidth = Width;
+    int LevelHeight = Height;
+    while (true)
+    {
+        LevelWidths.Add(LevelWidth);
+        LevelHeights.Add(LevelHeight);
+        BuildLevels.Add(TArray<float>(static_cast<size_t>(LevelWidth) * LevelHeight, 1.0f));
+
+        if (LevelWidth == 1 && LevelHeight == 1)
+        {
+            break;
+        }
+
+        // 홀수 크기의 마지막 행/열이 유실되지 않도록 ceil-divide 합니다.
+        LevelWidth = std::max(1, (LevelWidth + 1) / 2);
+        LevelHeight = std::max(1, (LevelHeight + 1) / 2);
+    }
+
+    bHZBValid = false;
+}
+
+void FOcclusionGrid::Clear()
+{
+    std::fill(Depth.begin(), Depth.end(), 1.0f);
+    bHZBValid = false;
+}
+
+bool FOcclusionGrid::ComputeConservativeRasterBounds(
+    const FOcclusionRect& Rect,
+    float ErodeScale,
+    int& OutMinX,
+    int& OutMinY,
+    int& OutMaxX,
+    int& OutMaxY) const
+{
+    if (Width <= 0 || Height <= 0 || Rect.MinX >= Rect.MaxX || Rect.MinY >= Rect.MaxY)
+    {
+        return false;
+    }
+
+    ErodeScale = std::max(0.0f, std::min(1.0f, ErodeScale));
+    const float CenterX = 0.5f * (Rect.MinX + Rect.MaxX);
+    const float CenterY = 0.5f * (Rect.MinY + Rect.MaxY);
+    const float HalfWidth = 0.5f * (Rect.MaxX - Rect.MinX) * ErodeScale;
+    const float HalfHeight = 0.5f * (Rect.MaxY - Rect.MinY) * ErodeScale;
+
+    const float ErodedMinX = Clamp01(CenterX - HalfWidth);
+    const float ErodedMinY = Clamp01(CenterY - HalfHeight);
+    const float ErodedMaxX = Clamp01(CenterX + HalfWidth);
+    const float ErodedMaxY = Clamp01(CenterY + HalfHeight);
+
+    // 셀 전체가 eroded rect 안에 포함될 때만 오클루더 깊이를 기록합니다.
+    OutMinX = static_cast<int>(std::ceil(ErodedMinX * Width));
+    OutMinY = static_cast<int>(std::ceil(ErodedMinY * Height));
+    OutMaxX = static_cast<int>(std::floor(ErodedMaxX * Width)) - 1;
+    OutMaxY = static_cast<int>(std::floor(ErodedMaxY * Height)) - 1;
+
+    OutMinX = std::max(0, std::min(Width - 1, OutMinX));
+    OutMinY = std::max(0, std::min(Height - 1, OutMinY));
+    OutMaxX = std::max(0, std::min(Width - 1, OutMaxX));
+    OutMaxY = std::max(0, std::min(Height - 1, OutMaxY));
+
+    // Screen size is an occluder priority, not a hard exclusion rule. A small
+    // opaque mesh may still contribute one conservative cell, allowing many
+    // nearby meshes to build a useful depth surface together.
+    return OutMinX <= OutMaxX && OutMinY <= OutMaxY;
+}
+
+bool FOcclusionGrid::CanRasterizeConservative(const FOcclusionRect& Rect, float ErodeScale) const
+{
+    int MinX = 0;
+    int MinY = 0;
+    int MaxX = -1;
+    int MaxY = -1;
+    return ComputeConservativeRasterBounds(Rect, ErodeScale, MinX, MinY, MaxX, MaxY);
+}
+
+bool FOcclusionGrid::RasterizeConservative(const FOcclusionRect& Rect, float ErodeScale)
+{
+    int MinX = 0;
+    int MinY = 0;
+    int MaxX = -1;
+    int MaxY = -1;
+    if (!ComputeConservativeRasterBounds(Rect, ErodeScale, MinX, MinY, MaxX, MaxY))
+    {
+        return false;
+    }
+
+    bool bDepthChanged = false;
+    for (int Y = MinY; Y <= MaxY; ++Y)
+    {
+        float* Row = &Depth[static_cast<size_t>(Y) * Width];
+        for (int X = MinX; X <= MaxX; ++X)
+        {
+            // 겹치는 오클루더 중 카메라에 가장 가까운 보수적 far depth를 유지합니다.
+            if (Rect.MaxZ < Row[X])
+            {
+                Row[X] = Rect.MaxZ;
+                bDepthChanged = true;
+            }
+        }
+    }
+
+    if (bDepthChanged)
+    {
+        bHZBValid = false;
+    }
+    return bDepthChanged;
+}
+
+void FOcclusionGrid::BuildHZB()
+{
+    if (BuildLevels.IsEmpty())
+    {
+        return;
+    }
+
+    BuildLevels[0] = Depth;
+
+    for (uint32 LevelIndex = 1; LevelIndex < static_cast<uint32>(BuildLevels.Num()); ++LevelIndex)
+    {
+        const TArray<float>& Previous = BuildLevels[LevelIndex - 1];
+        TArray<float>& Current = BuildLevels[LevelIndex];
+        const int PreviousWidth = LevelWidths[LevelIndex - 1];
+        const int PreviousHeight = LevelHeights[LevelIndex - 1];
+        const int CurrentWidth = LevelWidths[LevelIndex];
+        const int CurrentHeight = LevelHeights[LevelIndex];
+
+        for (int Y = 0; Y < CurrentHeight; ++Y)
+        {
+            for (int X = 0; X < CurrentWidth; ++X)
+            {
+                float MaxDepth = 0.0f;
+                for (int OffsetY = 0; OffsetY < 2; ++OffsetY)
+                {
+                    const int SourceY = Y * 2 + OffsetY;
+                    if (SourceY >= PreviousHeight)
+                    {
+                        continue;
+                    }
+
+                    for (int OffsetX = 0; OffsetX < 2; ++OffsetX)
+                    {
+                        const int SourceX = X * 2 + OffsetX;
+                        if (SourceX >= PreviousWidth)
+                        {
+                            continue;
+                        }
+
+                        MaxDepth = std::max(MaxDepth, Previous[static_cast<size_t>(SourceY) * PreviousWidth + SourceX]);
+                    }
+                }
+                Current[static_cast<size_t>(Y) * CurrentWidth + X] = MaxDepth;
+            }
+        }
+    }
+
+    bHZBValid = true;
+}
+
+bool FOcclusionGrid::IsRectOccluded(const FOcclusionRect& Rect, float DepthBias) const
+{
+    if (!bHZBValid || BuildLevels.IsEmpty() || Rect.MinX >= Rect.MaxX || Rect.MinY >= Rect.MaxY)
+    {
+        return false;
+    }
+
+    int SelectedLevel = 0;
+    int SelectedMinX = 0;
+    int SelectedMinY = 0;
+    int SelectedMaxX = 0;
+    int SelectedMaxY = 0;
+
+    // 관련 셀을 전부 검사하되 최대 16개 이하가 되는 가장 세밀한 mip을 선택합니다.
+    for (uint32 LevelIndex = 0; LevelIndex < static_cast<uint32>(BuildLevels.Num()); ++LevelIndex)
+    {
+        const int LevelWidth = LevelWidths[LevelIndex];
+        const int LevelHeight = LevelHeights[LevelIndex];
+        const int MinX = std::max(0, std::min(LevelWidth - 1, static_cast<int>(std::floor(Rect.MinX * LevelWidth))));
+        const int MinY = std::max(0, std::min(LevelHeight - 1, static_cast<int>(std::floor(Rect.MinY * LevelHeight))));
+        const int MaxX = std::max(0, std::min(LevelWidth - 1, static_cast<int>(std::ceil(Rect.MaxX * LevelWidth)) - 1));
+        const int MaxY = std::max(0, std::min(LevelHeight - 1, static_cast<int>(std::ceil(Rect.MaxY * LevelHeight)) - 1));
+        const int SampleCount = std::max(1, MaxX - MinX + 1) * std::max(1, MaxY - MinY + 1);
+
+        SelectedLevel = static_cast<int>(LevelIndex);
+        SelectedMinX = MinX;
+        SelectedMinY = MinY;
+        SelectedMaxX = MaxX;
+        SelectedMaxY = MaxY;
+        if (SampleCount <= MaxHZBSamplesPerCandidate)
+        {
+            break;
+        }
+    }
+
+    const TArray<float>& Level = BuildLevels[SelectedLevel];
+    const int LevelWidth = LevelWidths[SelectedLevel];
+    for (int Y = SelectedMinY; Y <= SelectedMaxY; ++Y)
+    {
+        const float* Row = &Level[static_cast<size_t>(Y) * LevelWidth];
+        for (int X = SelectedMinX; X <= SelectedMaxX; ++X)
+        {
+            // MAX HZB에서 하나라도 후보보다 멀거나 비어 있으면 완전 가림이 아닙니다.
+            if (Row[X] + DepthBias > Rect.MinZ)
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 bool FOcclusionCullingManagerCPU::ComputeRectAndMinZ(
-	const FCandidateDrawable& D, int /*ViewW*/, int /*ViewH*/, FOcclusionRect& OutR)
+    const FCandidateDrawable& Candidate,
+    int /*ViewW*/,
+    int /*ViewH*/,
+    FOcclusionRect& OutRect)
 {
-	FVector C[8];
-	MakeAabbCornersMinMax(D.Bound, C);
+    FVector Corners[8];
+    MakeAabbCornersMinMax(Candidate.Bound, Corners);
 
-	float MinX = +1e9f, MinY = +1e9f, MaxX = -1e9f, MaxY = -1e9f;
-	float MinZLin = +1e9f, MaxZLin = -1e9f; // ★ 선형 깊이(0..1)
+    float MinX = FLT_MAX;
+    float MinY = FLT_MAX;
+    float MaxX = -FLT_MAX;
+    float MaxY = -FLT_MAX;
+    float MinZ = FLT_MAX;
+    float MaxZ = -FLT_MAX;
 
-	int used = 0;
-	for (int i = 0; i < 8; i++)
-	{
-		const float p[4] = { C[i].X, C[i].Y, C[i].Z, 1.0f };
+    for (const FVector& Corner : Corners)
+    {
+        const float Point[4] = { Corner.X, Corner.Y, Corner.Z, 1.0f };
 
-		// 1) 화면 사각형용: WVP → NDC
-		float c[4];
-		MulPointRow(p, D.WorldViewProj, c);
-		if (c[3] <= 0.0f) continue;
+        float ViewPoint[4];
+        MulPointRow(Point, Candidate.WorldView, ViewPoint);
 
-		const float invW = 1.0f / c[3];
-		const float ndcX = c[0] * invW;  // -1..1
-		const float ndcY = c[1] * invW;  // -1..1
-		// const float ndcZ = c[2] * invW; // 깊이는 쓰지 않음
+        float ClipPoint[4];
+        MulPointRow(Point, Candidate.WorldViewProj, ClipPoint);
 
-		const float u = 0.5f * (ndcX + 1.0f);
-		const float v = 0.5f * (ndcY + 1.0f);
+        // near plane과 교차하는 AABB는 사각형 edge clipping 없이는 안전하게 투영할 수 없습니다.
+        // 이런 후보는 이번 프레임에 보이는 것으로 유지하고 오클루더로도 사용하지 않습니다.
+        if (ViewPoint[2] <= Candidate.NearClip || ClipPoint[3] <= ProjectionEpsilon)
+        {
+            return false;
+        }
 
-		MinX = std::min(MinX, u); MinY = std::min(MinY, v);
-		MaxX = std::max(MaxX, u); MaxY = std::max(MaxY, v);
+        const float InverseW = 1.0f / ClipPoint[3];
+        const float U = 0.5f * (ClipPoint[0] * InverseW + 1.0f);
+        const float V = 0.5f * (ClipPoint[1] * InverseW + 1.0f);
 
-		// 2) 깊이: WorldView로 뷰 공간 z → 선형 0..1
-		float v4[4];
-		MulPointRow(p, D.WorldView, v4);     // p_world * (World*View) == p_world * View (월드좌표니까 View만 와도 OK)
-		const float zView = v4[2];          // LH: +Z 앞
-		const float zLin01 = LinearizeZ01(zView, D.NearClip, D.FarClip);
+        MinX = std::min(MinX, U);
+        MinY = std::min(MinY, V);
+        MaxX = std::max(MaxX, U);
+        MaxY = std::max(MaxY, V);
 
-		MinZLin = std::min(MinZLin, zLin01);
-		MaxZLin = std::max(MaxZLin, zLin01);
+        const float LinearDepth = LinearizeZ01(ViewPoint[2], Candidate.NearClip, Candidate.FarClip);
+        MinZ = std::min(MinZ, LinearDepth);
+        MaxZ = std::max(MaxZ, LinearDepth);
+    }
 
-		used++;
-	}
+    if (MaxX <= 0.0f || MaxY <= 0.0f || MinX >= 1.0f || MinY >= 1.0f)
+    {
+        return false;
+    }
 
-	if (used == 0) return false;
-	if (MaxX < 0 || MaxY < 0 || MinX > 1 || MinY > 1) return false;
-
-	Clamp01(MinX); Clamp01(MinY); Clamp01(MaxX); Clamp01(MaxY);
-	Clamp01(MinZLin); Clamp01(MaxZLin);
-
-	OutR.MinX = MinX; OutR.MinY = MinY; OutR.MaxX = MaxX; OutR.MaxY = MaxY;
-	OutR.MinZ = MinZLin;   // ★ 선형 깊이
-	OutR.MaxZ = MaxZLin;
-	OutR.ActorIndex = D.ActorIndex;
-	return true;
-}
-void FOcclusionCullingManagerCPU::BuildOccluderDepth(
-	const TArray<FCandidateDrawable>& Occluders, int ViewW, int ViewH)
-{
-	Grid.Clear();
-
-	const int GW = Grid.GetWidth();
-	const int GH = Grid.GetHeight();
-
-	// --- 튜닝 파라미터 ---
-	const float ErodeScale = 0.5f;     // 0.5배 축소
-	const int   Dilate = 1;        // 경계 1px 팽창
-	const int   MinPxEdge = 8;        // 너무 작은 사각형은 erosion 스킵
-	const float MaxCover = 0.6f;     // 화면의 60% 이상 덮으면 erosion 스킵
-
-	for (const auto& D : Occluders)
-	{
-		FOcclusionRect R;
-		if (!ComputeRectAndMinZ(D, ViewW, ViewH, R))
-			continue;
-
-		int minPX = (int)std::floor(R.MinX * GW);
-		int minPY = (int)std::floor(R.MinY * GH);
-		int maxPX = (int)std::ceil(R.MaxX * GW) - 1;
-		int maxPY = (int)std::ceil(R.MaxY * GH) - 1;
-
-		// --- 화면 사각형 erosion(오클루더 영향 완화) ---
-		int w = std::max(0, maxPX - minPX + 1);
-		int h = std::max(0, maxPY - minPY + 1);
-		const bool bigCover =
-			(w >= int(MaxCover * GW)) || (h >= int(MaxCover * GH));
-		if (ErodeScale < 1.0f && w >= MinPxEdge && h >= MinPxEdge && !bigCover)
-		{
-			const float cx = 0.5f * float(minPX + maxPX);
-			const float cy = 0.5f * float(minPY + maxPY);
-			const float hw = 0.5f * float(w) * ErodeScale;
-			const float hh = 0.5f * float(h) * ErodeScale;
-
-			minPX = int(std::floor(cx - hw));
-			maxPX = int(std::ceil(cx + hw));
-			minPY = int(std::floor(cy - hh));
-			maxPY = int(std::ceil(cy + hh));
-		}
-
-
-		// 화면 경계 클램프
-		minPX = std::max(0, std::min(GW - 1, minPX));
-		minPY = std::max(0, std::min(GH - 1, minPY));
-		maxPX = std::max(0, std::min(GW - 1, maxPX));
-		maxPY = std::max(0, std::min(GH - 1, maxPY));
-		if (minPX > maxPX || minPY > maxPY) continue;
-
-		Grid.RasterizeRectDepthMin(minPX, minPY, maxPX, maxPY, R.MaxZ);
-	}
+    OutRect.MinX = Clamp01(MinX);
+    OutRect.MinY = Clamp01(MinY);
+    OutRect.MaxX = Clamp01(MaxX);
+    OutRect.MaxY = Clamp01(MaxY);
+    OutRect.MinZ = Clamp01(MinZ);
+    OutRect.MaxZ = Clamp01(MaxZ);
+    OutRect.ActorIndex = Candidate.ActorIndex;
+    return OutRect.MinX < OutRect.MaxX && OutRect.MinY < OutRect.MaxY;
 }
 
-// 2) 후보 가시성 판정(HZB 샘플)
-void FOcclusionCullingManagerCPU::TestOcclusion(const TArray<FCandidateDrawable>& Candidates, int ViewW, int ViewH, TArray<uint8_t>& OutVisibleFlags)
+void FOcclusionCullingManagerCPU::MarkVisible(uint32 ActorIndex)
 {
-	const float eps = 2e-3f;  // 1차 바이어스
-	const float eps2 = 2 * eps;  // 레벨0 재검증 바이어스(조금 더 큼)
-	// --- 크기 보장 ---
-	uint32_t maxId = 0;
-	for (auto& c : Candidates) maxId = std::max(maxId, c.ActorIndex);
+    if (static_cast<uint32>(OccludedStreak.Num()) <= ActorIndex)
+    {
+        OccludedStreak.resize(static_cast<size_t>(ActorIndex) + 1, 0);
+    }
+    if (static_cast<uint32>(LastState.Num()) <= ActorIndex)
+    {
+        LastState.resize(static_cast<size_t>(ActorIndex) + 1, 1);
+    }
 
-	if (OutVisibleFlags.size() <= maxId) OutVisibleFlags.resize(maxId + 1, 1);
-	if (VisibleStreak.size() <= maxId) VisibleStreak.resize(maxId + 1, 0);
-	if (OccludedStreak.size() <= maxId) OccludedStreak.resize(maxId + 1, 0);
-	if (LastState.size() <= maxId) LastState.resize(maxId + 1, 1); // 초기=보임
+    OccludedStreak[ActorIndex] = 0;
+    LastState[ActorIndex] = 1;
+}
 
-	for (const auto& D : Candidates)
-	{
-		uint32_t id = D.ActorIndex;
+bool FOcclusionCullingManagerCPU::ApplyOccludedHysteresis(uint32 ActorIndex, bool bRawOccluded)
+{
+    if (static_cast<uint32>(OccludedStreak.Num()) <= ActorIndex)
+    {
+        OccludedStreak.resize(static_cast<size_t>(ActorIndex) + 1, 0);
+    }
+    if (static_cast<uint32>(LastState.Num()) <= ActorIndex)
+    {
+        LastState.resize(static_cast<size_t>(ActorIndex) + 1, 1);
+    }
 
-		FOcclusionRect R;
-		if (!ComputeRectAndMinZ(D, ViewW, ViewH, R))
-		{
-			// 화면 밖(또는 w<=0 코너만) → 가려짐으로 처리
-			OutVisibleFlags[id] = 0;
-			// streak 업데이트 (선택): occluded 누적
-			OccludedStreak[id] = std::min<uint8_t>(255, OccludedStreak[id] + 1);
-			VisibleStreak[id] = 0;
-			LastState[id] = 0;
-			continue;
-		}
+    // 다시 보이는 경우에는 즉시 복구합니다. 카메라 이동 시 이전 프레임 상태가 물체를 숨기지 않습니다.
+    if (!bRawOccluded)
+    {
+        MarkVisible(ActorIndex);
+        return false;
+    }
 
-		const float rw = std::max(0.0f, R.MaxX - R.MinX);
-		const float rh = std::max(0.0f, R.MaxY - R.MinY);
-		const float pxW = rw * GetGrid().GetWidth();
-		const float pxH = rh * GetGrid().GetHeight();
+    if (OccludedStreak[ActorIndex] < 255)
+    {
+        ++OccludedStreak[ActorIndex];
+    }
+    const bool bWasOccluded = LastState[ActorIndex] == 0;
+    const bool bFinalOccluded = bWasOccluded || OccludedStreak[ActorIndex] >= OccludedFrameThreshold;
+    LastState[ActorIndex] = bFinalOccluded ? 0 : 1;
+    return bFinalOccluded;
+}
 
-		// --- 작은 사각형 가드: 한 변이라도 2px 미만이면 컬링하지 않음 ---
-		if (std::min(pxW, pxH) < 2.0f)
-		{
-			OutVisibleFlags[id] = 1;
-			VisibleStreak[id] = std::min<uint8_t>(255, VisibleStreak[id] + 1);
-			OccludedStreak[id] = 0;
-			LastState[id] = 1;
-			continue;
-		}
+void FOcclusionCullingManagerCPU::BeginFrameStats(
+    uint32 RegisteredMeshCount,
+    uint32 FrustumVisibleCount,
+    bool bFrustumEnabled,
+    bool bOcclusionEnabled,
+    bool bMaterialSortingEnabled)
+{
+    LastStats = {};
+    LastStats.RegisteredMeshCount = RegisteredMeshCount;
+    LastStats.FrustumVisibleCount = FrustumVisibleCount;
+    LastStats.FrustumCulledCount = RegisteredMeshCount > FrustumVisibleCount
+        ? RegisteredMeshCount - FrustumVisibleCount
+        : 0;
+    LastStats.FinalVisibleCount = FrustumVisibleCount;
+    LastStats.bFrustumEnabled = bFrustumEnabled;
+    LastStats.bOcclusionEnabled = bOcclusionEnabled;
+    LastStats.bMaterialSortingEnabled = bMaterialSortingEnabled;
+}
 
-		// --- 보수적 mip 선택 ---
-		int mip = std::max(0, Grid.ChooseMip(rw, rh) - 1);
-		if (pxW < 48.0f || pxH < 48.0f)
-			mip = std::max(0, mip - 1);
+void FOcclusionCullingManagerCPU::CullFrontToBack(
+    const TArray<FCandidateDrawable>& Candidates,
+    int ViewW,
+    int ViewH,
+    TArray<uint8_t>& OutVisibleFlags)
+{
+    const auto StartTime = std::chrono::steady_clock::now();
+    auto FinishStats = [this, StartTime]()
+    {
+        const auto EndTime = std::chrono::steady_clock::now();
+        LastStats.CPUTimeMs = std::chrono::duration<float, std::milli>(EndTime - StartTime).count();
+    };
 
+    LastStats.CandidateCount = 0;
+    LastStats.ProjectedCount = 0;
+    LastStats.OccluderCount = 0;
+    LastStats.CulledCount = 0;
+    LastStats.CPUTimeMs = 0.0f;
+    LastStats.CandidateCount = static_cast<uint32>(Candidates.Num());
 
-		// --- MAX HZB 적응형 샘플 ---
-		const float hzbMax = Grid.SampleMaxRectAdaptive(R.MinX, R.MinY, R.MaxX, R.MaxY, mip);
+    if (Candidates.IsEmpty())
+    {
+        OutVisibleFlags.clear();
+        FinishStats();
+        return;
+    }
 
-		bool occluded = ((hzbMax + eps) <= R.MinZ);
+    uint32 MaxActorIndex = 0;
+    for (const FCandidateDrawable& Candidate : Candidates)
+    {
+        MaxActorIndex = std::max(MaxActorIndex, Candidate.ActorIndex);
+    }
+    OutVisibleFlags.assign(static_cast<size_t>(MaxActorIndex) + 1, 1);
 
-		// --- 레벨0 정밀 재검증(occluded일 때만) ---
-		if (occluded)
-		{
-			if (!Grid.FullyOccludedAtLevel0(R.MinX, R.MinY, R.MaxX, R.MaxY, R.MinZ, eps2))
-				occluded = false;
-		}
+    TArray<FProjectedCandidate> ProjectedCandidates;
+    ProjectedCandidates.Reserve(Candidates.Num());
+    uint32 PotentialOccluderCount = 0;
 
-		// --- 양방향 히스테리시스(2~3프레임 연속일 때만 상태 전환) ---
-		const int thresh = 2; // 2~3 추천
+    for (const FCandidateDrawable& Candidate : Candidates)
+    {
+        FOcclusionRect Rect;
+        if (!ComputeRectAndMinZ(Candidate, ViewW, ViewH, Rect))
+        {
+            MarkVisible(Candidate.ActorIndex);
+            continue;
+        }
 
-		if (occluded)
-		{
-			OccludedStreak[id] = std::min<uint8_t>(255, OccludedStreak[id] + 1);
-			VisibleStreak[id] = 0;
+        FProjectedCandidate Projected;
+        Projected.Rect = Rect;
+        const float ProjectedWidthPixels = (Rect.MaxX - Rect.MinX) * static_cast<float>(std::max(ViewW, 1));
+        const float ProjectedHeightPixels = (Rect.MaxY - Rect.MinY) * static_cast<float>(std::max(ViewH, 1));
+        Projected.ScreenAreaPixels = ProjectedWidthPixels * ProjectedHeightPixels;
+        Projected.bCanOcclude = Candidate.bCanOcclude && Grid.CanRasterizeConservative(Rect);
+        if (Projected.bCanOcclude)
+        {
+            ++PotentialOccluderCount;
+        }
+        ProjectedCandidates.Add(Projected);
+    }
 
-			// 직전이 보임이면, thresh 미만 동안은 보임 유지
-			if (LastState[id] == 1 && OccludedStreak[id] < thresh)
-				occluded = false;
-		}
-		else
-		{
-			VisibleStreak[id] = std::min<uint8_t>(255, VisibleStreak[id] + 1);
-			OccludedStreak[id] = 0;
+    LastStats.ProjectedCount = static_cast<uint32>(ProjectedCandidates.Num());
+    if (ProjectedCandidates.IsEmpty() || PotentialOccluderCount == 0)
+    {
+        for (const FProjectedCandidate& Candidate : ProjectedCandidates)
+        {
+            MarkVisible(Candidate.Rect.ActorIndex);
+        }
+        FinishStats();
+        return;
+    }
 
-			// 직전이 가려짐이면, thresh 미만 동안은 가려짐 유지
-			if (LastState[id] == 0 && VisibleStreak[id] < thresh)
-				occluded = true;
-		}
+    ProjectedCandidates.Sort([](const FProjectedCandidate& Left, const FProjectedCandidate& Right)
+    {
+        if (Left.Rect.MinZ == Right.Rect.MinZ)
+        {
+            return Left.Rect.ActorIndex < Right.Rect.ActorIndex;
+        }
+        return Left.Rect.MinZ < Right.Rect.MinZ;
+    });
 
-		LastState[id] = occluded ? 0 : 1;
-		OutVisibleFlags[id] = occluded ? 0 : 1;
-	}
+    Grid.Clear();
+    bool bHasOccluderDepth = false;
+    bool bDepthDirty = false;
+    uint32 OccluderCount = 0;
+
+    for (uint32 BatchStart = 0; BatchStart < static_cast<uint32>(ProjectedCandidates.Num()); BatchStart += CandidateBatchSize)
+    {
+        const uint32 BatchEnd = std::min<uint32>(
+            static_cast<uint32>(ProjectedCandidates.Num()),
+            BatchStart + CandidateBatchSize);
+
+        if (bHasOccluderDepth && bDepthDirty)
+        {
+            Grid.BuildHZB();
+            bDepthDirty = false;
+        }
+
+        for (uint32 Index = BatchStart; Index < BatchEnd; ++Index)
+        {
+            FProjectedCandidate& Candidate = ProjectedCandidates[Index];
+            Candidate.bRawOccluded = bHasOccluderDepth && Grid.IsRectOccluded(Candidate.Rect, 2.0e-3f);
+
+            const bool bFinalOccluded = ApplyOccludedHysteresis(Candidate.Rect.ActorIndex, Candidate.bRawOccluded);
+            OutVisibleFlags[Candidate.Rect.ActorIndex] = bFinalOccluded ? 0 : 1;
+            if (bFinalOccluded)
+            {
+                ++LastStats.CulledCount;
+            }
+        }
+
+        // 같은 depth batch 안에서는 서로를 가리지 않게 하여 정렬 오차에 의한 오버컬링을 막습니다.
+        TArray<uint32> OccluderOrder;
+        OccluderOrder.Reserve(BatchEnd - BatchStart);
+        for (uint32 Index = BatchStart; Index < BatchEnd; ++Index)
+        {
+            const FProjectedCandidate& Candidate = ProjectedCandidates[Index];
+            if (!Candidate.bRawOccluded && Candidate.bCanOcclude)
+            {
+                OccluderOrder.Add(Index);
+            }
+        }
+
+        // Culling remains front-to-back. Within one depth batch, screen area
+        // controls which candidates improve the HZB first. There is no fixed
+        // occluder cap; only candidates that actually lower a depth cell count.
+        OccluderOrder.Sort([&ProjectedCandidates](uint32 LeftIndex, uint32 RightIndex)
+        {
+            const FProjectedCandidate& Left = ProjectedCandidates[LeftIndex];
+            const FProjectedCandidate& Right = ProjectedCandidates[RightIndex];
+            if (Left.ScreenAreaPixels == Right.ScreenAreaPixels)
+            {
+                return Left.Rect.ActorIndex < Right.Rect.ActorIndex;
+            }
+            return Left.ScreenAreaPixels > Right.ScreenAreaPixels;
+        });
+
+        for (uint32 Index : OccluderOrder)
+        {
+            const FProjectedCandidate& Candidate = ProjectedCandidates[Index];
+            if (Grid.RasterizeConservative(Candidate.Rect))
+            {
+                ++OccluderCount;
+                bHasOccluderDepth = true;
+                bDepthDirty = true;
+            }
+        }
+    }
+
+    LastStats.OccluderCount = OccluderCount;
+    FinishStats();
 }

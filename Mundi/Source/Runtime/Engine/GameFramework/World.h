@@ -133,6 +133,16 @@ public:
     AGizmoActor* GetGizmoActor() { return GizmoActor; }
     AGridActor* GetGridActor() { return GridActor; }
     UWorldPartitionManager* GetPartitionManager() { return Partition.get(); }
+    FOcclusionCullingManagerCPU* GetOcclusionCullingManager() { return OcclusionCullingManager.get(); }
+	uint64 GetStaticMeshDrawCacheRevision() const { return StaticMeshDrawCacheRevision; }
+	void MarkStaticMeshDrawCacheDirty()
+	{
+		++StaticMeshDrawCacheRevision;
+		if (StaticMeshDrawCacheRevision == 0)
+		{
+			StaticMeshDrawCacheRevision = 1;
+		}
+	}
 
     // PIE용 World 생성
     static UWorld* DuplicateWorldForPIE(UWorld* InEditorWorld);
@@ -204,6 +214,10 @@ private:
 
     //partition
     std::unique_ptr<UWorldPartitionManager> Partition = nullptr;
+
+    // Persistent across frames so occlusion hysteresis remains stable.
+    std::unique_ptr<FOcclusionCullingManagerCPU> OcclusionCullingManager;
+	uint64 StaticMeshDrawCacheRevision = 1;
 
     // Per-world selection manager
     std::unique_ptr<USelectionManager> SelectionMgr;

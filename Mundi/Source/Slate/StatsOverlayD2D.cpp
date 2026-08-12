@@ -16,6 +16,7 @@
 #include "SkinningStats.h"
 #include "Source/Runtime/Engine/Particle/ParticleStats.h"
 #include "Source/Runtime/Engine/GameFramework/World.h"
+#include "Source/Runtime/Engine/Spatial/Occlusion.h"
 #include "Source/Runtime/Game/Enemy/BossEnemy.h"
 
 #pragma comment(lib, "d2d1")
@@ -176,7 +177,7 @@ static void DrawTextBlock(
 
 void UStatsOverlayD2D::Draw()
 {
-	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowLights && !bShowShadow && !bShowSkinning && !bShowEnemyCount) || !SwapChain)
+	if (!bInitialized || (!bShowFPS && !bShowMemory && !bShowPicking && !bShowDecal && !bShowTileCulling && !bShowCulling && !bShowLights && !bShowShadow && !bShowSkinning && !bShowEnemyCount) || !SwapChain)
 	{
 		return;
 	}
@@ -228,6 +229,55 @@ void UStatsOverlayD2D::Draw()
 		DrawTextBlock(D2DContext, TextFormat, Buf, rc, BrushBlack, BrushYellow);
 
 		NextY += PanelHeight + Space;
+	}
+
+	if (bShowCulling)
+	{
+		wchar_t Buf[768];
+		if (GWorld && GWorld->GetOcclusionCullingManager())
+		{
+			const FOcclusionCullingStats& Stats = GWorld->GetOcclusionCullingManager()->GetLastStats();
+			swprintf_s(
+				Buf,
+				L"[Culling Stats]\nRegistered meshes: %u\nFrustum [%s]: visible %u / culled %u\nOcclusion [%s/%s]: candidates %u / tested %u\nGPU result: %s / latency %u frames / HZB %u mips\nOcclusion culled: %u\nFinal visible: %u\nOpaque draw calls: %u\nShader changes: %u\nMaterial binds: %u\nBuffer changes: %u\nMaterial sorting [%s]: %.2f ms\nStatic cache [%s]: %u components / %u commands\nCache rebuilds: %llu / last %.2f ms\nGPU HZB: %.2f ms / CPU work: %.2f ms",
+				Stats.RegisteredMeshCount,
+				Stats.bFrustumEnabled ? L"ON" : L"OFF",
+				Stats.FrustumVisibleCount,
+				Stats.FrustumCulledCount,
+				Stats.bOcclusionEnabled ? L"ON" : L"OFF",
+				Stats.bGPUOcclusion ? L"GPU HZB" : L"CPU HZB",
+				Stats.CandidateCount,
+				Stats.ProjectedCount,
+				Stats.bGPUResultAvailable ? L"READY" : L"WARMUP",
+				Stats.GPUResultLatencyFrames,
+				Stats.GPUHZBMipCount,
+				Stats.CulledCount,
+				Stats.FinalVisibleCount,
+				Stats.OpaqueDrawCallCount,
+				Stats.ShaderChangeCount,
+				Stats.MaterialBindCount,
+				Stats.BufferChangeCount,
+				Stats.bMaterialSortingEnabled ? L"ON" : L"OFF",
+				Stats.MaterialSortCPUTimeMs,
+				Stats.bStaticMeshCachedPathEnabled ? L"ON" : L"OFF",
+				Stats.StaticMeshCachedComponentCount,
+				Stats.StaticMeshCachedCommandCount,
+				static_cast<unsigned long long>(Stats.StaticMeshCacheRebuildCount),
+				Stats.StaticMeshCacheLastRebuildTimeMs,
+				Stats.GPUTimeMs,
+				Stats.CPUTimeMs);
+		}
+		else
+		{
+			swprintf_s(Buf, L"[Culling Stats]\nNo active world");
+		}
+
+		const float CullingPanelWidth = 400.0f;
+		const float CullingPanelHeight = 330.0f;
+		D2D1_RECT_F Rc = D2D1::RectF(Margin, NextY, Margin + CullingPanelWidth, NextY + CullingPanelHeight);
+		DrawTextBlock(D2DContext, TextFormat, Buf, Rc, BrushBlack, BrushCyan);
+
+		NextY += CullingPanelHeight + Space;
 	}
 
 	if (bShowPicking)

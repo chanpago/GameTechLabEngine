@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "RHIDevice.h"
 #include "LineDynamicMesh.h"
+#include "MeshBatchElement.h"
 
 class UStaticMeshComponent;
 class UTextRenderComponent;
@@ -12,8 +13,35 @@ class UBillboardComponent;
 class UPrimitiveComponent;
 class UCameraComponent;
 class FSceneView;
+class FGPUOcclusionCuller;
+class FViewport;
+class UWorld;
 
 struct FMaterialSlot;
+
+struct FStaticMeshDrawCache
+{
+	uint64 WorldRevision = 0;
+	uint64 ShaderRevision = 0;
+	uint64 RebuildCount = 0;
+	float LastRebuildTimeMs = 0.0f;
+	uint32 CachedComponentCount = 0;
+	TArray<FMeshBatchElement> Batches;
+	TArray<uint32> SortedBatchIndices;
+};
+
+struct FWorldStaticMeshDrawCaches
+{
+	uint64 LastUsedFrame = 0;
+	TMap<uint64, FStaticMeshDrawCache> ViewCaches;
+};
+
+struct FGPUOcclusionContext
+{
+	uint64 LastUsedFrame = 0;
+	UWorld* World = nullptr;
+	FGPUOcclusionCuller* Culler = nullptr;
+};
 
 class URenderer
 {
@@ -45,12 +73,17 @@ public:
 	void ClearLineBatch();
 
 	D3D11RHI* GetRHIDevice() { return RHIDevice; }
+	FStaticMeshDrawCache& GetStaticMeshDrawCache(UWorld* World, uint64 ViewShaderKey);
+	FGPUOcclusionCuller* GetGPUOcclusionCuller(UWorld* World, FViewport* Viewport);
 
 	void SetCurrentCamera(ACameraActor* InCamera) { CurrentCamera = InCamera; }
 	ACameraActor* GetCurrentCamera() const { return CurrentCamera; }
 
 private:
 	D3D11RHI* RHIDevice;    // NOTE: 개발 편의성을 위해서 DX11를 종속적으로 사용한다 (URHIDevice를 사용하지 않음)
+	TMap<UWorld*, FWorldStaticMeshDrawCaches> StaticMeshDrawCaches;
+	TMap<FViewport*, FGPUOcclusionContext> GPUOcclusionContexts;
+	uint64 RenderFrameNumber = 0;
 
 	// Current viewport size (per FViewport draw); 0 if unset
 

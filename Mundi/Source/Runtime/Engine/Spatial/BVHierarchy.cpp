@@ -60,6 +60,23 @@ FBVHierarchy::~FBVHierarchy()
     Clear();
 }
 
+bool FBVHierarchy::GetCachedBounds(const UPrimitiveComponent* Component, FAABB& OutBounds) const
+{
+	if (!Component)
+	{
+		return false;
+	}
+
+	const FAABB* CachedBounds = StaticMeshComponentBounds.Find(const_cast<UPrimitiveComponent*>(Component));
+	if (!CachedBounds)
+	{
+		return false;
+	}
+
+	OutBounds = *CachedBounds;
+	return true;
+}
+
 void FBVHierarchy::Clear()
 {
     // NOTE: TMap, TArray를 clear로 비우면 capacity가 그대로이기 때문에 새 객체로 초기화
@@ -119,58 +136,61 @@ void FBVHierarchy::Remove(UPrimitiveComponent* InComponent)
     }
 }
 
-void FBVHierarchy::QueryFrustum(const FFrustum& InFrustum)
+void FBVHierarchy::QueryFrustum(const FFrustum& InFrustum, TArray<UPrimitiveComponent*>& OutVisibleComponents) const
 {
+    OutVisibleComponents.Empty();
     if (Nodes.empty()) return;
-    //프러스텀 외부에 바운드 존재
-    if (!IsAABBVisible(InFrustum, Nodes[0].Bounds)) return;
-    //프러스텀 내부에 바운드 존재 (교차 X)
-    if (!IsAABBIntersects(InFrustum, Nodes[0].Bounds))
-    {
-        for (UPrimitiveComponent* Component : StaticMeshComponentArray)
-        {
-            if (!Component) continue;
-            if (StaticMeshComponentBounds.find(Component) == StaticMeshComponentBounds.end())
-                continue;
-            if (AActor* Owner = Component->GetOwner())
-            {
-                Owner->SetCulled(false);
-            }
-        }
-        return;
-    }
-    //프러스텀과 바운드가 교차
+
     TArray<int32> IdxStack;
-    IdxStack.push_back({ 0 });
+    IdxStack.push_back(0);
 
     while (!IdxStack.empty())
     {
         int32 Idx = IdxStack.back();
         IdxStack.pop_back();
         const FLBVHNode& node = Nodes[Idx];
+
+        if (!IsAABBVisible(InFrustum, node.Bounds))
+        {
+            continue;
+        }
+
+        // 노드 전체가 절두체 내부면 하위 노드를 더 순회하지 않고 범위를 한 번에 추가한다.
+        if (!IsAABBIntersects(InFrustum, node.Bounds))
+        {
+            for (int32 i = 0; i < node.SubtreeCount; ++i)
+            {
+                UPrimitiveComponent* Component = StaticMeshComponentArray[node.SubtreeFirst + i];
+                // Remove() 후 FlushRebuild() 전의 스냅샷에 남은 포인터는 제외한다.
+                if (Component && StaticMeshComponentBounds.Find(Component))
+                {
+                    OutVisibleComponents.Add(Component);
+                }
+            }
+            continue;
+        }
+
         if (node.IsLeaf())
         {
             for (int32 i = 0; i < node.Count; ++i)
             {
                 UPrimitiveComponent* Component = StaticMeshComponentArray[node.First + i];
-                if (!Component || StaticMeshComponentBounds.find(Component) == StaticMeshComponentBounds.end())
-                    continue;
+                if (!Component || !StaticMeshComponentBounds.Find(Component)) continue;
+
                 const FAABB* Cached = StaticMeshComponentBounds.Find(Component);
                 const FAABB Box = Cached ? *Cached : Component->GetWorldAABB();
                 if (IsAABBVisible(InFrustum, Box))
                 {
-                    if (AActor* Owner = Component->GetOwner())
-                    {
-                        Owner->SetCulled(false);
-                    }
+                    OutVisibleComponents.Add(Component);
                 }
             }
             continue;
         }
-        if (node.Left >= 0 && IsAABBVisible(InFrustum, Nodes[node.Left].Bounds))
-            IdxStack.push_back({ node.Left });
-        if (node.Right >= 0 && IsAABBVisible(InFrustum, Nodes[node.Right].Bounds))
-            IdxStack.push_back({ node.Right });
+
+        if (node.Left >= 0)
+            IdxStack.push_back(node.Left);
+        if (node.Right >= 0)
+            IdxStack.push_back(node.Right);
     }
 }
 
@@ -363,6 +383,8 @@ int FBVHierarchy::BuildRange(int s, int e)
     FLBVHNode& node = Nodes[nodeIdx];
 
     int count = e - s;
+    node.SubtreeFirst = s;
+    node.SubtreeCount = count;
     if (count <= MaxObjects)
     {
         node.First = s;

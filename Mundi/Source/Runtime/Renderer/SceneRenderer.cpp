@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SceneRenderer.h"
 
 // FSceneRenderer가 사용하는 모든 헤더 포함
@@ -39,12 +39,14 @@
 #include "ParticleSystemComponent.h"
 #include "SwapGuard.h"
 #include "MeshBatchElement.h"
+#include "Material.h"
 #include "SceneView.h"
 #include "Shader.h"
 #include "ResourceManager.h"
 #include "../RHI/ConstantBufferType.h"
 #include <chrono>
 #include "TileLightCuller.h"
+#include "GPUOcclusionCuller.h"
 #include "LineComponent.h"
 #include "LightStats.h"
 #include "ShadowStats.h"
@@ -56,11 +58,16 @@
 #include "StatsOverlayD2D.h"
 #include "Source/Runtime/Engine/Particle/ParticleStats.h"
 
-FSceneRenderer::FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer)
+FSceneRenderer::FSceneRenderer(
+	UWorld* InWorld,
+	FSceneView* InView,
+	URenderer* InOwnerRenderer,
+	FGPUOcclusionCuller* InGPUOcclusionCuller)
 	: World(InWorld)
 	, View(InView) // 전달받은 FSceneView 저장
 	, OwnerRenderer(InOwnerRenderer)
 	, RHIDevice(InOwnerRenderer->GetRHIDevice())
+	, GPUOcclusionCuller(InGPUOcclusionCuller)
 {
 	//OcclusionCPU = std::make_unique<FOcclusionCullingManagerCPU>();
 
@@ -181,6 +188,7 @@ void FSceneRenderer::RenderLitPath()
 
     // Base Pass
     RenderOpaquePass(View->RenderSettings->GetViewMode());
+	SubmitGPUOcclusion();
 	RenderDecalPass();
 }
 
@@ -196,6 +204,7 @@ void FSceneRenderer::RenderWireframePath()
     RHIDevice->RSSetState(ERasterizerMode::Wireframe);
     RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTarget);
     RenderOpaquePass(EViewMode::VMI_Unlit);
+	SubmitGPUOcclusion();
 
 	// 상태 복구
 	RHIDevice->RSSetState(ERasterizerMode::Solid);
@@ -225,6 +234,7 @@ void FSceneRenderer::RenderSceneDepthPath()
 
 	// 2. Base Pass - Scene에 메시 그리기
 	RenderOpaquePass(EViewMode::VMI_Unlit);
+	SubmitGPUOcclusion();
 
 	// ✅ 디버그: BackBuffer 전환 전 viewport 확인
 	RHIDevice->GetDeviceContext()->RSGetViewports(&numVP, &vpBefore);
@@ -257,35 +267,47 @@ void FSceneRenderer::RenderShadowMaps()
 	// 2. 그림자 캐스터(Caster) 메시 수집
 	// 카메라 Frustum 컬링을 적용하여 보이는 오브젝트만 그림자 캐스터로 수집
 	const FFrustum& ViewFrustum = View->ViewFrustum;
+	const bool bFrustumCullingEnabled = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_FrustumCulling);
 	TArray<FMeshBatchElement> ShadowMeshBatches;
-	for (AActor* Actor : World->GetActors())
+	auto CollectShadowCaster = [&](UMeshComponent* MeshComponent, bool bApplyDirectFrustumTest)
 	{
+		if (!MeshComponent) return;
+		AActor* Actor = MeshComponent->GetOwner();
 		if (!Actor || !Actor->IsActorVisible() || !Actor->IsActorActive())
 		{
-			continue;
+			return;
 		}
 
-		for (USceneComponent* Component : Actor->GetSceneComponents())
+		if (!MeshComponent->IsCastShadows() || !MeshComponent->IsVisible())
 		{
-			if (!Component)
-			{
-				continue;
-			}
+			return;
+		}
 
-			UMeshComponent* MeshComponent = Cast<UMeshComponent>(Component);
-			if (!MeshComponent || !MeshComponent->IsCastShadows() || !MeshComponent->IsVisible())
-			{
-				continue;
-			}
+		if (bApplyDirectFrustumTest && !IsAABBVisible(ViewFrustum, MeshComponent->GetWorldAABB()))
+		{
+			return;
+		}
 
-			// 카메라 Frustum 컬링
-			FAABB WorldAABB = MeshComponent->GetWorldAABB();
-			if (!IsAABBVisible(ViewFrustum, WorldAABB))
-			{
-				continue;
-			}
+		MeshComponent->CollectMeshBatches(ShadowMeshBatches, View);
+	};
 
-			MeshComponent->CollectMeshBatches(ShadowMeshBatches, View);
+	UWorldPartitionManager* PartitionManager = World->GetPartitionManager();
+	if (bFrustumCullingEnabled && PartitionManager)
+	{
+		for (UPrimitiveComponent* PrimitiveComponent : FrustumVisibleComponents)
+		{
+			CollectShadowCaster(Cast<UMeshComponent>(PrimitiveComponent), false);
+		}
+	}
+	else
+	{
+		for (AActor* Actor : World->GetActors())
+		{
+			if (!Actor) continue;
+			for (USceneComponent* Component : Actor->GetSceneComponents())
+			{
+				CollectShadowCaster(Cast<UMeshComponent>(Component), bFrustumCullingEnabled);
+			}
 		}
 	}
 
@@ -694,6 +716,7 @@ void FSceneRenderer::GatherVisibleProxies()
 	// Frustum Culling 활성화
 	const FFrustum& ViewFrustum = View->ViewFrustum;
 	FSkinningStatManager::GetInstance().ResetStats();
+	const bool bFrustumCullingEnabled = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_FrustumCulling);
 
 	const bool bDrawStaticMeshes = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_StaticMeshes);
 	const bool bDrawSkeletalMeshes = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_SkeletalMeshes);
@@ -705,161 +728,199 @@ void FSceneRenderer::GatherVisibleProxies()
 	const bool bUseIcon = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_EditorIcon);	
 	const bool bDrawParticle = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_Particle);
 
-	// Helper lambda to collect components from an actor
-	auto CollectComponentsFromActor = [&](AActor* Actor, bool bIsEditorActor)
+	// BVH 결과와 전체 순회 폴백이 같은 분류 로직을 사용한다.
+	auto CollectComponent = [&](AActor* Actor, USceneComponent* Component, bool bIsEditorActor, bool bApplyDirectFrustumTest)
 		{
-			if (!Actor || !Actor->IsActorVisible() || !Actor->IsActorActive())
+			if (!Actor || !Actor->IsActorVisible() || !Actor->IsActorActive() || !Component)
 			{
 				return;
 			}
 
-			for (USceneComponent* Component : Actor->GetSceneComponents())
+			// Billboard with bRenderInPIE bypasses normal visibility check
+			bool bIsPIEBillboard = false;
+			if (UBillboardComponent* Billboard = Cast<UBillboardComponent>(Component))
 			{
-				if (!Component)
+				if (Billboard->GetRenderInPIE() && Billboard->IsActive())
 				{
-					continue;
+					bIsPIEBillboard = true;
+				}
+			}
+
+			if (!bIsPIEBillboard && !Component->IsVisible())
+			{
+				return;
+			}
+
+			// 엔진 에디터 액터 컴포넌트
+			if (bIsEditorActor)
+			{
+				if (UGizmoArrowComponent* GizmoComponent = Cast<UGizmoArrowComponent>(Component))
+				{
+					Proxies.OverlayPrimitives.Add(GizmoComponent);
+				}
+				else if (ULineComponent* LineComponent = Cast<ULineComponent>(Component))
+				{
+					Proxies.EditorLines.Add(LineComponent);
+				}
+				return;
+			}
+
+			if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component); PrimitiveComponent)
+			{
+				// 에디터 보조 컴포넌트 (빌보드 등)
+				if (!PrimitiveComponent->IsEditable())
+				{
+					if (bUseIcon)
+					{
+						Proxies.EditorPrimitives.Add(PrimitiveComponent);
+					}
+					return;
 				}
 
-				// Billboard with bRenderInPIE bypasses normal visibility check
-				bool bIsPIEBillboard = false;
-				if (UBillboardComponent* Billboard = Cast<UBillboardComponent>(Component))
+				if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(PrimitiveComponent))
 				{
-					if (Billboard->GetRenderInPIE() && Billboard->IsActive())
+					bool bShouldAdd = true;
+					if (MeshComponent->IsA(UStaticMeshComponent::StaticClass()))
 					{
-						bIsPIEBillboard = true;
+						bShouldAdd = bDrawStaticMeshes;
+					}
+					else if (MeshComponent->IsA(USkinnedMeshComponent::StaticClass()))
+					{
+						bShouldAdd = bDrawSkeletalMeshes;
+					}
+
+					if (bShouldAdd && (!bApplyDirectFrustumTest || IsAABBVisible(ViewFrustum, MeshComponent->GetWorldAABB())))
+					{
+						Proxies.Meshes.Add(MeshComponent);
 					}
 				}
-
-				if (!bIsPIEBillboard && !Component->IsVisible())
+				else if (UBillboardComponent* BillboardComponent = Cast<UBillboardComponent>(PrimitiveComponent); BillboardComponent && bUseBillboard)
 				{
-					continue;
+					Proxies.Billboards.Add(BillboardComponent);
 				}
-
-				// 엔진 에디터 액터 컴포넌트
-				if (bIsEditorActor)
+				else if (UDecalComponent* DecalComponent = Cast<UDecalComponent>(PrimitiveComponent); DecalComponent && bDrawDecals)
 				{
-					if (UGizmoArrowComponent* GizmoComponent = Cast<UGizmoArrowComponent>(Component))
-					{
-						Proxies.OverlayPrimitives.Add(GizmoComponent);
-					}
-					else if (ULineComponent* LineComponent = Cast<ULineComponent>(Component))
-					{
-						Proxies.EditorLines.Add(LineComponent);
-					}
-
-					continue;
+					Proxies.Decals.Add(DecalComponent);
 				}
-
-				if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component); PrimitiveComponent)
+				else if (ULineComponent* LineComponent = Cast<ULineComponent>(PrimitiveComponent))
 				{
-					// 에디터 보조 컴포넌트 (빌보드 등)
-					if (!PrimitiveComponent->IsEditable())
-					{
-						if (bUseIcon)
-						{
-							Proxies.EditorPrimitives.Add(PrimitiveComponent);
-						}
-						continue;
-					}
+					Proxies.EditorLines.Add(LineComponent);
+				}
+				else if (UParticleSystemComponent* ParticleComponent = Cast<UParticleSystemComponent>(PrimitiveComponent); ParticleComponent && bDrawParticle)
+				{
+					Proxies.Particles.Add(ParticleComponent);
+				}
+				return;
+			}
 
-					// 일반 컴포넌트
-					if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(PrimitiveComponent))
-					{
-						bool bShouldAdd = true;
-
-						// 메시 타입이 '스태틱 메시'인 경우에만 ShowFlag를 검사하여 추가 여부를 결정
-						if (MeshComponent->IsA(UStaticMeshComponent::StaticClass()))
-						{
-							bShouldAdd = bDrawStaticMeshes;
-						}
-						else if (MeshComponent->IsA(USkinnedMeshComponent::StaticClass()))
-						{
-						    bShouldAdd = bDrawSkeletalMeshes;
-						}
-
-						// Frustum Culling 적용
-						if (bShouldAdd)
-						{
-							FAABB WorldAABB = MeshComponent->GetWorldAABB();
-							if (IsAABBVisible(ViewFrustum, WorldAABB))
-							{
-								Proxies.Meshes.Add(MeshComponent);
-							}
-						}
-					}
-					else if (UBillboardComponent* BillboardComponent = Cast<UBillboardComponent>(PrimitiveComponent); BillboardComponent && bUseBillboard)
-					{
-						// 빌보드는 프러스텀 컬링 제외 (항상 렌더링)
-						Proxies.Billboards.Add(BillboardComponent);
-					}
-					else if (UDecalComponent* DecalComponent = Cast<UDecalComponent>(PrimitiveComponent); DecalComponent && bDrawDecals)
-					{
-						// Decal은 투영 기반이므로 일단 컬링 제외 (추후 OBB 기반 컬링 추가 필요)
-						Proxies.Decals.Add(DecalComponent);
-					}
-					else if (ULineComponent* LineComponent = Cast<ULineComponent>(PrimitiveComponent))
-					{
-						Proxies.EditorLines.Add(LineComponent);
-					}
-					else if (UParticleSystemComponent* ParticleComponent = Cast<UParticleSystemComponent>(PrimitiveComponent))
-					{
-						if (bDrawParticle)
-						{
-							// 파티클은 프러스텀 컬링 제외 (항상 렌더링)
-							Proxies.Particles.Add(ParticleComponent);
-						}
-					}
+			if (UHeightFogComponent* FogComponent = Cast<UHeightFogComponent>(Component); FogComponent && bDrawFog)
+			{
+				SceneGlobals.Fogs.Add(FogComponent);
+			}
+			else if (USkySphereComponent* SkyComponent = Cast<USkySphereComponent>(Component))
+			{
+				SceneGlobals.SkySphere = SkyComponent;
+			}
+			else if (UDirectionalLightComponent* LightComponent = Cast<UDirectionalLightComponent>(Component); LightComponent && bDrawLight)
+			{
+				SceneGlobals.DirectionalLights.Add(LightComponent);
+			}
+			else if (UAmbientLightComponent* LightComponent = Cast<UAmbientLightComponent>(Component); LightComponent && bDrawLight)
+			{
+				SceneGlobals.AmbientLights.Add(LightComponent);
+			}
+			else if (UPointLightComponent* LightComponent = Cast<UPointLightComponent>(Component); LightComponent && bDrawLight)
+			{
+				if (USpotLightComponent* SpotLightComponent = Cast<USpotLightComponent>(LightComponent))
+				{
+					SceneLocals.SpotLights.Add(SpotLightComponent);
 				}
 				else
 				{
-					if (UHeightFogComponent* FogComponent = Cast<UHeightFogComponent>(Component); FogComponent && bDrawFog)
-					{
-						SceneGlobals.Fogs.Add(FogComponent);
-					}
-                else if (USkySphereComponent* SkyComponent = Cast<USkySphereComponent>(Component))
-                {
-                    // Prefer the most recently encountered active/visible sky sphere
-                    if (SkyComponent->IsActive() && SkyComponent->IsVisible())
-                    {
-                        SceneGlobals.SkySphere = SkyComponent;
-                    }
-                }
-					else if (UDirectionalLightComponent* LightComponent = Cast<UDirectionalLightComponent>(Component); LightComponent && bDrawLight)
-					{
-						SceneGlobals.DirectionalLights.Add(LightComponent);
-					}
-
-					else if (UAmbientLightComponent* LightComponent = Cast<UAmbientLightComponent>(Component); LightComponent && bDrawLight)
-					{
-						SceneGlobals.AmbientLights.Add(LightComponent);
-					}
-
-					else if (UPointLightComponent* LightComponent = Cast<UPointLightComponent>(Component); LightComponent && bDrawLight)
-					{
-						if (USpotLightComponent* SpotLightComponent = Cast<USpotLightComponent>(LightComponent); SpotLightComponent)
-						{
-							SceneLocals.SpotLights.Add(SpotLightComponent);
-						}
-						else
-						{
-							SceneLocals.PointLights.Add(LightComponent);
-						}
-					}
+					SceneLocals.PointLights.Add(LightComponent);
 				}
+			}
+		};
+
+	auto CollectComponentsFromActor = [&](AActor* Actor, bool bIsEditorActor, bool bApplyDirectFrustumTest)
+		{
+			if (!Actor) return;
+			for (USceneComponent* Component : Actor->GetSceneComponents())
+			{
+				CollectComponent(Actor, Component, bIsEditorActor, bApplyDirectFrustumTest);
 			}
 		};
 
 	// Collect from Editor Actors (Gizmo, Grid, etc.)
 	for (AActor* EditorActor : World->GetEditorActors())
 	{
-		CollectComponentsFromActor(EditorActor, true);
+		CollectComponentsFromActor(EditorActor, true, false);
 	}
 
-	
-	// Collect from Level Actors (including their Gizmo components)
-	for (AActor* Actor : World->GetActors())
+	UWorldPartitionManager* PartitionManager = World->GetPartitionManager();
+	if (bFrustumCullingEnabled && PartitionManager)
 	{
-		CollectComponentsFromActor(Actor, false);
+		// 메시는 절두체와 교차하는 BVH 후보만 수집한다.
+		PartitionManager->FrustumQuery(ViewFrustum, FrustumVisibleComponents);
+		for (UPrimitiveComponent* PrimitiveComponent : FrustumVisibleComponents)
+		{
+			CollectComponent(PrimitiveComponent ? PrimitiveComponent->GetOwner() : nullptr, PrimitiveComponent, false, false);
+		}
+
+		// 라이트, 포그, 스카이, 빌보드 등은 BVH 밖의 소수 등록 목록에서 수집한다.
+		const TArray<AActor*>& EditorActors = World->GetEditorActors();
+		for (USceneComponent* Component : PartitionManager->GetNonSpatialComponents())
+		{
+			AActor* Owner = Component ? Component->GetOwner() : nullptr;
+			if (Owner && std::find(EditorActors.begin(), EditorActors.end(), Owner) == EditorActors.end())
+			{
+				CollectComponent(Owner, Component, false, false);
+			}
+		}
+	}
+	else
+	{
+		// 컬링 OFF 또는 파티션이 없는 프리뷰 월드는 기존 전체 순회를 유지한다.
+		for (AActor* Actor : World->GetActors())
+		{
+			CollectComponentsFromActor(Actor, false, bFrustumCullingEnabled);
+		}
+	}
+
+	FOcclusionCullingManagerCPU* OcclusionManager = World->GetOcclusionCullingManager();
+	const bool bOcclusionCullingEnabled = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_OcclusionCulling);
+	if (OcclusionManager)
+	{
+		uint32 RegisteredMeshCount = static_cast<uint32>(Proxies.Meshes.Num());
+		uint32 FrustumVisibleCount = RegisteredMeshCount;
+		if (PartitionManager && PartitionManager->GetBVH())
+		{
+			RegisteredMeshCount = static_cast<uint32>(std::max(0, PartitionManager->GetBVH()->TotalActorCount()));
+			FrustumVisibleCount = bFrustumCullingEnabled
+				? static_cast<uint32>(FrustumVisibleComponents.Num())
+				: RegisteredMeshCount;
+		}
+
+		OcclusionManager->BeginFrameStats(
+			RegisteredMeshCount,
+			FrustumVisibleCount,
+			bFrustumCullingEnabled,
+			bOcclusionCullingEnabled,
+			World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_MaterialSorting));
+	}
+
+	if (bOcclusionCullingEnabled)
+	{
+		ApplyOcclusionCulling();
+	}
+	else if (GPUOcclusionCuller)
+	{
+		GPUOcclusionCuller->SetEnabled(false);
+	}
+
+	if (OcclusionManager)
+	{
+		OcclusionManager->SetFinalVisibleCount(static_cast<uint32>(Proxies.Meshes.Num()));
 	}
 
 	// 라이트 통계 업데이트
@@ -913,6 +974,59 @@ void FSceneRenderer::GatherVisibleProxies()
 
 	ShadowStats.CalculateTotal();
 	FShadowStatManager::GetInstance().UpdateStats(ShadowStats);
+}
+
+void FSceneRenderer::ApplyOcclusionCulling()
+{
+	if (!GPUOcclusionCuller)
+	{
+		return;
+	}
+
+	UWorldPartitionManager* PartitionManager = World->GetPartitionManager();
+	FBVHierarchy* BVH = PartitionManager ? PartitionManager->GetBVH() : nullptr;
+	const uint64 SpatialRevision = PartitionManager ? PartitionManager->GetSpatialRevision() : 0;
+	GPUOcclusionCuller->SetEnabled(true);
+	GPUOcclusionCuller->PrepareCandidatesAndCull(Proxies.Meshes, BVH, *View, SpatialRevision);
+	UpdateOcclusionStatsFromGPU();
+}
+
+void FSceneRenderer::SubmitGPUOcclusion()
+{
+	if (!GPUOcclusionCuller ||
+		!World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_OcclusionCulling))
+	{
+		return;
+	}
+
+	UWorldPartitionManager* PartitionManager = World->GetPartitionManager();
+	const uint64 SpatialRevision = PartitionManager ? PartitionManager->GetSpatialRevision() : 0;
+	GPUOcclusionCuller->Submit(RHIDevice->GetSRV(RHI_SRV_Index::SceneDepth), *View, SpatialRevision);
+	UpdateOcclusionStatsFromGPU();
+
+	// Submit() unbinds the DSV while compute reads SceneDepth. Restore the base-pass targets.
+	RHIDevice->OMSetRenderTargets(ERTVMode::SceneColorTargetWithId);
+}
+
+void FSceneRenderer::UpdateOcclusionStatsFromGPU()
+{
+	FOcclusionCullingManagerCPU* StatsManager = World->GetOcclusionCullingManager();
+	if (!StatsManager || !GPUOcclusionCuller)
+	{
+		return;
+	}
+
+	const FGPUOcclusionStats& GPUStats = GPUOcclusionCuller->GetStats();
+	StatsManager->SetGPUOcclusionStats(
+		GPUStats.CandidateCount,
+		GPUStats.TestedCount,
+		GPUStats.CulledCount,
+		GPUStats.HZBMipCount,
+		GPUStats.ResultLatencyFrames,
+		GPUStats.DispatchCount,
+		GPUStats.CPUTimeMs,
+		GPUStats.GPUTimeMs,
+		GPUStats.bResultAvailable);
 }
 
 void FSceneRenderer::PerformTileLightCulling()
@@ -976,31 +1090,106 @@ void FSceneRenderer::PerformTileLightCulling()
 
 void FSceneRenderer::PerformFrustumCulling()
 {
-	PotentiallyVisibleComponents.clear();	// 할 필요 없는데 명목적으로 초기화
+	// BVH 쿼리와 프록시 수집은 GatherVisibleProxies에서 한 번에 수행한다.
+	PotentiallyVisibleComponents.clear();
+}
 
-	// Todo: 프로스텀 컬링 수행, 추후 프로스텀 컬링이 컴포넌트 단위로 변경되면 적용
-	// NOTE: 현재는 GatherVisibleProxies에서 직접 컬링 수행 중
+FStaticMeshDrawCache& FSceneRenderer::GetOrBuildStaticMeshDrawCache()
+{
+	const uint64 ViewShaderKey = UShader::GenerateShaderKey(View->ViewShaderMacros);
+	const uint64 WorldRevision = World->GetStaticMeshDrawCacheRevision();
+	const uint64 ShaderRevision = UResourceManager::GetInstance().GetShaderReloadRevision();
+	FStaticMeshDrawCache& Cache = OwnerRenderer->GetStaticMeshDrawCache(World, ViewShaderKey);
 
-	//World->GetPartitionManager()->FrustumQuery(ViewFrustum)
+	if (Cache.WorldRevision == WorldRevision && Cache.ShaderRevision == ShaderRevision)
+	{
+		return Cache;
+	}
 
-	//for (AActor* Actor : World->GetActors())
-	//{
-	//	if (!Actor || Actor->GetActorHiddenInEditor()) continue;
-	//
-	//	// 절두체 컬링을 통과한 액터만 목록에 추가
-	//	if (ViewFrustum.Intersects(Actor->GetBounds()))
-	//	{
-	//		PotentiallyVisibleActors.Add(Actor);
-	//	}
-	//}
+	const auto RebuildStartTime = std::chrono::steady_clock::now();
+	Cache.Batches.Empty();
+	Cache.SortedBatchIndices.Empty();
+	Cache.CachedComponentCount = 0;
+
+	TSet<UStaticMeshComponent*> CachedComponents;
+	auto CacheActorStaticMeshes = [&](AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return;
+		}
+
+		for (USceneComponent* SceneComponent : Actor->GetSceneComponents())
+		{
+			UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent);
+			if (!StaticMeshComponent || CachedComponents.Contains(StaticMeshComponent))
+			{
+				continue;
+			}
+
+			CachedComponents.Add(StaticMeshComponent);
+			++Cache.CachedComponentCount;
+			StaticMeshComponent->CollectMeshBatches(Cache.Batches, View);
+		}
+	};
+
+	for (AActor* Actor : World->GetActors())
+	{
+		CacheActorStaticMeshes(Actor);
+	}
+	for (AActor* Actor : World->GetEditorActors())
+	{
+		CacheActorStaticMeshes(Actor);
+	}
+
+	Cache.SortedBatchIndices.Reserve(Cache.Batches.Num());
+	for (uint32 BatchIndex = 0; BatchIndex < static_cast<uint32>(Cache.Batches.Num()); ++BatchIndex)
+	{
+		Cache.SortedBatchIndices.Add(BatchIndex);
+	}
+	std::sort(
+		Cache.SortedBatchIndices.begin(),
+		Cache.SortedBatchIndices.end(),
+		[&Cache](uint32 LeftIndex, uint32 RightIndex)
+		{
+			const FMeshBatchElement& Left = Cache.Batches[LeftIndex];
+			const FMeshBatchElement& Right = Cache.Batches[RightIndex];
+			if (Left < Right) return true;
+			if (Right < Left) return false;
+			return LeftIndex < RightIndex;
+		});
+
+	Cache.WorldRevision = WorldRevision;
+	Cache.ShaderRevision = ShaderRevision;
+	++Cache.RebuildCount;
+	const auto RebuildEndTime = std::chrono::steady_clock::now();
+	Cache.LastRebuildTimeMs = std::chrono::duration<float, std::milli>(RebuildEndTime - RebuildStartTime).count();
+	return Cache;
 }
 
 void FSceneRenderer::RenderOpaquePass(EViewMode InRenderViewMode)
 {
 	// --- 1. 수집 (Collect) ---
 	MeshBatchElements.Empty();
+	const bool bStaticMeshCachedPath = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_StaticMeshCachedPath);
+	const bool bMaterialSorting = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_MaterialSorting);
+	TSet<UStaticMeshComponent*> VisibleStaticMeshes;
+	FStaticMeshDrawCache* StaticMeshCache = nullptr;
+	if (bStaticMeshCachedPath)
+	{
+		StaticMeshCache = &GetOrBuildStaticMeshDrawCache();
+	}
+
 	for (UMeshComponent* MeshComponent : Proxies.Meshes)
 	{
+		if (bStaticMeshCachedPath)
+		{
+			if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshComponent))
+			{
+				VisibleStaticMeshes.Add(StaticMeshComponent);
+				continue;
+			}
+		}
 		MeshComponent->CollectMeshBatches(MeshBatchElements, View);
 	}
 
@@ -1034,12 +1223,39 @@ void FSceneRenderer::RenderOpaquePass(EViewMode InRenderViewMode)
 	}
 
 	// --- 2. 정렬 (Sort) ---
-	MeshBatchElements.Sort();
+	float MaterialSortCPUTimeMs = 0.0f;
+	if (bMaterialSorting)
+	{
+		const auto SortStartTime = std::chrono::steady_clock::now();
+		MeshBatchElements.Sort();
+		const auto SortEndTime = std::chrono::steady_clock::now();
+		MaterialSortCPUTimeMs = std::chrono::duration<float, std::milli>(SortEndTime - SortStartTime).count();
+	}
+	if (FOcclusionCullingManagerCPU* CullingManager = World->GetOcclusionCullingManager())
+	{
+		CullingManager->SetMaterialSortCPUTime(MaterialSortCPUTimeMs);
+		CullingManager->SetOpaqueDrawStats(0, 0, 0, 0);
+		CullingManager->SetStaticMeshCacheStats(
+			bStaticMeshCachedPath,
+			StaticMeshCache ? static_cast<uint32>(StaticMeshCache->Batches.Num()) : 0,
+			StaticMeshCache ? StaticMeshCache->CachedComponentCount : 0,
+			StaticMeshCache ? StaticMeshCache->RebuildCount : 0,
+			StaticMeshCache ? StaticMeshCache->LastRebuildTimeMs : 0.0f);
+	}
 
 	// --- 3. 그리기 (Draw) ---
 	{
 		GPU_TIME_PROFILE("GPUSkinning")
-		DrawMeshBatches(MeshBatchElements, true);
+		if (StaticMeshCache)
+		{
+			DrawMeshBatches(
+				StaticMeshCache->Batches,
+				false,
+				true,
+				&VisibleStaticMeshes,
+				bMaterialSorting ? &StaticMeshCache->SortedBatchIndices : nullptr);
+		}
+		DrawMeshBatches(MeshBatchElements, true, true);
 	}
 
 	// --- 3.5 LockOnIndicator 빌보드 (Translucent) ---
@@ -1087,33 +1303,8 @@ void FSceneRenderer::RenderOpaquePass(EViewMode InRenderViewMode)
 
 void FSceneRenderer::RenderSkyPass()
 {
-    // Skip if no sky sphere in scene
-    if (!SceneGlobals.SkySphere)
-    {
-        // Fallback: search world for any sky sphere component (ignore actor visibility)
-        USkySphereComponent* FallbackSky = nullptr;
-        for (AActor* Actor : World->GetActors())
-        {
-            if (!Actor) continue;
-            for (USceneComponent* Comp : Actor->GetSceneComponents())
-            {
-                if (USkySphereComponent* SkyComp = Cast<USkySphereComponent>(Comp))
-                {
-                    if (SkyComp->IsActive()) { FallbackSky = SkyComp; break; }
-                }
-            }
-            if (FallbackSky) break;
-        }
-
-        if (!FallbackSky)
-        {
-            //UE_LOG("[SkyPass] No SkySphereComponent found. PIE=%d", World->bPie ? 1 : 0);
-            return;
-        }
-
-        UE_LOG("[SkyPass] Using fallback sky component from actor '%s'", FallbackSky->GetOwner()->GetName().c_str());
-        SceneGlobals.SkySphere = FallbackSky;
-    }
+	// GatherVisibleProxies에서 등록 목록을 통해 수집하므로 월드 전체 재탐색은 필요 없다.
+	if (!SceneGlobals.SkySphere) return;
 
 	USkySphereComponent* Sky = SceneGlobals.SkySphere;
 
@@ -1731,10 +1922,19 @@ void FSceneRenderer::RenderFinalOverlayLines()
 }
 
 // 수집한 Batch 그리기
-void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, bool bClearListAfterDraw)
+void FSceneRenderer::DrawMeshBatches(
+	TArray<FMeshBatchElement>& InMeshBatches,
+	bool bClearListAfterDraw,
+	bool bRecordOpaqueStats,
+	const TSet<UStaticMeshComponent*>* VisibleStaticMeshes,
+	const TArray<uint32>* BatchOrder)
 {
 	if (InMeshBatches.IsEmpty()) return;
 	constexpr UINT ParticleInstanceDataSlot = 14;
+	uint32 DrawCallCount = 0;
+	uint32 ShaderChangeCount = 0;
+	uint32 MaterialBindCount = 0;
+	uint32 BufferChangeCount = 0;
 
 	// RHI 상태 초기 설정 (Opaque Pass 기본값)
 	// RHIDevice->OMSetDepthStencilState(EComparisonFunc::LessEqual); // 깊이 쓰기 ON
@@ -1769,9 +1969,24 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 	ID3D11SamplerState* ShadowSampler = RHIDevice->GetSamplerState(RHI_Sampler_Index::Shadow);
 	ID3D11SamplerState* VSMSampler = RHIDevice->GetSamplerState(RHI_Sampler_Index::VSM);
 
-	// 정렬된 리스트 순회
-	for (const FMeshBatchElement& Batch : InMeshBatches)
+	// 정렬된 리스트 순회. 영구 캐시는 배치 자체를 복사하지 않고 인덱스 순서만 사용합니다.
+	const uint32 NumBatchesToVisit = BatchOrder
+		? static_cast<uint32>(BatchOrder->Num())
+		: static_cast<uint32>(InMeshBatches.Num());
+	for (uint32 VisitIndex = 0; VisitIndex < NumBatchesToVisit; ++VisitIndex)
 	{
+		const uint32 BatchIndex = BatchOrder ? (*BatchOrder)[VisitIndex] : VisitIndex;
+		if (BatchIndex >= static_cast<uint32>(InMeshBatches.Num()))
+		{
+			continue;
+		}
+		const FMeshBatchElement& Batch = InMeshBatches[BatchIndex];
+		if (VisibleStaticMeshes &&
+			(!Batch.SourceStaticMeshComponent || !VisibleStaticMeshes->Contains(Batch.SourceStaticMeshComponent)))
+		{
+			continue;
+		}
+
 		// --- 필수 요소 유효성 검사 ---
 		const bool bMissingShaders = (!Batch.VertexShader || !Batch.PixelShader);
 		const bool bNeedsGeometryBuffers = (!Batch.VertexBuffer || !Batch.IndexBuffer || Batch.VertexStride == 0) ||
@@ -1786,6 +2001,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 		// 1. 셰이더 상태 변경
 		if (Batch.VertexShader != CurrentVertexShader || Batch.PixelShader != CurrentPixelShader)
 		{
+			++ShaderChangeCount;
 			RHIDevice->GetDeviceContext()->IASetInputLayout(Batch.InputLayout);
 			RHIDevice->GetDeviceContext()->VSSetShader(Batch.VertexShader, nullptr, 0);
 
@@ -1801,6 +2017,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 		// 모든 픽셀 리소스를 다시 바인딩해야 합니다.
 		if (Batch.Material != CurrentMaterial || Batch.InstanceShaderResourceView != CurrentInstanceSRV || Batch.InstanceNormalSRV != CurrentInstanceNormalSRV)
 		{
+			++MaterialBindCount;
 			ID3D11ShaderResourceView* DiffuseTextureSRV = nullptr; // t0
 			ID3D11ShaderResourceView* NormalTextureSRV = nullptr;  // t1
 			ID3D11ShaderResourceView* ORMTextureSRV = nullptr;     // t2 (Occlusion, Roughness, Metallic)
@@ -1930,6 +2147,7 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 			Batch.VertexStride != CurrentVertexStride ||
 			Batch.PrimitiveTopology != CurrentTopology)
 		{
+			++BufferChangeCount;
 			// Safety check: 버퍼가 해제된 경우 스킵 (intermittent crash 방지)
 			// Particle components with SetForcedLifeTime()이 렌더링 중 삭제될 수 있음
 			if (!Batch.VertexBuffer || !Batch.IndexBuffer)
@@ -1969,7 +2187,10 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 		}
 
 		// 4. 오브젝트별 상수 버퍼 설정 (매번 변경)
-		RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(Batch.WorldMatrix, Batch.WorldMatrix.InverseAffine().Transpose()));
+		const FMatrix WorldMatrix = Batch.SourceStaticMeshComponent
+			? Batch.SourceStaticMeshComponent->GetWorldMatrix()
+			: Batch.WorldMatrix;
+		RHIDevice->SetAndUpdateConstantBuffer(ModelBufferType(WorldMatrix, WorldMatrix.InverseAffine().Transpose()));
 		RHIDevice->SetAndUpdateConstantBuffer(ColorBufferType(Batch.InstanceColor, Batch.ObjectID));
 
 		// Wind animation constant buffer (per-batch enable flag)
@@ -1989,8 +2210,9 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 			WindCB.SecondaryFrequency = 2.5f;
 			WindCB.TertiaryFrequency = 6.0f;
 			WindCB.HeightFalloffPower = 2.0f;
-			WindCB.bEnableWind = Batch.bUseWindAnimation ? 1 : 0;
-			WindCB.MeshMaxHeight = Batch.WindMeshHeight;
+			const bool bUseWind = Batch.Material ? Batch.Material->IsWindAnimationEnabled() : Batch.bUseWindAnimation;
+			WindCB.bEnableWind = bUseWind ? 1 : 0;
+			WindCB.MeshMaxHeight = Batch.Material ? Batch.Material->GetWindMeshHeight() : Batch.WindMeshHeight;
 			RHIDevice->SetAndUpdateConstantBuffer(WindCB);
 		}
 
@@ -2031,15 +2253,26 @@ void FSceneRenderer::DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, b
 			if (Batch.IndexBuffer && Batch.VertexBuffer && Batch.VertexStride > 0)
 			{
 				RHIDevice->GetDeviceContext()->DrawIndexedInstanced(Batch.IndexCount, Batch.InstanceCount, Batch.StartIndex, Batch.BaseVertexIndex, Batch.InstanceStart);
+				++DrawCallCount;
 			}
 			else
 			{
 				RHIDevice->GetDeviceContext()->DrawInstanced(Batch.IndexCount, Batch.InstanceCount, 0, Batch.InstanceStart);
+				++DrawCallCount;
 			}
 		}
 		else
 		{
 			RHIDevice->GetDeviceContext()->DrawIndexed(Batch.IndexCount, Batch.StartIndex, Batch.BaseVertexIndex);
+			++DrawCallCount;
+		}
+	}
+
+	if (bRecordOpaqueStats)
+	{
+		if (FOcclusionCullingManagerCPU* CullingManager = World->GetOcclusionCullingManager())
+		{
+			CullingManager->AccumulateOpaqueDrawStats(DrawCallCount, ShaderChangeCount, MaterialBindCount, BufferChangeCount);
 		}
 	}
 

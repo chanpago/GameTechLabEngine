@@ -181,9 +181,16 @@ enum class EEngineShowFlags : uint64
     SF_Particle = 1ull << 20,
     SF_DOF = 1ull << 21,          // Enable/disable Depth of Field
 
+    // Mesh rendering optimizations
+    SF_FrustumCulling = 1ull << 22,
+    SF_OcclusionCulling = 1ull << 23,
+    SF_MaterialSorting = 1ull << 24,
+    SF_StaticMeshCachedPath = 1ull << 27, // Persistent static-mesh draw-command cache (opt-in)
+
     // Default enabled flags
     SF_DefaultEnabled = SF_Primitives | SF_StaticMeshes | SF_SkeletalMeshes | SF_Grid | SF_Lighting | SF_Decals |
-        SF_Fog | SF_FXAA | SF_Billboard | SF_EditorIcon | SF_Shadows | SF_ShadowAntiAliasing | SF_GPUSkinning | SF_Particle | SF_DOF,
+        SF_Fog | SF_FXAA | SF_Billboard | SF_EditorIcon | SF_Shadows | SF_ShadowAntiAliasing | SF_GPUSkinning | SF_Particle | SF_DOF |
+        SF_FrustumCulling | SF_OcclusionCulling | SF_MaterialSorting,
 
     // All flags (for initialization/reset)
     SF_All = 0xFFFFFFFFFFFFFFFFull

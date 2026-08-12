@@ -33,7 +33,8 @@ public:
     void FlushRebuild();
 
     void QueryRayClosest(const FRay& Ray, AActor*& OutActor, OUT float& OutBestT) const;
-    void QueryFrustum(const FFrustum& InFrustum);
+    /** 절두체와 교차하는 메시 컴포넌트만 BVH를 순회해 반환합니다. */
+    void QueryFrustum(const FFrustum& InFrustum, OUT TArray<UPrimitiveComponent*>& OutVisibleComponents) const;
     TArray<UPrimitiveComponent*> QueryIntersectedComponents(const FAABB& InBound) const;
     TArray<UPrimitiveComponent*> QueryIntersectedComponents(const FOBB& InBound) const;
     TArray<UPrimitiveComponent*> QueryIntersectedComponents(const FBoundingSphere& InBound) const;
@@ -46,6 +47,7 @@ public:
     int MaxOccupiedDepth() const;
     void DebugDump() const;
     const FAABB& GetBounds() const { return Bounds; }
+	bool GetCachedBounds(const UPrimitiveComponent* Component, OUT FAABB& OutBounds) const;
 
     // 프러스텀 기준으로 오클루더(내부노드 AABB) / 오클루디(리프의 액터들) 수집
     // VP는 행벡터 기준(네 컨벤션): p' = p * VP
@@ -59,6 +61,8 @@ private:
         int32 Right = -1;
         int32 First = -1;
         int32 Count = 0;
+        int32 SubtreeFirst = -1;
+        int32 SubtreeCount = 0;
         bool IsLeaf() const { return Count > 0; }
     };
     void BuildLBVH();

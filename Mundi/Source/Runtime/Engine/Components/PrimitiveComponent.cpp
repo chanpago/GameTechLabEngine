@@ -24,27 +24,10 @@ UPrimitiveComponent::~UPrimitiveComponent()
 void UPrimitiveComponent::OnRegister(UWorld* InWorld)
 {
     Super::OnRegister(InWorld);
-
-    // UStaticMeshComponent라면 World Partition에 추가. (null 체크는 Register 내부에서 수행)
-    if (InWorld)
-    {
-        if (UWorldPartitionManager* Partition = InWorld->GetPartitionManager())
-        {
-            Partition->Register(this);
-        }
-    }
 }
 
 void UPrimitiveComponent::OnUnregister()
 {
-    if (UWorld* World = GetWorld())
-    {
-        if (UWorldPartitionManager* Partition = World->GetPartitionManager())
-        {
-            Partition->Unregister(this);
-        }
-    }
-
     Super::OnUnregister();
 }
 

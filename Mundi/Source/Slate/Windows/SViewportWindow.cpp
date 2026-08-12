@@ -12,6 +12,7 @@
 #include "CameraComponent.h"
 #include "CameraActor.h"
 #include "StatsOverlayD2D.h"
+#include "Occlusion.h"
 
 #include "StaticMeshActor.h"
 //#include "SkeletalMeshActor.h"
@@ -1410,6 +1411,7 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 				UStatsOverlayD2D::Get().SetShowPicking(false);
 				UStatsOverlayD2D::Get().SetShowDecal(false);
 				UStatsOverlayD2D::Get().SetShowTileCulling(false);
+				UStatsOverlayD2D::Get().SetShowCulling(false);
 				UStatsOverlayD2D::Get().SetShowLights(false);
 				UStatsOverlayD2D::Get().SetShowShadow(false);
 				UStatsOverlayD2D::Get().SetShowSkinning(false);
@@ -1440,6 +1442,16 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::SetTooltip("프레임 속도와 프레임 시간을 표시합니다.");
+			}
+
+			bool bCullingStats = UStatsOverlayD2D::Get().IsCullingVisible();
+			if (ImGui::Checkbox(" CULLING", &bCullingStats))
+			{
+				UStatsOverlayD2D::Get().ToggleCulling();
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("프러스텀/오클루전 컬링 결과와 최종 가시 메시 수를 표시합니다.");
 			}
 
 			bool bMemory = UStatsOverlayD2D::Get().IsMemoryVisible();
@@ -1735,6 +1747,63 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		// --- 섹션: 그래픽스 기능 ---
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "그래픽스 기능");
 		ImGui::Separator();
+		bool bFrustumCulling = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_FrustumCulling);
+		if (ImGui::Checkbox(" 프러스텀 컬링", &bFrustumCulling))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_FrustumCulling);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("카메라 절두체 밖의 메시를 렌더링 목록에서 제외합니다.");
+		}
+
+		bool bOcclusionCulling = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_OcclusionCulling);
+		if (ImGui::Checkbox(" 오클루전 컬링", &bOcclusionCulling))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_OcclusionCulling);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("이전 프레임 Depth로 GPU HZB를 만들고 지연 Readback 결과를 사용해 가려진 스태틱 메시를 제외합니다.");
+		}
+		if (bOcclusionCulling)
+		{
+			if (FOcclusionCullingManagerCPU* OcclusionManager = ViewportClient->GetWorld()->GetOcclusionCullingManager())
+			{
+				const FOcclusionCullingStats& Stats = OcclusionManager->GetLastStats();
+				ImGui::TextDisabled(
+					"  GPU HZB 후보 %u / 테스트 %u / 제외 %u / GPU %.2f ms / CPU %.2f ms / 지연 %uF",
+					Stats.CandidateCount,
+					Stats.ProjectedCount,
+					Stats.CulledCount,
+					Stats.GPUTimeMs,
+					Stats.CPUTimeMs,
+					Stats.GPUResultLatencyFrames);
+			}
+		}
+
+		bool bMaterialSorting = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_MaterialSorting);
+		if (ImGui::Checkbox(" 머터리얼 소팅", &bMaterialSorting))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_MaterialSorting);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("셰이더와 머터리얼 기준으로 메시 배치를 정렬해 GPU 상태 변경을 줄입니다.");
+		}
+
+		bool bStaticMeshCachedPath = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_StaticMeshCachedPath);
+		if (ImGui::Checkbox(" 정적 메시 캐시 경로", &bStaticMeshCachedPath))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_StaticMeshCachedPath);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("정적 메시의 드로우 명령과 정렬 순서를 월드별로 유지합니다. 인스턴싱 없이 메시마다 DrawIndexed를 호출합니다.");
+		}
+
+		ImGui::Separator();
+
 
 		// DOF (Depth of Field)
 		bool bDOF = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_DOF);

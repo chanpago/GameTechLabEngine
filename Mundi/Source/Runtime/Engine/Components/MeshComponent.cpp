@@ -5,6 +5,7 @@
 #include "Material.h"
 #include "ResourceManager.h"
 #include "WorldPartitionManager.h"
+#include "World.h"
 
 UMeshComponent::UMeshComponent() = default;
 
@@ -237,6 +238,10 @@ void UMeshComponent::SetMaterial(uint32 InElementIndex, UMaterialInterface* InNe
 
 	// 6. 새 머티리얼을 슬롯에 할당합니다.
 	MaterialSlots[InElementIndex] = InNewMaterial;
+	if (UWorld* World = GetWorld())
+	{
+		World->MarkStaticMeshDrawCacheDirty();
+	}
 }
 
 UMaterialInstanceDynamic* UMeshComponent::CreateAndSetMaterialInstanceDynamic(uint32 ElementIndex)

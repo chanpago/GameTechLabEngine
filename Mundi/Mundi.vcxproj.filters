@@ -10,6 +10,9 @@
     <FxCompile Include="Shaders\Common\LightingBuffers.hlsl" />
     <FxCompile Include="Shaders\Common\LightingCommon.hlsl" />
     <FxCompile Include="Shaders\Common\LightStructures.hlsl" />
+	<FxCompile Include="Shaders\Occlusion\OcclusionHZBInit_CS.hlsl" />
+	<FxCompile Include="Shaders\Occlusion\OcclusionHZBReduce_CS.hlsl" />
+	<FxCompile Include="Shaders\Occlusion\OcclusionCull_CS.hlsl" />
     <FxCompile Include="Shaders\Materials\UberLit.hlsl" />
     <FxCompile Include="Shaders\PostProcess\HeightFog_PS.hlsl" />
     <FxCompile Include="Shaders\PostProcess\TileDebugVisualization_PS.hlsl" />
@@ -296,6 +299,7 @@
     <ClCompile Include="Source\Runtime\Engine\SkeletalViewer\SkeletalViewerBootstrap.cpp" />
     <ClCompile Include="Source\Runtime\Engine\SkeletalViewer\ViewerState.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\FSkeletalViewerViewportClient.cpp" />
+	<ClCompile Include="Source\Runtime\Renderer\GPUOcclusionCuller.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\LightManager.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\PostProcessing\DOFBlurPass.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\PostProcessing\DOFRecombinePass.cpp" />
@@ -754,6 +758,7 @@
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\PostProcessing.h" />
     <ClInclude Include="Source\Runtime\Renderer\PostProcessing\VignettePass.h" />
     <ClInclude Include="Source\Runtime\Renderer\SceneView.h" />
+	<ClInclude Include="Source\Runtime\Renderer\GPUOcclusionCuller.h" />
     <ClInclude Include="Source\Runtime\Renderer\SkinningStats.h" />
     <ClInclude Include="Source\Runtime\Renderer\TileCullingStats.h" />
     <ClInclude Include="Source\Runtime\Renderer\TileLightCuller.h" />

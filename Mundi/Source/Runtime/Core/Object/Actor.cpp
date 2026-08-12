@@ -208,6 +208,10 @@ void AActor::AddOwnedComponent(UActorComponent* Component)
 
 	OwnedComponents.insert(Component);
 	Component->SetOwner(this);
+	if (World)
+	{
+		World->MarkStaticMeshDrawCacheDirty();
+	}
 	if (USceneComponent* SC = Cast<USceneComponent>(Component))
 	{
 		SceneComponents.AddUnique(SC);
@@ -258,6 +262,10 @@ void AActor::RemoveOwnedComponent(UActorComponent* Component)
 
 	// OwnedComponents에서 제거
 	OwnedComponents.erase(Component);
+	if (World)
+	{
+		World->MarkStaticMeshDrawCacheDirty();
+	}
 
 	Component->DestroyComponent();
 }

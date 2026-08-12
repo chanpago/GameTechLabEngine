@@ -668,6 +668,12 @@ void UResourceManager::CheckAndReloadShaders(float DeltaTime)
 
         if (Shader->Reload(Device))
         {
+			++ShaderReloadRevision;
+			if (ShaderReloadRevision == 0)
+			{
+				ShaderReloadRevision = 1;
+			}
+
             // Verify the reload actually created the expected shader stages
             bool bHasVertexShader = (Shader->GetVertexShader() != nullptr);
             bool bHasPixelShader = (Shader->GetPixelShader() != nullptr);

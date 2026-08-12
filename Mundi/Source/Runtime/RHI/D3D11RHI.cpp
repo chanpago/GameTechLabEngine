@@ -1584,6 +1584,65 @@ HRESULT D3D11RHI::CreateStructuredBufferSRV(ID3D11Buffer* InBuffer, ID3D11Shader
     return Device->CreateShaderResourceView(InBuffer, &srvDesc, OutSRV);
 }
 
+HRESULT D3D11RHI::CreateGPUWritableStructuredBuffer(
+    UINT InElementSize,
+    UINT InElementCount,
+    ID3D11Buffer** OutBuffer,
+    ID3D11ShaderResourceView** OutSRV,
+    ID3D11UnorderedAccessView** OutUAV)
+{
+    if (!OutBuffer || !OutSRV || !OutUAV || InElementSize == 0 || InElementCount == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    *OutBuffer = nullptr;
+    *OutSRV = nullptr;
+    *OutUAV = nullptr;
+
+    D3D11_BUFFER_DESC BufferDesc{};
+    BufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    BufferDesc.ByteWidth = InElementSize * InElementCount;
+    BufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+    BufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    BufferDesc.StructureByteStride = InElementSize;
+
+    HRESULT Hr = Device->CreateBuffer(&BufferDesc, nullptr, OutBuffer);
+    if (FAILED(Hr))
+    {
+        return Hr;
+    }
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
+    SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+    SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    SRVDesc.Buffer.FirstElement = 0;
+    SRVDesc.Buffer.NumElements = InElementCount;
+    Hr = Device->CreateShaderResourceView(*OutBuffer, &SRVDesc, OutSRV);
+    if (FAILED(Hr))
+    {
+        (*OutBuffer)->Release();
+        *OutBuffer = nullptr;
+        return Hr;
+    }
+
+    D3D11_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
+    UAVDesc.Format = DXGI_FORMAT_UNKNOWN;
+    UAVDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+    UAVDesc.Buffer.FirstElement = 0;
+    UAVDesc.Buffer.NumElements = InElementCount;
+    Hr = Device->CreateUnorderedAccessView(*OutBuffer, &UAVDesc, OutUAV);
+    if (FAILED(Hr))
+    {
+        (*OutSRV)->Release();
+        *OutSRV = nullptr;
+        (*OutBuffer)->Release();
+        *OutBuffer = nullptr;
+    }
+
+    return Hr;
+}
+
 void D3D11RHI::UpdateStructuredBuffer(ID3D11Buffer* InBuffer, const void* InData, UINT InDataSize)
 {
     if (!InBuffer || !InData)

@@ -31,6 +31,7 @@
 #include "DecalStatManager.h"
 #include "SceneRenderer.h"
 #include "SceneView.h"
+#include "GPUOcclusionCuller.h"
 
 #include <Windows.h>
 #include "DirectionalLightComponent.h"
@@ -41,6 +42,12 @@ URenderer::URenderer(D3D11RHI* InDevice) : RHIDevice(InDevice)
 
 URenderer::~URenderer()
 {
+	for (auto& Pair : GPUOcclusionContexts)
+	{
+		delete Pair.second.Culler;
+		Pair.second.Culler = nullptr;
+	}
+	GPUOcclusionContexts.Empty();
 	if (LineBatchData)
 	{
 		delete LineBatchData;
@@ -49,6 +56,32 @@ URenderer::~URenderer()
 
 void URenderer::BeginFrame()
 {
+	++RenderFrameNumber;
+	for (auto It = StaticMeshDrawCaches.begin(); It != StaticMeshDrawCaches.end();)
+	{
+		// Preview world처럼 더 이상 렌더되지 않는 월드의 큰 캐시는 지연 정리합니다.
+		if (RenderFrameNumber > It->second.LastUsedFrame + 120)
+		{
+			It = StaticMeshDrawCaches.erase(It);
+		}
+		else
+		{
+			++It;
+		}
+	}
+	for (auto It = GPUOcclusionContexts.begin(); It != GPUOcclusionContexts.end();)
+	{
+		if (RenderFrameNumber > It->second.LastUsedFrame + 120)
+		{
+			delete It->second.Culler;
+			It = GPUOcclusionContexts.erase(It);
+		}
+		else
+		{
+			++It;
+		}
+	}
+
 	RHIDevice->IASetPrimitiveTopology();
 
 	RHIDevice->OMSetRenderTargets(ERTVMode::BackBufferWithDepth);
@@ -60,6 +93,36 @@ void URenderer::BeginFrame()
 	RHIDevice->ClearAllBuffer();
 }
 
+FStaticMeshDrawCache& URenderer::GetStaticMeshDrawCache(UWorld* World, uint64 ViewShaderKey)
+{
+	FWorldStaticMeshDrawCaches& WorldCaches = StaticMeshDrawCaches[World];
+	WorldCaches.LastUsedFrame = RenderFrameNumber;
+	return WorldCaches.ViewCaches[ViewShaderKey];
+}
+
+FGPUOcclusionCuller* URenderer::GetGPUOcclusionCuller(UWorld* World, FViewport* Viewport)
+{
+	if (!World || !Viewport)
+	{
+		return nullptr;
+	}
+
+	FGPUOcclusionContext& Context = GPUOcclusionContexts[Viewport];
+	Context.LastUsedFrame = RenderFrameNumber;
+	if (Context.World != World)
+	{
+		delete Context.Culler;
+		Context.Culler = nullptr;
+		Context.World = World;
+	}
+	if (!Context.Culler)
+	{
+		Context.Culler = new FGPUOcclusionCuller();
+		Context.Culler->Initialize(RHIDevice);
+	}
+	return Context.Culler;
+}
+
 void URenderer::EndFrame()
 {
 	RHIDevice->Present();
@@ -68,7 +131,7 @@ void URenderer::EndFrame()
 void URenderer::RenderSceneForView(UWorld* World, FSceneView* View, FViewport* Viewport)
 {
 	// 씬을 그리는 FSceneRenderer 를 생성합니다.
-	FSceneRenderer SceneRenderer(World, View, this);
+	FSceneRenderer SceneRenderer(World, View, this, GetGPUOcclusionCuller(World, Viewport));
 
 	// 실제로 렌더를 수행합니다.
 	SceneRenderer.Render();

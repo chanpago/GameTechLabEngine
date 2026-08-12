@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "SelectionManager.h"
 #include "Picking.h"
 #include "Character.h"
@@ -40,6 +40,8 @@ IMPLEMENT_CLASS(UWorld)
 UWorld::UWorld() : Partition(nullptr)  // Will be created in Initialize() based on world type
 {
 	SelectionMgr = std::make_unique<USelectionManager>();
+	OcclusionCullingManager = std::make_unique<FOcclusionCullingManagerCPU>();
+	OcclusionCullingManager->Initialize(256, 144);
 	//PIE의 경우 Initalize 없이 빈 Level 생성만 해야함
 	Level = std::make_unique<ULevel>();
 	LightManager = std::make_unique<FLightManager>();
@@ -444,6 +446,7 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 	PIEWorld->PhysScene->Initialize();
 
 	PIEWorld->bPie = true;
+	PIEWorld->Partition->BeginBulkRegistration();
 	
 	FWorldContext PIEWorldContext = FWorldContext(PIEWorld, EWorldType::Game);
 	GEngine.AddWorldContext(PIEWorldContext);
@@ -477,6 +480,10 @@ UWorld* UWorld::DuplicateWorldForPIE(UWorld* InEditorWorld)
 		}
 
 		PIEWorld->AddActorToLevel(NewActor);
+	}
+	if (PIEWorld->Partition)
+	{
+		PIEWorld->Partition->BulkRegister(PIEWorld->GetActors());
 	}
 
 	PIEWorld->RenderSettings = InEditorWorld->RenderSettings;
@@ -635,6 +642,7 @@ void UWorld::SpawnDefaultActors()
 
 void UWorld::SetLevel(std::unique_ptr<ULevel> InLevel)
 {
+	MarkStaticMeshDrawCacheDirty();
     // Make UI/selection safe before destroying previous actors
     if (SelectionMgr) SelectionMgr->ClearSelection();
 
@@ -664,11 +672,11 @@ void UWorld::SetLevel(std::unique_ptr<ULevel> InLevel)
     // Adopt actors: set world and register
     if (Level)
     {
-		// Bulk register only if partition exists
 		if (Partition)
 		{
-			Partition->BulkRegister(Level->GetActors());
+			Partition->BeginBulkRegistration();
 		}
+
         // 인덱스 기반 순회 (BeginPlay에서 SpawnActor 호출 시 iterator 무효화 방지)
         const TArray<AActor*>& Actors = Level->GetActors();
         for (size_t i = 0; i < Actors.Num(); ++i)
@@ -681,6 +689,12 @@ void UWorld::SetLevel(std::unique_ptr<ULevel> InLevel)
 				Actor->BeginPlay();
 			}
         }
+
+		// RegisterAllComponents에서 쌓인 개별 더티 요청을 한 번의 벌크 빌드로 대체한다.
+		if (Partition)
+		{
+			Partition->BulkRegister(Level->GetActors());
+		}
     }
 
 	// 씬에서 PCM 검색
@@ -703,11 +717,17 @@ void UWorld::AddActorToLevel(AActor* Actor)
 {
 	if (Level)
 	{
+		MarkStaticMeshDrawCacheDirty();
 		Level->AddActor(Actor);
 
 		Actor->SetWorld(this);
 
 		Actor->RegisterAllComponents(this);
+		if (Partition)
+		{
+			// OnRegister 중 생성된 에디터 보조 컴포넌트까지 등록한다.
+			Partition->RegisterActorComponents(Actor);
+		}
 	}
 }
 

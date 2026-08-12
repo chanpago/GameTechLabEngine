@@ -71,6 +71,7 @@ public:
 
 	// --- Shader Hot Reload ---
 	void CheckAndReloadShaders(float DeltaTime);
+	uint64 GetShaderReloadRevision() const { return ShaderReloadRevision; }
 
 	// --- 리소스 생성 및 관리 ---
 	FTextureData* CreateOrGetTextureData(const FWideString& FilePath);
@@ -142,6 +143,7 @@ private:
 	// Shader Hot Reload
 	float ShaderCheckTimer = 0.0f;
 	const float ShaderCheckInterval = 0.5f; // Check every 0.5 seconds
+	uint64 ShaderReloadRevision = 1;
 };
 
 //-----definition

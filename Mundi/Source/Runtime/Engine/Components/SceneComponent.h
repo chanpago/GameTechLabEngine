@@ -96,6 +96,7 @@ public:
     // Serialize
     void Serialize(const bool bInIsLoading, JSON& InOutHandle) override;
     void OnRegister(UWorld* InWorld) override;
+    void OnUnregister() override;
 
     virtual void OnTransformUpdated();
 
@@ -108,8 +109,7 @@ public:
     void SetVisibility(bool bInVisibility) { bIsVisible = bInVisibility; }
     // World가 Pie인 경우 컴포넌트 자체의 Visibility, HiddenInGame, 액터 자체의 HiddenInGame을 다 테스트후 렌더링
     // Editor인 경우 Visibility와 HiddenInEditor만 체크
-    bool IsVisible() const { return GWorld->bPie ? (bIsActive && bIsVisible && !bHiddenInGame) 
-        : (bIsActive && bIsVisible); }
+    bool IsVisible() const;
 
     // Debug Rendering
     // Virtual function for rendering debug visualization (bounds, volumes, etc.)

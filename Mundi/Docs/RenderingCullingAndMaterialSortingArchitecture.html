@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mundi 렌더링 최적화 아키텍처</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071018;
+      --panel: #0d1924;
+      --panel-2: #112230;
+      --line: #243746;
+      --text: #e8f0f5;
+      --muted: #9fb0bd;
+      --cyan: #59d4ff;
+      --green: #75e0a7;
+      --amber: #ffc96b;
+      --red: #ff8d8d;
+      --violet: #b59cff;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(89, 212, 255, .12), transparent 30rem),
+        radial-gradient(circle at 90% 10%, rgba(181, 156, 255, .10), transparent 34rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, Pretendard, "Noto Sans KR", "Segoe UI", sans-serif;
+      line-height: 1.7;
+    }
+    a { color: var(--cyan); }
+    code {
+      padding: .12rem .38rem;
+      border: 1px solid rgba(89, 212, 255, .16);
+      border-radius: .35rem;
+      background: rgba(89, 212, 255, .07);
+      color: #bceeff;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: .9em;
+    }
+    .shell { width: min(calc(100% - 2rem), var(--max)); margin: 0 auto; }
+    header { padding: 5.5rem 0 3rem; }
+    .eyebrow {
+      margin: 0 0 .7rem;
+      color: var(--cyan);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1 {
+      max-width: 850px;
+      margin: 0;
+      font-size: clamp(2.15rem, 6vw, 4.7rem);
+      line-height: 1.07;
+      letter-spacing: -.045em;
+    }
+    .lead {
+      max-width: 800px;
+      margin: 1.35rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2.2vw, 1.25rem);
+    }
+    .meta { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.6rem; }
+    .pill {
+      padding: .36rem .7rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(13, 25, 36, .7);
+      color: var(--muted);
+      font-size: .83rem;
+    }
+    nav {
+      position: sticky;
+      z-index: 10;
+      top: 0;
+      border-top: 1px solid rgba(255,255,255,.04);
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 16, 24, .88);
+      backdrop-filter: blur(14px);
+    }
+    nav .shell { display: flex; gap: 1.1rem; overflow-x: auto; padding: .85rem 0; }
+    nav a { color: var(--muted); font-size: .86rem; text-decoration: none; white-space: nowrap; }
+    nav a:hover { color: var(--text); }
+    main { padding: 2.7rem 0 5rem; }
+    section { scroll-margin-top: 4.7rem; margin-top: 4.3rem; }
+    section:first-child { margin-top: 0; }
+    h2 { margin: 0 0 1.1rem; font-size: clamp(1.55rem, 3vw, 2.25rem); letter-spacing: -.025em; }
+    h3 { margin: 0 0 .65rem; font-size: 1.05rem; }
+    p { margin: .55rem 0; }
+    .muted { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1rem; }
+    .card {
+      grid-column: span 4;
+      padding: 1.2rem;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      background: linear-gradient(145deg, rgba(17,34,48,.92), rgba(13,25,36,.92));
+      box-shadow: 0 12px 36px rgba(0,0,0,.12);
+    }
+    .card.wide { grid-column: span 6; }
+    .card.full { grid-column: 1 / -1; }
+    .number { display: block; color: var(--cyan); font-size: 2rem; font-weight: 850; line-height: 1.1; }
+    .label { color: var(--muted); font-size: .82rem; }
+    .accent-green { color: var(--green); }
+    .accent-amber { color: var(--amber); }
+    .accent-violet { color: var(--violet); }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(145px, 1fr));
+      gap: .65rem;
+      overflow-x: auto;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      background: rgba(13, 25, 36, .76);
+    }
+    .node {
+      position: relative;
+      min-width: 145px;
+      padding: .95rem;
+      border: 1px solid #315064;
+      border-radius: .75rem;
+      background: #102330;
+    }
+    .node:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -.7rem;
+      width: .7rem;
+      border-top: 1px solid var(--cyan);
+      content: "";
+    }
+    .node b { display: block; margin-bottom: .25rem; color: var(--cyan); font-size: .88rem; }
+    .node span { color: var(--muted); font-size: .78rem; line-height: 1.45; }
+    .stack { display: grid; gap: .65rem; }
+    .step {
+      display: grid;
+      grid-template-columns: 2.25rem 1fr;
+      gap: .8rem;
+      align-items: start;
+      padding: .9rem 1rem;
+      border-left: 2px solid var(--cyan);
+      background: rgba(17,34,48,.62);
+    }
+    .step em {
+      display: grid;
+      width: 2rem;
+      height: 2rem;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(89,212,255,.13);
+      color: var(--cyan);
+      font-style: normal;
+      font-weight: 800;
+    }
+    .step strong { display: block; }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); background: rgba(13,25,36,.7); }
+    th, td { padding: .82rem .9rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #10202d; color: #cce6f3; font-size: .82rem; }
+    td { color: var(--muted); font-size: .88rem; }
+    tr:last-child td { border-bottom: 0; }
+    .callout {
+      margin: 1rem 0;
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(255,201,107,.35);
+      border-left: 4px solid var(--amber);
+      border-radius: .75rem;
+      background: rgba(255,201,107,.07);
+    }
+    .callout strong { color: var(--amber); }
+    .good { border-color: rgba(117,224,167,.32); border-left-color: var(--green); background: rgba(117,224,167,.06); }
+    .good strong { color: var(--green); }
+    .legend { display: flex; flex-wrap: wrap; gap: 1rem; margin: .75rem 0; color: var(--muted); font-size: .8rem; }
+    .dot { display: inline-block; width: .65rem; height: .65rem; margin-right: .35rem; border-radius: 50%; background: var(--cyan); }
+    .dot.gpu { background: var(--violet); }
+    .dot.cache { background: var(--green); }
+    .timeline { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .8rem; }
+    .frame { padding: 1rem; border: 1px solid var(--line); border-radius: .8rem; background: var(--panel); }
+    .frame b { color: var(--violet); }
+    ul { margin: .55rem 0; padding-left: 1.2rem; }
+    li + li { margin-top: .35rem; }
+    .file-list code { white-space: nowrap; }
+    footer { padding: 2rem 0 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+
+    @media (max-width: 900px) {
+      .card, .card.wide { grid-column: span 6; }
+      .timeline { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .card, .card.wide { grid-column: 1 / -1; }
+      header { padding-top: 3.5rem; }
+      th, td { padding: .7rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <p class="eyebrow">GameTechLabEngine · Rendering Note</p>
+      <h1>렌더링 최적화<br>아키텍처</h1>
+      <p class="lead">현재 Mundi 렌더러의 StaticMesh 제출 경로를 기준으로 Frustum Culling, GPU HZB Occlusion Culling, Material Sorting이 어디에서 어떤 비용을 줄이는지 정리한 구현 문서다.</p>
+      <div class="meta">
+        <span class="pill">기준일 2026-08-12</span>
+        <span class="pill">Direct3D 11</span>
+        <span class="pill">StaticMesh마다 개별 Draw Call</span>
+        <span class="pill">Instanced Rendering 미사용</span>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="shell">
+      <a href="#summary">요약</a>
+      <a href="#pipeline">프레임 흐름</a>
+      <a href="#frustum">Frustum</a>
+      <a href="#occlusion">GPU HZB</a>
+      <a href="#sorting">Material Sorting</a>
+      <a href="#interaction">상호작용</a>
+      <a href="#stats">측정</a>
+      <a href="#files">코드 지도</a>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <section id="summary">
+      <h2>한눈에 보는 현재 구조</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="number">6면</span>
+          <span class="label">Frustum plane 검사</span>
+          <p>BVH를 순회하면서 좌·우·상·하·Near·Far 바깥의 노드를 CPU에서 일찍 제외한다.</p>
+        </article>
+        <article class="card">
+          <span class="number accent-violet">GPU HZB</span>
+          <span class="label">실제 Scene Depth 기반</span>
+          <p>현재 프레임 Depth를 계층화하고 World AABB를 투영해, 가려진 메시의 다음 제출을 생략한다.</p>
+        </article>
+        <article class="card">
+          <span class="number accent-green">45,002 → 2</span>
+          <span class="label">관측된 Material bind 예시</span>
+          <p>Draw 수는 유지하면서 같은 상태를 연속 배치해 중복 바인딩 비용을 제거한다.</p>
+        </article>
+      </div>
+
+      <div class="callout">
+        <strong>중요 제약:</strong> 이 최적화는 메시 여러 개를 하나의 인스턴스 Draw로 합치지 않는다. 살아남은 각 StaticMesh는 여전히 개별 <code>DrawIndexed</code>로 제출된다. 따라서 Culling은 Draw Call 수를 줄이고, Sorting은 Draw Call 사이의 상태 변경을 줄인다.
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <h2>현재 프레임의 렌더링 흐름</h2>
+      <p class="muted">세 최적화는 서로 대체 관계가 아니라 서로 다른 단계의 낭비를 제거한다.</p>
+      <div class="legend">
+        <span><i class="dot"></i>CPU 판정/제출</span>
+        <span><i class="dot gpu"></i>GPU 판정</span>
+        <span><i class="dot cache"></i>영구 캐시</span>
+      </div>
+      <div class="flow" aria-label="렌더링 파이프라인">
+        <div class="node"><b>1. 공간 후보</b><span>WorldPartition의 BVH에서 카메라 주변 SceneComponent를 조회</span></div>
+        <div class="node"><b>2. Frustum</b><span>6개 평면과 World AABB를 비교해 화면 밖 subtree 제거</span></div>
+        <div class="node"><b>3. Occlusion 적용</b><span>준비된 이전 GPU 결과와 hysteresis로 가려진 후보 제거</span></div>
+        <div class="node"><b>4. Batch 정렬</b><span>Shader·Material·VB·IB·Stride·Topology 순으로 연속 배치</span></div>
+        <div class="node"><b>5. 개별 Draw</b><span>상태 캐시로 필요한 bind만 수행하고 메시마다 DrawIndexed</span></div>
+        <div class="node"><b>6. 다음 결과 생성</b><span>현재 SceneDepth → HZB → 후보 AABB GPU 판정 → 지연 readback</span></div>
+      </div>
+
+      <div class="grid" style="margin-top:1rem">
+        <article class="card wide">
+          <h3>수명과 소유권</h3>
+          <table>
+            <thead><tr><th>데이터</th><th>소유/수명</th></tr></thead>
+            <tbody>
+              <tr><td>BVH, 공간 revision</td><td><code>UWorldPartitionManager</code> / World 수명</td></tr>
+              <tr><td>GPU culler context</td><td><code>FRenderer</code>가 Viewport·World 조합별 보관</td></tr>
+              <tr><td>StaticMesh draw cache</td><td><code>FRenderer</code>가 World별 보관, revision 변경 시 재구축</td></tr>
+              <tr><td>프레임 MeshBatch</td><td><code>FSceneRenderer</code>의 한 렌더 프레임 동안 사용</td></tr>
+            </tbody>
+          </table>
+        </article>
+        <article class="card wide">
+          <h3>Show Flag</h3>
+          <ul>
+            <li><code>SF_FrustumCulling</code>: BVH Frustum 결과 사용</li>
+            <li><code>SF_OcclusionCulling</code>: GPU HZB 결과 적용/생성</li>
+            <li><code>SF_MaterialSorting</code>: MeshBatch 정렬 및 상태 중복 제거 경로</li>
+            <li><code>SF_StaticMeshCachedPath</code>: 정적 draw metadata의 영구 캐시 사용</li>
+          </ul>
+          <p class="muted">각 기능을 독립적으로 꺼서 실제 병목과 이득을 비교할 수 있다.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="frustum">
+      <h2>1. CPU Frustum Culling</h2>
+      <div class="grid">
+        <article class="card wide">
+          <h3>원리</h3>
+          <p>카메라의 View-Projection 행렬에서 6개 평면을 만들고, 각 BVH 노드의 AABB가 평면의 완전히 바깥인지 검사한다. 바깥이면 그 노드 아래의 모든 컴포넌트를 한 번에 건너뛴다.</p>
+          <p><code>좌 / 우 / 상 / 하 / Near / Far</code></p>
+        </article>
+        <article class="card wide">
+          <h3>현재 구현의 특징</h3>
+          <ul>
+            <li>기존 4면뿐 아니라 Near/Far까지 포함한 완전한 6면 검사</li>
+            <li>개별 메시 전수 검사 대신 BVH subtree 단위 early-out</li>
+            <li>노드가 Frustum 안에 완전히 포함되면 자식 재검사 없이 연속 범위를 결과에 추가</li>
+            <li>MeshComponent뿐 아니라 공간 정보를 가진 SceneComponent 등록 경로를 일원화</li>
+            <li>레벨 대량 등록 시 bulk 갱신으로 BVH 재구축 횟수 억제</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="stack" style="margin-top:1rem">
+        <div class="step"><em>1</em><div><strong>공간 등록</strong><span class="muted">SceneComponent의 등록·해제와 위치 변경이 WorldPartition의 spatial revision을 갱신한다.</span></div></div>
+        <div class="step"><em>2</em><div><strong>BVH 질의</strong><span class="muted">노드 AABB가 Frustum 밖이면 subtree 전체를 제거한다.</span></div></div>
+        <div class="step"><em>3</em><div><strong>후보 전달</strong><span class="muted">살아남은 컴포넌트만 Scene proxy 및 MeshBatch 생성 후보가 된다.</span></div></div>
+      </div>
+
+      <div class="callout good">
+        <strong>효과가 큰 상황:</strong> 카메라 뒤 또는 시야 좌우에 오브젝트가 많거나, BVH가 공간적으로 잘 분리된 넓은 맵. 모든 메시가 화면 안에 들어오는 전경 샷에서는 자연스럽게 제거량이 작다.
+      </div>
+    </section>
+
+    <section id="occlusion">
+      <h2>2. GPU HZB Occlusion Culling</h2>
+      <p>Frustum 안에 있지만 다른 물체의 실제 픽셀에 완전히 가려진 메시를 찾는다. CPU가 추정 Depth를 만드는 방식이 아니라 GPU의 <code>SceneDepth</code>를 입력으로 사용한다.</p>
+
+      <div class="grid">
+        <article class="card wide">
+          <h3>HZB 생성</h3>
+          <p>Depth Buffer를 작은 mip들로 반복 축소한다. 현재 normal-Z 체계에서는 각 2×2 영역의 <strong>가장 먼 값(MAX)</strong>을 저장해, 영역 전체를 가리는지 보수적으로 판단한다.</p>
+          <p><code>SceneDepth → HZB mip 0 → mip 1 → … → 1×1</code></p>
+        </article>
+        <article class="card wide">
+          <h3>오브젝트 검사</h3>
+          <p>StaticMesh의 축소하지 않은 실제 World AABB 8개 꼭짓점을 화면으로 투영한다. 투영된 사각형 크기에 맞는 mip을 선택하고, 오브젝트의 가장 가까운 View depth와 HZB depth를 비교한다.</p>
+        </article>
+      </div>
+
+      <div class="timeline" style="margin-top:1rem">
+        <div class="frame"><b>Frame N</b><p>현재 준비된 결과를 적용한 뒤 보이는 메시를 그려 SceneDepth를 만든다.</p></div>
+        <div class="frame"><b>GPU dispatch</b><p>Frame N의 Depth로 HZB를 만들고 Frustum 후보 AABB를 compute shader에서 검사한다.</p></div>
+        <div class="frame"><b>Frame N+1 이후</b><p>비동기 readback이 준비되면 결과를 적용한다. 아직 준비되지 않았으면 CPU를 기다리지 않는다.</p></div>
+      </div>
+
+      <h3 style="margin-top:1.7rem">카메라 이동 중 안정성을 위한 장치</h3>
+      <table>
+        <thead><tr><th>장치</th><th>구현 의도</th></tr></thead>
+        <tbody>
+          <tr><td>3-slot staging ring</td><td>GPU 결과 복사를 겹쳐 처리하고 CPU/GPU 동기화 대기를 피한다.</td></tr>
+          <tr><td><code>D3D11_MAP_FLAG_DO_NOT_WAIT</code></td><td>readback이 덜 끝났을 때 프레임을 멈추지 않고 이전 결과를 제한적으로 재사용한다.</td></tr>
+          <tr><td>최소 1 frame latency</td><td>같은 프레임 GPU 작업을 CPU가 즉시 기다리는 직렬화를 방지한다.</td></tr>
+          <tr><td>최대 3 frame stale reuse</td><td>짧은 GPU 지연은 흡수하되 너무 오래된 판정을 무한 재사용하지 않는다.</td></tr>
+          <tr><td>이전·현재 투영 사각형 합집합</td><td>카메라 이동으로 새로 드러날 영역까지 검사 영역에 포함해 popping을 줄인다.</td></tr>
+          <tr><td>World-space depth bias</td><td>작은 수치 오차 때문에 경계 메시가 잘못 가려지는 false occlusion을 완화한다.</td></tr>
+          <tr><td>2회 연속 occluded hysteresis</td><td>한 번의 불안정한 판정만으로 바로 숨기지 않는다.</td></tr>
+          <tr><td>Camera cut 무효화</td><td>약 5 unit 초과 이동 또는 12° 초과 회전 시 과거 결과를 버린다.</td></tr>
+          <tr><td>한 단계 더 정밀한 mip</td><td>경계에서 지나치게 공격적인 coarse-depth 판정을 줄인다.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>AABB와 실제 픽셀의 관계:</strong> 가림막은 실제 SceneDepth 픽셀이다. 검사 대상의 모양만 World AABB로 보수적으로 감싼다. AABB 일부가 보일 가능성이 있으면 메시를 살리므로 정확한 삼각형 검사보다 오판 위험이 작지만, 복잡하거나 빈 공간이 큰 메시에서는 컬링률이 낮아질 수 있다.
+      </div>
+    </section>
+
+    <section id="sorting">
+      <h2>3. Material Sorting과 정적 Draw Cache</h2>
+      <p>Material Sorting은 Draw Call 자체를 합치지 않는다. 같은 GPU 상태를 사용하는 MeshBatch를 붙여 놓고, 직전 상태와 같으면 중복 API 호출과 resource bind를 생략한다.</p>
+
+      <div class="grid">
+        <article class="card wide">
+          <h3>정렬 키</h3>
+          <ol>
+            <li>Shader</li>
+            <li>Material</li>
+            <li>Vertex Buffer</li>
+            <li>Index Buffer</li>
+            <li>Stride</li>
+            <li>Primitive Topology</li>
+          </ol>
+          <p class="muted">상위 키가 같을수록 하위 상태도 연속될 가능성이 높아진다.</p>
+        </article>
+        <article class="card wide">
+          <h3>Draw 시 상태 캐시</h3>
+          <p>현재 바인딩된 Material, Shader, VB, IB 등의 포인터/값을 기억한다. 다음 MeshBatch가 동일한 상태면 해당 bind를 건너뛰고 상수 데이터와 개별 <code>DrawIndexed</code>를 계속 제출한다.</p>
+        </article>
+        <article class="card wide">
+          <h3>영구 StaticMesh Draw Cache</h3>
+          <p>매 프레임 동일한 StaticMesh의 batch metadata를 다시 구성하고 전체 정렬하는 CPU 비용을 줄인다. World 공간 revision, ResourceManager shader revision, StaticMesh draw-cache revision을 key로 삼아 변경 시에만 다시 만든다.</p>
+        </article>
+        <article class="card wide">
+          <h3>캐시 무효화</h3>
+          <ul>
+            <li>컴포넌트 추가·제거 및 레벨 교체</li>
+            <li>StaticMesh 또는 Material 교체</li>
+            <li>Shader resource 갱신</li>
+            <li>공간 등록 구조 변경</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="callout good">
+        <strong>관측 결과 해석:</strong> Culling을 모두 끈 테스트에서 Material bind가 약 <code>45,002 → 2</code>, frame time이 약 <code>4 ms</code> 줄었다면 정상적이고 의미 있는 결과다. Draw Call 45,000개는 그대로이므로, 남은 CPU 제출 비용과 vertex/raster 비용 때문에 FPS가 bind 감소율만큼 오르지는 않는다.
+      </div>
+    </section>
+
+    <section id="interaction">
+      <h2>세 최적화의 상호작용</h2>
+      <table>
+        <thead><tr><th>기능</th><th>주로 줄이는 것</th><th>잘 보이는 테스트</th><th>한계</th></tr></thead>
+        <tbody>
+          <tr><td>Frustum Culling</td><td>화면 밖 후보 탐색·Batch·Draw</td><td>카메라 방향 밖에 메시가 많은 넓은 장면</td><td>5만 개가 전부 화면 안이면 제거할 수 없음</td></tr>
+          <tr><td>GPU HZB Occlusion</td><td>가려진 메시의 Draw와 GPU geometry 비용</td><td>큰 사과·벽·건물 뒤에 오브젝트가 겹친 장면</td><td>전부 노출된 장면은 compute/readback 비용만 남을 수 있음</td></tr>
+          <tr><td>Material Sorting</td><td>Shader·Material·Buffer 상태 변경</td><td>Culling을 끄고 동일 material 메시를 대량 제출</td><td>Draw Call 및 per-object 상수 갱신은 유지</td></tr>
+          <tr><td>StaticMesh Cache</td><td>Batch 재생성·반복 정렬 CPU 비용</td><td>정적 메시가 많고 scene revision이 안정적인 장면</td><td>DrawIndexed 실행 비용은 줄이지 않음</td></tr>
+        </tbody>
+      </table>
+
+      <p class="muted">Occlusion이 이미 대부분의 메시를 제거하면 Sorting이 처리할 batch 자체가 적어져 Sorting ON/OFF 차이가 작아지는 것이 정상이다. 반대로 전체 노출 장면에서는 Culling의 이득이 줄고 Sorting의 상태 변경 절감이 더 잘 드러난다.</p>
+    </section>
+
+    <section id="stats">
+      <h2>Stats Overlay와 올바른 측정 방법</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>가시성</h3>
+          <ul>
+            <li>Frustum Tested / Culled</li>
+            <li>Occlusion Candidates / Culled</li>
+            <li>Visible Mesh 수</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>비용</h3>
+          <ul>
+            <li>Frustum CPU ms</li>
+            <li>Occlusion CPU/GPU 관련 ms</li>
+            <li>Render / Draw 시간</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>상태 변경</h3>
+          <ul>
+            <li>Material binds</li>
+            <li>Shader binds</li>
+            <li>VB / IB binds</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="stack" style="margin-top:1rem">
+        <div class="step"><em>A</em><div><strong>한 번에 플래그 하나만 변경</strong><span class="muted">같은 카메라 위치에서 warm-up 후 여러 프레임 평균을 비교한다.</span></div></div>
+        <div class="step"><em>B</em><div><strong>Material Sorting 단독 검증</strong><span class="muted">Frustum·Occlusion을 끄고 Draw 수가 같은지, bind와 frame time만 줄었는지 본다.</span></div></div>
+        <div class="step"><em>C</em><div><strong>Occlusion 단독 검증</strong><span class="muted">Sorting 조건을 고정하고 큰 occluder 전후로 Culled 수와 Draw 수 변화를 본다.</span></div></div>
+        <div class="step"><em>D</em><div><strong>이동 테스트</strong><span class="muted">정지 FPS와 이동 FPS를 분리한다. 카메라 이동은 새 HZB 판정, readback, cache miss를 더 자주 만든다.</span></div></div>
+      </div>
+    </section>
+
+    <section id="files">
+      <h2>구현 코드 지도</h2>
+      <table class="file-list">
+        <thead><tr><th>영역</th><th>핵심 파일</th><th>역할</th></tr></thead>
+        <tbody>
+          <tr><td>Frustum</td><td><code>Math/Frustum.cpp</code><br><code>Level/BVHierarchy.*</code><br><code>Level/WorldPartitionManager.*</code></td><td>6면 추출·AABB 판정·BVH 질의 및 공간 revision</td></tr>
+          <tr><td>Occlusion 관리</td><td><code>Renderer/GPUOcclusionCuller.*</code><br><code>Renderer/Occlusion.*</code></td><td>HZB resource, dispatch, readback ring, temporal result와 통계</td></tr>
+          <tr><td>Occlusion shader</td><td><code>Shaders/Occlusion/OcclusionHZBInit_CS.hlsl</code><br><code>OcclusionHZBReduce_CS.hlsl</code><br><code>OcclusionCull_CS.hlsl</code></td><td>Depth 초기화, mip 축소, projected AABB visibility test</td></tr>
+          <tr><td>Render orchestration</td><td><code>Renderer/SceneRenderer.*</code><br><code>Renderer/Renderer.*</code></td><td>후보 수집, 결과 적용, 정렬·캐시·Draw, 다음 GPU test 제출</td></tr>
+          <tr><td>Mesh batch</td><td><code>Renderer/MeshBatchElement.h</code><br><code>Components/StaticMeshComponent.cpp</code></td><td>정렬 key와 cache source 연결</td></tr>
+          <tr><td>RHI</td><td><code>Renderer/D3D11RHI.*</code></td><td>GPU writable structured buffer 생성</td></tr>
+          <tr><td>제어·측정</td><td><code>Core/Misc/Enums.h</code><br><code>UI/Widgets/SViewportWindow.cpp</code><br><code>UI/StatsOverlayD2D.*</code></td><td>Show Flag, 실시간 토글, 수치 표시</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">이 문서는 GameTechLabEngine 작업 트리의 2026-08-12 구현을 기준으로 작성되었다. 성능 수치는 특정 <code>Default.scene</code> 테스트 관측값이며 하드웨어·카메라·빌드 설정에 따라 달라진다.</div>
+  </footer>
+</body>
+</html>

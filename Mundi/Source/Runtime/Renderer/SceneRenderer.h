@@ -31,10 +31,13 @@ class UTextRenderComponent;
 class UGizmoArrowComponent;
 class FSceneView;
 class FTileLightCuller;
+class FGPUOcclusionCuller;
 class ULineComponent;
 class UParticleSystemComponent;
+class UStaticMeshComponent;
 
 struct FCandidateDrawable;
+struct FStaticMeshDrawCache;
 
 // 렌더링할 대상들의 집합을 담는 구조체
 struct FVisibleRenderProxySet
@@ -77,7 +80,7 @@ struct FSceneGlobals
 class FSceneRenderer
 {
 public:
-	FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer);
+	FSceneRenderer(UWorld* InWorld, FSceneView* InView, URenderer* InOwnerRenderer, FGPUOcclusionCuller* InGPUOcclusionCuller);
 	~FSceneRenderer();
 
 	/** @brief 이 씬 렌더러의 모든 렌더링 파이프라인을 실행합니다. */
@@ -98,19 +101,30 @@ private:
 	/** @brief 렌더링에 필요한 뷰 행렬, 절두체 등 프레임 데이터를 준비합니다. */
 	void PrepareView();
 
-	/** @brief 월드의 모든 액터를 대상으로 절두체 컬링을 수행합니다. */
+	/** @brief 절두체 컬링 호환용 진입점(실제 수집은 GatherVisibleProxies의 BVH 경로에 통합). */
 	void PerformFrustumCulling();
 
 	/** @brief 씬을 순회하며 컬링을 통과한 모든 렌더링 대상을 수집합니다. */
 	void GatherVisibleProxies();
+
+	/** @brief 프러스텀을 통과한 스태틱 메시를 이전 프레임 GPU HZB로 추가 컬링합니다. */
+	void ApplyOcclusionCulling();
+	void SubmitGPUOcclusion();
+	void UpdateOcclusionStatsFromGPU();
 
 	/** @brief 타일 기반 라이트 컬링을 수행하고 Structured Buffer를 업데이트합니다. */
 	void PerformTileLightCulling();
 
 	/** @brief 불투명(Opaque) 객체들을 렌더링하는 패스입니다. */
 	void RenderOpaquePass(EViewMode InRenderViewMode);
+	FStaticMeshDrawCache& GetOrBuildStaticMeshDrawCache();
 
-	void DrawMeshBatches(TArray<FMeshBatchElement>& InMeshBatches, bool bClearListAfterDraw);
+	void DrawMeshBatches(
+		TArray<FMeshBatchElement>& InMeshBatches,
+		bool bClearListAfterDraw,
+		bool bRecordOpaqueStats = false,
+		const TSet<UStaticMeshComponent*>* VisibleStaticMeshes = nullptr,
+		const TArray<uint32>* BatchOrder = nullptr);
 
 	void RenderSkyPass();
 	void RenderParticlePass();
@@ -142,6 +156,8 @@ private:
 
 	// 수집된 렌더링 대상 목록
 	FVisibleRenderProxySet Proxies;
+	// Gather와 Shadow Pass가 같은 BVH 쿼리 결과를 재사용한다.
+	TArray<UPrimitiveComponent*> FrustumVisibleComponents;
 
 	// 씬 지역 설정
 	FSceneLocals SceneLocals;
@@ -157,6 +173,7 @@ private:
 
 	// 타일 기반 라이트 컬링 시스템 (매 프레임 생성되고 소멸되어서 스마트 포인터로 설정)
 	std::unique_ptr<FTileLightCuller> TileLightCuller;
+	FGPUOcclusionCuller* GPUOcclusionCuller = nullptr;
 
 	// TODO : 자동으로 등록되게 바꾸기!, bloom 빼고 다 stateless해서 걔네는 static(etc..) 등 하이브리도 구조로 바꾸기
 	// PostProcessing

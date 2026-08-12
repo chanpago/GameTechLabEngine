@@ -1,6 +1,8 @@
 ﻿#include "pch.h"
 #include "WorldPartitionManager.h"
 #include "PrimitiveComponent.h"
+#include "SceneComponent.h"
+#include "MeshComponent.h"
 #include "Actor.h"
 #include "World.h"
 #include "Octree.h"
@@ -44,50 +46,91 @@ void UWorldPartitionManager::Clear()
 
 	ComponentDirtyQueue.Empty();
 	ComponentDirtySet.Empty();
+	NonSpatialComponents.Empty();
+	bDeferringBulkRegistration = false;
+	++SpatialRevision;
 }
 
-// 새로 만들어진 StaticMeshComponent를 등록하는 상황에서 맥락을 분명히 드러내기 위한 API입니다.
-void UWorldPartitionManager::Register(UPrimitiveComponent* Smc)
+void UWorldPartitionManager::Register(USceneComponent* Component)
 {
-	MarkDirty(Smc);
+	if (!Component || bDeferringBulkRegistration) return;
+
+	if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(Component); MeshComponent && MeshComponent->IsEditable())
+	{
+		MarkDirty(MeshComponent);
+	}
+	else
+	{
+		NonSpatialComponents.AddUnique(Component);
+	}
+}
+
+void UWorldPartitionManager::RegisterActorComponents(AActor* Actor)
+{
+	if (!Actor || bDeferringBulkRegistration) return;
+
+	for (USceneComponent* Component : Actor->GetSceneComponents())
+	{
+		Register(Component);
+	}
+}
+
+void UWorldPartitionManager::BeginBulkRegistration()
+{
+	bDeferringBulkRegistration = true;
+	ComponentDirtyQueue.Empty();
+	ComponentDirtySet.Empty();
 }
 
 // BulkRegister를 사용하면 틱 budget에 걸리지 않고 1틱 안에 전부 추가됩니다.
 void UWorldPartitionManager::BulkRegister(const TArray<AActor*>& Actors)
 {
-	if (Actors.empty()) return;
-	TArray<UPrimitiveComponent*> StaticMeshComponents;
-	StaticMeshComponents.Reserve(Actors.size());
+	bDeferringBulkRegistration = false;
+	// OnRegister로 쌓인 더티 큐를 벌크 빌드가 대체하므로 이중 리빌드를 방지한다.
+	ComponentDirtyQueue.Empty();
+	ComponentDirtySet.Empty();
+	NonSpatialComponents.Empty();
+	if (BVH) BVH->Clear();
+
+	TArray<UPrimitiveComponent*> MeshComponents;
+	MeshComponents.Reserve(Actors.size());
 
 	for (AActor* Actor : Actors)
 	{
-		TArray<AActor*> EditorActors = GWorld->GetEditorActors();
-		auto it = std::find(EditorActors.begin(), EditorActors.end(), Actor);
-		if (it != EditorActors.end())
-			continue; // 에디터 액터는 포함하지 않는다.
+		if (!Actor) continue;
 
 		const TArray<USceneComponent*> Components = Actor->GetSceneComponents();
 		for (USceneComponent* Component : Components)
 		{
-			if (UPrimitiveComponent* Smc = Cast<UPrimitiveComponent>(Component))
+			if (!Component) continue;
+
+			if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(Component); MeshComponent && MeshComponent->IsEditable())
 			{
-				StaticMeshComponents.push_back(Smc);
-				ComponentDirtySet.erase(Smc);
+				MeshComponents.Add(MeshComponent);
+			}
+			else
+			{
+				NonSpatialComponents.AddUnique(Component);
 			}
 		}
 	}
 
-	if (BVH) BVH->BulkUpdate(StaticMeshComponents);
+	if (BVH) BVH->BulkUpdate(MeshComponents);
+	++SpatialRevision;
 }
 
-void UWorldPartitionManager::Unregister(UPrimitiveComponent* Component)
+void UWorldPartitionManager::Unregister(USceneComponent* Component)
 {
-	if (UPrimitiveComponent* Smc = Cast<UPrimitiveComponent>(Component))
-	{
-		if (BVH) BVH->Remove(Smc);
+	if (!Component) return;
 
-		ComponentDirtySet.erase(Smc);
+	if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(Component))
+	{
+		if (BVH) BVH->Remove(MeshComponent);
+
+		ComponentDirtySet.erase(MeshComponent);
 	}
+	NonSpatialComponents.Remove(Component);
+	++SpatialRevision;
 }
 
 // World Partition에서의 액터 상태를 갱신 예약
@@ -114,20 +157,17 @@ void UWorldPartitionManager::MarkDirty(AActor* Actor)
 // (신규 등록에도 사용할 수 있지만 코드 가독성을 위해 Register API 사용 권장)
 void UWorldPartitionManager::MarkDirty(UPrimitiveComponent* Smc)
 {
-	if (!Smc) return;
+	if (!Smc || bDeferringBulkRegistration) return;
+	if (!Cast<UMeshComponent>(Smc) || !Smc->IsEditable()) return;
 	AActor* Owner = Smc->GetOwner();
 	if (!Owner) return;
-
-	if (!Smc->IsEditable())
-	{
-		return;
-	}
 
 	// second: 새로운 요소가 성공적으로 삽입되었으면 true, 이미 요소가 존재하여 삽입에 실패했으면 false
 	// DirtyQueue 중복 삽입 방지 로직
 	if (ComponentDirtySet.insert(Smc).second)
 	{
 		ComponentDirtyQueue.push(Smc);
+		++SpatialRevision;
 	}
 }
 
@@ -182,11 +222,15 @@ void UWorldPartitionManager::RayQueryClosest(FRay InRay, OUT AActor*& OutActor, 
 	}
 }
 
-void UWorldPartitionManager::FrustumQuery(FFrustum InFrustum)
+void UWorldPartitionManager::FrustumQuery(const FFrustum& InFrustum, TArray<UPrimitiveComponent*>& OutVisibleComponents) const
 {
 	if (BVH)
 	{
-		BVH->QueryFrustum(InFrustum);
+		BVH->QueryFrustum(InFrustum, OutVisibleComponents);
+	}
+	else
+	{
+		OutVisibleComponents.Empty();
 	}
 }
 
