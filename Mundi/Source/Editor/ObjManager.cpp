@@ -229,8 +229,21 @@ void FObjManager::Preload()
 	size_t LoadedCount = 0;
 	std::unordered_set<FString> ProcessedFiles; // 중복 로딩 방지
 
-	for (const auto& Entry : fs::recursive_directory_iterator(DataDir))
+	for (auto It = fs::recursive_directory_iterator(DataDir); It != fs::recursive_directory_iterator(); ++It)
 	{
+		const auto& Entry = *It;
+		if (Entry.is_directory())
+		{
+			const FWideString DirectoryName = Entry.path().filename().wstring();
+			if (_wcsicmp(DirectoryName.c_str(), L"Sicka Dynasty") == 0)
+			{
+				// 대형 샘플 에셋은 시작 시 동기 로드하지 않고 실제 참조 시 로드합니다.
+				It.disable_recursion_pending();
+				UE_LOG("FObjManager::Preload: Skipping startup preload directory: %s", Entry.path().string().c_str());
+			}
+			continue;
+		}
+
 		if (!Entry.is_regular_file())
 			continue;
 

@@ -1841,7 +1841,6 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 
 		ImGui::Separator();
 
-
 		// DOF (Depth of Field)
 		bool bDOF = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_DOF);
 		if (ImGui::Checkbox("##DOF", &bDOF))

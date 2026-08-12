@@ -188,7 +188,7 @@ enum class EEngineShowFlags : uint64
     SF_MaterialSorting = 1ull << 24,
     SF_PBR = 1ull << 25,             // Enable/disable direct-light PBR shading
     SF_TileDepthDebug = 1ull << 26,  // Show tile Min/Max depth ranges used by Forward+
-    SF_StaticMeshCachedPath = 1ull << 27, // Persistent static-mesh draw-command cache (opt-in)
+	SF_StaticMeshCachedPath = 1ull << 27, // Persistent static-mesh draw-command cache (opt-in)
 
     // Default enabled flags
     SF_DefaultEnabled = SF_Primitives | SF_StaticMeshes | SF_SkeletalMeshes | SF_Grid | SF_Lighting | SF_Decals |

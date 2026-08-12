@@ -3,6 +3,12 @@
 #include "Windows/ControlPanelWindow.h"
 #include "Windows/SceneWindow.h"
 
+namespace
+{
+	// 50,000개 정적 액터 벤치마크에서 아웃라이너 UI 비용을 분리하기 위한 임시 스위치.
+	constexpr bool bEnableSceneOutliner = false;
+}
+
 SControlPanel::SControlPanel()
 {
 	ControlPanelWidget=new UControlPanelWindow();
@@ -26,7 +32,7 @@ void SControlPanel::OnRender()
 
     if (ImGui::Begin("아웃라이너", nullptr, flags))
     {
-        if (SceneWindow) {
+        if (bEnableSceneOutliner && SceneWindow) {
             SceneWindow->RenderWidget();
         }
         if (ControlPanelWidget)
@@ -38,6 +44,9 @@ void SControlPanel::OnRender()
 
 void SControlPanel::OnUpdate(float deltaSecond)
 {
-    SceneWindow->Update();
+	if (bEnableSceneOutliner && SceneWindow)
+	{
+		SceneWindow->Update();
+	}
     ControlPanelWidget->Update();
 }

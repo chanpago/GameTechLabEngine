@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "SelectionManager.h"
 #include "Picking.h"
 #include "Character.h"
@@ -364,31 +364,24 @@ void UWorld::Tick(float DeltaSeconds)
 		PhysScene->WaitForSimulation();
 	}
 
-	if (Level)
+	// Tick 중 Spawn/Destroy로 등록 목록이 바뀌어도 현재 프레임 순회는 안전해야 한다.
+	// 전체 레벨 액터가 아니라 Tick 가능 액터만 복사하므로 정적 액터 수에 비례하지 않는다.
+	TArray<AActor*> ActorsToTick = TickActors;
+	for (AActor* Actor : ActorsToTick)
 	{
-		// Tick 중에 새로운 actor가 추가될 수도 있어서 복사 후 호출
-		TArray<AActor*> LevelActors = Level->GetActors();
-		for (AActor* Actor : LevelActors)
+		if (!Actor || !Actor->IsActorActive() || !Actor->CanEverTick())
 		{
-			if (Actor && Actor->IsActorActive())
-			{
-				if (Actor->CanEverTick())
-				{
-					// 일시정지 시 플레이어와 적은 Tick 안함
-					if (bPaused)
-					{
-						// Character 타입(플레이어, 적)은 Tick하지 않음
-						if (Actor->IsA<ACharacter>())
-						{
-							continue;
-						}
-					}
-
-					Actor->Tick(GetDeltaTime(EDeltaTime::Game) * Actor->GetCustomTimeDillation());
-				}
-			}
+			continue;
 		}
-    }
+
+		// 일시정지 시 플레이어와 적은 Tick 안함
+		if (bPaused && Actor->IsA<ACharacter>())
+		{
+			continue;
+		}
+
+		Actor->Tick(GetDeltaTime(EDeltaTime::Game) * Actor->GetCustomTimeDillation());
+	}
 
     for (AActor* EditorActor : EditorActors)
     {
@@ -559,6 +552,9 @@ bool UWorld::DestroyActor(AActor* Actor)
 {
 	if (!Actor) return false;
 
+	MarkStaticMeshDrawCacheDirty();
+	TickActors.Remove(Actor);
+
 	// 선택/UI 해제
 	if (SelectionMgr) SelectionMgr->DeselectActor(Actor);
 
@@ -647,6 +643,7 @@ void UWorld::SetLevel(std::unique_ptr<ULevel> InLevel)
     if (SelectionMgr) SelectionMgr->ClearSelection();
 
 	PlayerCameraManager = nullptr;
+	TickActors.Empty();
 
     // Cleanup current
     if (Level)
@@ -685,6 +682,10 @@ void UWorld::SetLevel(std::unique_ptr<ULevel> InLevel)
 			if (Actor)
 			{
 				Actor->SetWorld(this);
+				if (Actor->CanEverTick())
+				{
+					TickActors.Add(Actor);
+				}
 				Actor->RegisterAllComponents(this);
 				Actor->BeginPlay();
 			}
@@ -721,6 +722,10 @@ void UWorld::AddActorToLevel(AActor* Actor)
 		Level->AddActor(Actor);
 
 		Actor->SetWorld(this);
+		if (Actor->CanEverTick())
+		{
+			TickActors.AddUnique(Actor);
+		}
 
 		Actor->RegisterAllComponents(this);
 		if (Partition)
@@ -728,6 +733,25 @@ void UWorld::AddActorToLevel(AActor* Actor)
 			// OnRegister 중 생성된 에디터 보조 컴포넌트까지 등록한다.
 			Partition->RegisterActorComponents(Actor);
 		}
+	}
+}
+
+void UWorld::RefreshActorTickRegistration(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return;
+	}
+
+	// 에디터 전용 액터는 별도 목록에서 Tick하므로 레벨 액터만 등록한다.
+	const bool bIsLevelActor = Level && Level->GetActors().Contains(Actor);
+	if (bIsLevelActor && Actor->GetWorld() == this && Actor->CanEverTick())
+	{
+		TickActors.AddUnique(Actor);
+	}
+	else
+	{
+		TickActors.Remove(Actor);
 	}
 }
 

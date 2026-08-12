@@ -167,6 +167,7 @@ public:
     bool IsActorVisible() const;
 
     bool CanEverTick() const { return bCanEverTick; }
+    void SetCanEverTick(bool bInCanEverTick);
     
     // ───── 충돌 관련 ─────────────────────────  
     void OnBeginOverlap(UPrimitiveComponent* MyComp, UPrimitiveComponent* OtherComp, const FTriggerHit* Trigger);

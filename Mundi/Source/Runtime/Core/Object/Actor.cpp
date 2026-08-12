@@ -36,6 +36,20 @@ AActor::~AActor()
 	}
 }
 
+void AActor::SetCanEverTick(bool bInCanEverTick)
+{
+	if (bCanEverTick == bInCanEverTick)
+	{
+		return;
+	}
+
+	bCanEverTick = bInCanEverTick;
+	if (World)
+	{
+		World->RefreshActorTickRegistration(this);
+	}
+}
+
 void AActor::BeginPlay()
 {
 	// Lua Game Object 초기화
@@ -706,6 +720,19 @@ void AActor::DuplicateSubObjects()
 void AActor::Serialize(const bool bInIsLoading, JSON& InOutHandle)
 {
 	Super::Serialize(bInIsLoading, InOutHandle);
+
+	// Actor tick capability is serialized separately from component tick state.
+	// Scenes written before this field existed keep the previous default (true).
+	if (bInIsLoading)
+	{
+		bool bSerializedCanEverTick = bCanEverTick;
+		FJsonSerializer::ReadBool(InOutHandle, "bCanEverTick", bSerializedCanEverTick, bCanEverTick, false);
+		SetCanEverTick(bSerializedCanEverTick);
+	}
+	else
+	{
+		InOutHandle["bCanEverTick"] = bCanEverTick;
+	}
 
 	if (bInIsLoading)
 	{

@@ -122,6 +122,7 @@ public:
 
     /** === 타임 / 틱 === */
     virtual void Tick(float DeltaSeconds);
+    void RefreshActorTickRegistration(AActor* Actor);
     // Overlap pair de-duplication (per-frame)
     bool TryMarkOverlapPair(const AActor* A, const AActor* B);
 
@@ -185,6 +186,7 @@ private:
     /** === 레벨 컨테이너 === */
     std::unique_ptr<ULevel> Level;
     TArray<AActor*> PendingKillActors;  // 지연 삭제 예정 액터 목록
+    TArray<AActor*> TickActors;         // Tick이 필요한 레벨 액터만 등록
 
     /** === 라이트 매니저 ===*/
     std::unique_ptr<FLightManager> LightManager;

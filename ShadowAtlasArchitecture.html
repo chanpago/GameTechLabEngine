@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>GameTechLabEngine · Shadow Atlas Architecture</title>
+  <style>
+    :root {
+      --bg: #071019;
+      --surface: #0d1925;
+      --surface-2: #122231;
+      --surface-3: #172b3b;
+      --line: #294252;
+      --line-bright: #3d6071;
+      --text: #e9f4f6;
+      --muted: #9eb2bb;
+      --cyan: #55d6d0;
+      --cyan-soft: rgba(85, 214, 208, 0.14);
+      --blue: #6da9ff;
+      --violet: #a58bff;
+      --amber: #f7bf62;
+      --red: #ff7a78;
+      --green: #80d99b;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      --radius: 18px;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: Inter, Pretendard, "Noto Sans KR", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 86px; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 9% 5%, rgba(85, 214, 208, 0.13), transparent 30rem),
+        radial-gradient(circle at 94% 13%, rgba(109, 169, 255, 0.12), transparent 34rem),
+        linear-gradient(180deg, #08131d 0%, var(--bg) 52%, #060d14 100%);
+      font-family: var(--sans);
+      line-height: 1.65;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background-image:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black, transparent 74%);
+    }
+
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: var(--mono); }
+    .wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid rgba(61, 96, 113, 0.45);
+      background: rgba(7, 16, 25, 0.82);
+      backdrop-filter: blur(16px);
+    }
+
+    .topbar-inner {
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 750; letter-spacing: -.01em; }
+    .brand-mark {
+      width: 29px; height: 29px; border-radius: 9px;
+      display: grid; place-items: center;
+      color: #041316; background: linear-gradient(145deg, var(--cyan), #a7fff3);
+      box-shadow: 0 0 24px rgba(85, 214, 208, .25);
+      font-family: var(--mono); font-size: 13px; font-weight: 900;
+    }
+
+    nav { display: flex; gap: 18px; font-size: 13px; }
+    nav a { color: var(--muted); }
+    nav a:hover { color: var(--text); text-decoration: none; }
+
+    .hero { padding: 74px 0 44px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-bottom: 18px; padding: 6px 11px;
+      color: var(--cyan); background: var(--cyan-soft);
+      border: 1px solid rgba(85, 214, 208, .28); border-radius: 999px;
+      font: 700 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 7px; height: 7px; background: var(--cyan); border-radius: 50%; box-shadow: 0 0 12px var(--cyan); }
+    h1 { margin: 0; max-width: 860px; font-size: clamp(42px, 7vw, 80px); line-height: 1.02; letter-spacing: -.055em; }
+    h1 em { color: var(--cyan); font-style: normal; }
+    .lede { max-width: 850px; margin: 24px 0 0; color: #b9cbd2; font-size: clamp(17px, 2vw, 21px); line-height: 1.7; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+    .pill {
+      padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px;
+      color: var(--muted); background: rgba(13,25,37,.65); font-size: 12px;
+    }
+    .pill b { margin-right: 6px; color: var(--text); font-family: var(--mono); }
+
+    section { padding: 42px 0; }
+    .section-head { display: grid; grid-template-columns: 210px 1fr; gap: 30px; margin-bottom: 24px; }
+    .kicker { color: var(--cyan); font: 800 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    h2 { margin: 0; font-size: clamp(28px, 4vw, 43px); letter-spacing: -.035em; line-height: 1.12; }
+    h3 { margin: 0 0 10px; font-size: 19px; letter-spacing: -.015em; }
+    p { margin: 0; }
+    .section-copy { margin-top: 12px; color: var(--muted); max-width: 780px; }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(18,34,49,.9), rgba(10,21,31,.94));
+      box-shadow: var(--shadow);
+    }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric { padding: 20px; min-height: 142px; }
+    .metric .label { color: var(--muted); font-size: 12px; }
+    .metric .value { margin: 10px 0 4px; font: 750 clamp(21px, 2.6vw, 30px)/1.15 var(--mono); color: var(--text); }
+    .metric .sub { color: var(--muted); font-size: 13px; }
+    .metric .accent { color: var(--cyan); }
+
+    .architecture { padding: 22px; overflow: hidden; }
+    .arch-row { display: grid; grid-template-columns: 1fr 44px 1.25fr 44px 1fr; gap: 12px; align-items: stretch; }
+    .arch-col { display: flex; flex-direction: column; gap: 10px; }
+    .arch-title { margin-bottom: 4px; color: var(--muted); font: 700 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .node {
+      position: relative; padding: 16px; min-height: 82px;
+      border: 1px solid var(--line); border-radius: 13px; background: rgba(8,18,27,.75);
+    }
+    .node strong { display: block; margin-bottom: 5px; font-size: 14px; }
+    .node small { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .node.cyan { border-color: rgba(85,214,208,.42); background: rgba(43, 114, 112, .11); }
+    .node.blue { border-color: rgba(109,169,255,.42); background: rgba(60, 100, 160, .12); }
+    .node.violet { border-color: rgba(165,139,255,.42); background: rgba(106, 80, 180, .12); }
+    .arrow { display: grid; place-items: center; color: var(--cyan); font: 800 22px/1 var(--mono); }
+    .node .slot { float: right; color: var(--amber); font: 700 11px var(--mono); }
+
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; counter-reset: flow; }
+    .flow-step { position: relative; padding: 19px; min-height: 160px; }
+    .flow-step::before {
+      counter-increment: flow; content: "0" counter(flow);
+      display: block; margin-bottom: 26px; color: var(--cyan); font: 800 13px/1 var(--mono);
+    }
+    .flow-step:not(:last-child)::after {
+      content: "→"; position: absolute; top: 76px; right: -16px; z-index: 2;
+      width: 22px; height: 22px; display: grid; place-items: center;
+      color: var(--cyan); background: var(--bg); border-radius: 50%; font-weight: 900;
+    }
+    .flow-step strong { display: block; margin-bottom: 8px; font-size: 14px; }
+    .flow-step p { color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+    .atlas-layout { display: grid; grid-template-columns: minmax(320px, 1.08fr) .92fr; gap: 18px; }
+    .atlas-card { padding: 22px; }
+    .atlas-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 17px; }
+    .atlas-toolbar p { color: var(--muted); font-size: 12px; }
+    .atlas-grid {
+      aspect-ratio: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+      gap: 4px; padding: 5px; border: 1px solid var(--line-bright); border-radius: 12px;
+      background: #071019;
+    }
+    .tile {
+      display: flex; flex-direction: column; justify-content: space-between;
+      min-width: 0; padding: 10px; border-radius: 7px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.13); font-size: 11px;
+    }
+    .tile b { font-size: clamp(11px, 1.4vw, 14px); }
+    .tile span { opacity: .72; font: 10px var(--mono); }
+    .c0 { grid-area: 1 / 1 / 3 / 3; background: linear-gradient(145deg, rgba(85,214,208,.5), rgba(85,214,208,.17)); }
+    .c1 { grid-area: 1 / 3 / 3 / 5; background: linear-gradient(145deg, rgba(109,169,255,.5), rgba(109,169,255,.17)); }
+    .c2 { grid-area: 3 / 1 / 5 / 3; background: linear-gradient(145deg, rgba(165,139,255,.5), rgba(165,139,255,.17)); }
+    .spot-a { grid-area: 3 / 3 / 4 / 4; background: rgba(247,191,98,.32); }
+    .spot-b { grid-area: 3 / 4 / 4 / 5; background: rgba(247,191,98,.23); }
+    .spot-c { grid-area: 4 / 3 / 5 / 4; background: rgba(247,191,98,.17); }
+    .free { grid-area: 4 / 4 / 5 / 5; color: #69808b; border-style: dashed; background: repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(255,255,255,.025) 8px, rgba(255,255,255,.025) 16px); }
+    .caption { margin-top: 12px; color: var(--muted); font-size: 12px; }
+
+    .cube-stack { display: grid; gap: 9px; margin-top: 18px; }
+    .cube-layer { display: grid; grid-template-columns: 80px repeat(6, 1fr); gap: 6px; align-items: center; }
+    .cube-layer .layer-name { color: var(--muted); font: 11px var(--mono); }
+    .face { height: 34px; display: grid; place-items: center; border-radius: 7px; background: rgba(109,169,255,.16); border: 1px solid rgba(109,169,255,.3); color: #bdd6ff; font: 10px var(--mono); }
+    .cube-layer.dim { opacity: .48; }
+    .cube-more { padding-left: 86px; color: var(--muted); font: 11px var(--mono); }
+
+    .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .detail-card { padding: 22px; }
+    .detail-card.full { grid-column: 1 / -1; }
+    .tag { display: inline-block; margin-bottom: 13px; padding: 4px 8px; color: var(--cyan); border: 1px solid rgba(85,214,208,.3); border-radius: 999px; font: 700 10px var(--mono); }
+    .detail-card p, .detail-card li { color: var(--muted); font-size: 13px; }
+    ul { margin: 12px 0 0; padding-left: 19px; }
+    li + li { margin-top: 7px; }
+    pre {
+      margin: 16px 0 0; padding: 17px; overflow: auto;
+      border: 1px solid var(--line); border-radius: 12px; background: #071019;
+      color: #cde5e8; font-size: 12px; line-height: 1.7;
+    }
+    .comment { color: #6f8b96; }
+    .kw { color: var(--violet); }
+    .fn { color: var(--cyan); }
+    .num { color: var(--amber); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 13px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font: 700 11px var(--mono); letter-spacing: .04em; }
+    td code { color: #cbe5e7; font-size: 12px; }
+    tr:last-child td { border-bottom: 0; }
+    .table-wrap { overflow-x: auto; }
+
+    .formula {
+      padding: 24px; text-align: center; border: 1px solid rgba(85,214,208,.35);
+      background: linear-gradient(135deg, rgba(85,214,208,.1), rgba(109,169,255,.07));
+      border-radius: 14px; font: 700 clamp(15px, 2vw, 21px)/1.6 var(--mono);
+    }
+    .formula .under { display: block; color: var(--muted); font: 12px/1.6 var(--sans); }
+
+    .switcher { display: flex; gap: 8px; margin-bottom: 14px; }
+    .switcher button {
+      padding: 8px 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 9px;
+      background: rgba(7,16,25,.65); font: 700 12px var(--mono); cursor: pointer;
+    }
+    .switcher button.active { color: #061315; border-color: var(--cyan); background: var(--cyan); }
+    .tech-panel { display: none; }
+    .tech-panel.active { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .tech-step { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: rgba(7,16,25,.6); }
+    .tech-step b { display: block; margin-bottom: 7px; color: var(--cyan); font: 800 11px var(--mono); }
+    .tech-step p { color: var(--muted); font-size: 12px; }
+
+    .memory-bar { display: grid; grid-template-columns: 1fr 3fr 2fr; min-height: 62px; margin: 18px 0; overflow: hidden; border-radius: 12px; }
+    .memory-part { display: grid; place-items: center; padding: 8px; text-align: center; font: 750 11px/1.35 var(--mono); }
+    .memory-part:nth-child(1) { color: #052020; background: var(--cyan); }
+    .memory-part:nth-child(2) { color: #071324; background: var(--blue); }
+    .memory-part:nth-child(3) { color: #1d1024; background: var(--violet); }
+
+    .warning-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .warning { padding: 19px; border-left: 3px solid var(--amber); }
+    .warning.high { border-left-color: var(--red); }
+    .warning .severity { color: var(--amber); font: 800 10px var(--mono); letter-spacing: .07em; }
+    .warning.high .severity { color: var(--red); }
+    .warning h3 { margin-top: 8px; font-size: 16px; }
+    .warning p { color: var(--muted); font-size: 12px; }
+
+    .code-map { padding: 8px 22px; }
+    .code-map a { color: var(--text); }
+    .code-map a:hover { color: var(--cyan); }
+    .path { color: var(--muted); font: 11px var(--mono); }
+    .line { color: var(--amber); font: 700 11px var(--mono); white-space: nowrap; }
+
+    footer { padding: 44px 0 70px; color: var(--muted); font-size: 12px; }
+    footer .wrap { padding-top: 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 20px; }
+
+    @media (max-width: 900px) {
+      nav { display: none; }
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .section-head { grid-template-columns: 1fr; gap: 8px; }
+      .arch-row { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); height: 26px; }
+      .flow { grid-template-columns: 1fr; }
+      .flow-step { min-height: auto; }
+      .flow-step:not(:last-child)::after { content: "↓"; top: auto; bottom: -17px; right: 50%; }
+      .atlas-layout, .detail-grid { grid-template-columns: 1fr; }
+      .tech-panel.active { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 580px) {
+      .wrap { width: min(100% - 24px, 1180px); }
+      .hero { padding-top: 46px; }
+      .summary-grid, .warning-grid { grid-template-columns: 1fr; }
+      .cube-layer { grid-template-columns: repeat(6, 1fr); }
+      .cube-layer .layer-name { grid-column: 1 / -1; }
+      .cube-more { padding-left: 0; }
+      .memory-bar { grid-template-columns: 1fr; }
+      footer .wrap { flex-direction: column; }
+    }
+
+    @media print {
+      :root { --bg: white; --surface: white; --surface-2: #f5f7f8; --text: #15232b; --muted: #4e626c; --line: #c9d4d9; }
+      body { background: white; }
+      body::before, .topbar { display: none; }
+      .panel { box-shadow: none; break-inside: avoid; }
+      section { break-inside: avoid; }
+      a { color: #087d79; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand"><span class="brand-mark">SA</span> GameTechLabEngine</div>
+      <nav aria-label="문서 내 탐색">
+        <a href="#overview">개요</a>
+        <a href="#flow">프레임 흐름</a>
+        <a href="#storage">리소스</a>
+        <a href="#sampling">샘플링</a>
+        <a href="#risks">주의점</a>
+        <a href="#code-map">코드 맵</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <div class="eyebrow">D3D11 · Current implementation</div>
+      <h1>Shadow Map을 모아 쓰는<br><em>Shadow Atlas Architecture</em></h1>
+      <p class="lede">
+        GameTechLabEngine은 라이트마다 텍스처를 따로 바인딩하지 않는다. Directional/Spot은 하나의 2D Depth Atlas에,
+        Point는 하나의 TextureCubeArray에 기록하고, 셰이딩 시 고정 SRV 슬롯에서 재사용한다.
+      </p>
+      <div class="hero-meta">
+        <span class="pill"><b>t8</b>Point Cube Array</span>
+        <span class="pill"><b>t9</b>2D Depth Atlas</span>
+        <span class="pill"><b>t10</b>VSM Moments</span>
+        <span class="pill"><b>s2</b>Comparison Sampler</span>
+        <span class="pill"><b>s3</b>VSM Linear Sampler</span>
+      </div>
+    </div>
+
+    <section id="overview">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">01 / Overview</div>
+          <div>
+            <h2>세 종류의 라이트, 세 개의 GPU 리소스</h2>
+            <p class="section-copy">CPU는 렌더 요청과 아틀라스 좌표를 만들고, GPU는 라이트별 행렬과 Scale/Offset으로 자기 영역을 찾아 샘플링한다.</p>
+          </div>
+        </div>
+
+        <div class="summary-grid">
+          <article class="panel metric">
+            <div class="label">Directional + Spot</div>
+            <div class="value accent">4096²</div>
+            <div class="sub">D24 depth · 2D atlas</div>
+          </article>
+          <article class="panel metric">
+            <div class="label">Point lights</div>
+            <div class="value">1024² × 8</div>
+            <div class="sub">6 faces per cube · D24</div>
+          </article>
+          <article class="panel metric">
+            <div class="label">VSM moments</div>
+            <div class="value">4096²</div>
+            <div class="sub">R32G32_FLOAT · Spot path</div>
+          </article>
+          <article class="panel metric">
+            <div class="label">Default memory</div>
+            <div class="value">≈ 384 MiB</div>
+            <div class="sub">texture payload 기준</div>
+          </article>
+        </div>
+
+        <div class="panel architecture" style="margin-top:18px">
+          <div class="arch-row">
+            <div class="arch-col">
+              <div class="arch-title">Request producers</div>
+              <div class="node cyan"><strong>Directional Light</strong><small>카메라 프러스텀을 기본 3개 CSM slice로 분할</small></div>
+              <div class="node blue"><strong>Spot Light</strong><small>원뿔을 덮는 perspective view 1개 생성</small></div>
+              <div class="node violet"><strong>Point Light</strong><small>90° perspective view 6개 생성</small></div>
+            </div>
+            <div class="arrow" aria-hidden="true">→</div>
+            <div class="arch-col">
+              <div class="arch-title">Frame orchestration</div>
+              <div class="node cyan"><strong>FSceneRenderer::RenderShadowMaps</strong><small>캐스터 수집 → 요청 수집 → 리소스 충돌 해제 → depth pass 실행</small></div>
+              <div class="node"><strong>FLightManager allocators</strong><small>2D는 큰 요청 우선 Shelf Packing · Point는 cube slice 순차 할당</small></div>
+              <div class="node"><strong>FShadowMapData cache</strong><small>ViewProj · AtlasScaleOffset · Bias · Sharpen을 라이트별로 보관</small></div>
+            </div>
+            <div class="arrow" aria-hidden="true">→</div>
+            <div class="arch-col">
+              <div class="arch-title">GPU resources</div>
+              <div class="node cyan"><span class="slot">t9</span><strong>Texture2D Depth Atlas</strong><small>Directional CSM + Spot</small></div>
+              <div class="node blue"><span class="slot">t8</span><strong>TextureCubeArray</strong><small>Point light 최대 8개</small></div>
+              <div class="node violet"><span class="slot">t10</span><strong>Texture2D&lt;float2&gt;</strong><small>VSM 1·2차 moment</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">02 / Frame flow</div>
+          <div>
+            <h2>본 렌더링 전에 매 프레임 생성</h2>
+            <p class="section-copy">섀도우 아틀라스는 바인딩 비용을 줄이지만, 라이트 뷰마다 캐스터를 다시 그리는 비용까지 없애지는 않는다.</p>
+          </div>
+        </div>
+
+        <div class="flow">
+          <article class="panel flow-step"><strong>PrepareView</strong><p>카메라 행렬, near/far, view frustum과 shader macro를 준비한다.</p></article>
+          <article class="panel flow-step"><strong>GatherVisibleProxies</strong><p>현재 카메라에서 보이는 프리미티브와 mesh batch를 수집한다.</p></article>
+          <article class="panel flow-step"><strong>RenderShadowMaps</strong><p>라이트 요청을 패킹하고 2D atlas와 cube faces에 depth를 기록한다.</p></article>
+          <article class="panel flow-step"><strong>UpdateLightBuffer</strong><p>아틀라스 변환과 cube slice index를 라이트 데이터에 병합하고 t8~t10을 바인딩한다.</p></article>
+          <article class="panel flow-step"><strong>RenderLitPath</strong><p>각 픽셀이 자기 라이트의 atlas 영역을 비교 샘플링하여 조명에 shadow factor를 곱한다.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="storage">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">03 / Storage</div>
+          <div>
+            <h2>2D Atlas와 Cube Array의 역할 분담</h2>
+            <p class="section-copy">같은 샘플링 차원을 공유할 수 있는 라이트끼리 묶는다. 2D 투영은 큰 한 장에 패킹하고, 전방향 투영은 큐브 배열의 layer로 관리한다.</p>
+          </div>
+        </div>
+
+        <div class="atlas-layout">
+          <article class="panel atlas-card">
+            <div class="atlas-toolbar">
+              <div><h3>2D Depth Atlas</h3><p>대표적인 기본 배치 · 실제 배치는 요청 크기에 따라 매 프레임 결정</p></div>
+              <span class="pill"><b>4096²</b>D24</span>
+            </div>
+            <div class="atlas-grid" role="img" aria-label="3개의 2048 방향광 캐스케이드와 여러 1024 스포트라이트가 패킹된 4096 사각 아틀라스">
+              <div class="tile c0"><b>CSM 0</b><span>2048²</span></div>
+              <div class="tile c1"><b>CSM 1</b><span>2048²</span></div>
+              <div class="tile c2"><b>CSM 2</b><span>2048²</span></div>
+              <div class="tile spot-a"><b>Spot A</b><span>1024²</span></div>
+              <div class="tile spot-b"><b>Spot B</b><span>1024²</span></div>
+              <div class="tile spot-c"><b>Spot C</b><span>1024²</span></div>
+              <div class="tile free"><b>Free</b><span>1024²</span></div>
+            </div>
+            <p class="caption">큰 요청부터 내림차순 정렬한 뒤 왼쪽→오른쪽, 위→아래로 Shelf Packing한다. 공간이 없으면 요청의 Size를 0으로 바꿔 렌더링을 포기한다.</p>
+          </article>
+
+          <article class="panel atlas-card">
+            <div class="atlas-toolbar">
+              <div><h3>Point TextureCubeArray</h3><p>공간 패킹 대신 라이트 하나가 cube layer 하나를 사용</p></div>
+              <span class="pill"><b>8</b>cubes</span>
+            </div>
+            <div class="cube-stack">
+              <div class="cube-layer"><span class="layer-name">slice 0</span><span class="face">+X</span><span class="face">−X</span><span class="face">+Y</span><span class="face">−Y</span><span class="face">+Z</span><span class="face">−Z</span></div>
+              <div class="cube-layer"><span class="layer-name">slice 1</span><span class="face">+X</span><span class="face">−X</span><span class="face">+Y</span><span class="face">−Y</span><span class="face">+Z</span><span class="face">−Z</span></div>
+              <div class="cube-layer dim"><span class="layer-name">slice 2</span><span class="face">+X</span><span class="face">−X</span><span class="face">+Y</span><span class="face">−Y</span><span class="face">+Z</span><span class="face">−Z</span></div>
+              <div class="cube-more">⋮ &nbsp; slice 3–7</div>
+            </div>
+            <div class="formula" style="margin-top:24px">
+              array face = cubeSlice × 6 + faceIndex
+              <span class="under">각 face 전용 DSV로 렌더하고 전체 TextureCubeArray SRV 하나로 읽는다.</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="implementation">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">04 / Implementation</div>
+          <div>
+            <h2>요청 생성부터 Depth Pass까지</h2>
+            <p class="section-copy">라이트 컴포넌트는 투영만 책임지고, SceneRenderer가 패킹과 실제 draw를, LightManager가 리소스와 셰이더 전달 데이터를 책임진다.</p>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <article class="panel detail-card">
+            <span class="tag">REQUEST</span>
+            <h3>FShadowRenderRequest</h3>
+            <p>한 번의 shadow view 렌더링에 필요한 CPU 측 명세다. CSM은 cascade마다 하나, Spot은 하나, Point는 face마다 하나가 생성된다.</p>
+            <pre><span class="kw">struct</span> FShadowRenderRequest {
+  ULightComponent* LightOwner;
+  FMatrix ViewMatrix;
+  FMatrix ProjectionMatrix;
+  uint32 Size;
+  int32 SubViewIndex;
+  int32 AssignedSliceIndex;
+  FVector4 AtlasScaleOffset;
+  FVector2D AtlasViewportOffset;
+};</pre>
+          </article>
+
+          <article class="panel detail-card">
+            <span class="tag">PACKING</span>
+            <h3>2D Shelf Allocator</h3>
+            <p>요청 크기가 큰 순서대로 한 줄에 채우고, 너비를 넘으면 다음 shelf로 내린다. 빠르고 단순하지만 빈 공간 재활용과 padding은 없다.</p>
+            <pre><span class="fn">sortDescending</span>(requests, by Size);
+<span class="kw">for</span> (request : requests) {
+  <span class="kw">if</span> (x + size &gt; atlasWidth) <span class="fn">nextShelf</span>();
+  <span class="kw">if</span> (y + size &gt; atlasHeight) size = <span class="num">0</span>;
+
+  viewportOffset = { x, y };
+  atlasScale  = size / atlasSize;
+  atlasOffset = { x, y } / atlasSize;
+}</pre>
+          </article>
+
+          <article class="panel detail-card">
+            <span class="tag">DEPTH PASS</span>
+            <h3>Static + GPU-skinned caster</h3>
+            <p><code>DepthOnly_VS.hlsl</code> 하나를 static/skinned variant로 컴파일한다. 배치마다 world matrix와 필요 시 skin matrix SRV를 바인딩하고 DrawIndexed한다.</p>
+            <ul>
+              <li>Depth test/write: LessEqual</li>
+              <li>Rasterizer: no-cull, DepthBias 1000, SlopeScaled 4.0</li>
+              <li>PCF: pixel shader 없이 DSV만 기록</li>
+              <li>VSM: pixel shader로 정규화 거리의 1·2차 moment 출력</li>
+            </ul>
+          </article>
+
+          <article class="panel detail-card">
+            <span class="tag">TRANSFER</span>
+            <h3>FShadowMapData</h3>
+            <p>렌더가 끝나면 UV 변환과 품질 파라미터가 라이트별 캐시에 기록된다. 이후 Directional cbuffer 또는 Point/Spot structured buffer에 병합된다.</p>
+            <pre>ShadowViewProjMatrix = View × Projection × Bias;
+AtlasScaleOffset     = { scaleX, scaleY, offsetX, offsetY };
+ShadowBias           = light.ShadowBias;
+ShadowSlopeBias      = light.ShadowSlopeBias;
+ShadowSharpen        = light.ShadowSharpen;</pre>
+          </article>
+
+          <article class="panel detail-card full">
+            <span class="tag">LIGHT-SPECIFIC VIEWS</span>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>LIGHT</th><th>REQUEST COUNT</th><th>PROJECTION</th><th>DEFAULT SIZE</th><th>DESTINATION</th></tr></thead>
+                <tbody>
+                  <tr><td>Directional</td><td>기본 3개 CSM</td><td>카메라 slice를 감싸는 Orthographic</td><td><code>2048² / cascade</code></td><td>2D Atlas</td></tr>
+                  <tr><td>Spot</td><td>1개</td><td><code>FOV = OuterCone × 2</code>, near 0.5</td><td><code>1024²</code></td><td>2D Atlas + VSM Atlas</td></tr>
+                  <tr><td>Point</td><td>6개</td><td>90° Perspective, near 0.1</td><td><code>1024² / face</code></td><td>TextureCubeArray</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="sampling">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">05 / GPU sampling</div>
+          <div>
+            <h2>월드 좌표를 자기 Atlas 영역으로</h2>
+            <p class="section-copy">전체 텍스처를 공유하므로 라이트별 UV 영역 변환이 핵심이다. 행렬은 0–1 shadow UV까지 만들고 Scale/Offset이 이를 atlas UV로 축소·이동한다.</p>
+          </div>
+        </div>
+
+        <div class="panel detail-card">
+          <div class="formula">
+            shadowUV = worldPosition × ShadowViewProj<br>
+            atlasUV = shadowUV.xy × AtlasScaleOffset.xy + AtlasScaleOffset.zw
+            <span class="under">PCF에서는 atlasUV 주변을 비교 샘플링하고, 비교 깊이에는 constant + slope-scaled bias를 뺀다.</span>
+          </div>
+          <pre><span class="comment">// LightingCommon.hlsl — 2D atlas sample</span>
+float4 shadowCoord = mul(float4(worldPos, <span class="num">1</span>), light.ShadowViewProjMatrix);
+shadowCoord.xyz /= shadowCoord.w;
+
+float2 atlasUV = shadowCoord.xy * light.AtlasScaleOffset.xy
+                               + light.AtlasScaleOffset.zw;
+float slopeBias = light.ShadowSlopeBias * (<span class="num">1</span> - saturate(dot(normal, lightDir)));
+float compareDepth = shadowCoord.z - (light.ShadowBias + slopeBias);
+float visibility = shadowAtlas.<span class="fn">SampleCmpLevelZero</span>(shadowSampler, atlasUV, compareDepth);</pre>
+        </div>
+
+        <div class="panel detail-card" style="margin-top:14px">
+          <div class="switcher" role="tablist" aria-label="Shadow filtering 방식">
+            <button class="active" data-tech="pcf" role="tab" aria-selected="true">PCF</button>
+            <button data-tech="vsm" role="tab" aria-selected="false">VSM</button>
+          </div>
+          <div id="pcf" class="tech-panel active" role="tabpanel">
+            <div class="tech-step"><b>01 · WRITE</b><p>D24 depth만 기록한다. Shadow depth pass에서는 Pixel Shader가 필요 없다.</p></div>
+            <div class="tech-step"><b>02 · COMPARE</b><p><code>SamplerComparisonState</code>와 <code>SampleCmpLevelZero</code>로 저장 깊이와 현재 깊이를 비교한다.</p></div>
+            <div class="tech-step"><b>03 · FILTER</b><p>Poisson disk 최대 16탭을 평균한다. Sharpen 1은 1탭, 0은 16탭이다.</p></div>
+          </div>
+          <div id="vsm" class="tech-panel" role="tabpanel">
+            <div class="tech-step"><b>01 · WRITE</b><p>정규화 거리를 z라 할 때 RG32F에 E(z), E(z²)를 출력한다.</p></div>
+            <div class="tech-step"><b>02 · ESTIMATE</b><p>variance = E(z²) − E(z)²를 구하고 Chebyshev 상한으로 visibility를 추정한다.</p></div>
+            <div class="tech-step"><b>03 · SCOPE</b><p>현재 셰이딩 분기는 Spot에만 연결되어 있다. Directional과 Point는 계속 PCF 경로다.</p></div>
+          </div>
+        </div>
+
+        <div class="detail-grid" style="margin-top:14px">
+          <article class="panel detail-card">
+            <span class="tag">DIRECTIONAL CSM</span>
+            <h3>View-space Z로 cascade 선택</h3>
+            <p>카메라 near/far를 로그·선형 혼합으로 분할한다. 현재 픽셀의 view Z로 cascade를 고르고, overlap 구간에서는 이전 cascade와 선형 보간한다. 각 cascade 중심은 texel grid에 snap하여 카메라 이동 시 shimmering을 줄인다.</p>
+          </article>
+          <article class="panel detail-card">
+            <span class="tag">POINT CUBE</span>
+            <h3>방향 벡터 + cube slice index</h3>
+            <p><code>worldPos − lightPos</code>를 엔진/큐브맵 좌표계에 맞게 치환하고 <code>float4(direction, LightIndex)</code>로 TextureCubeArray를 샘플링한다. 필터 오프셋도 cube face UV에서 적용한다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="memory">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">06 / Cost model</div>
+          <div>
+            <h2>바인딩은 줄지만 draw는 그대로</h2>
+            <p class="section-copy">Atlas의 주효과는 SRV 수와 리소스 관리 비용 감소다. 캐스케이드와 cube face마다 장면을 다시 그리는 shadow pass 비용은 별도로 최적화해야 한다.</p>
+          </div>
+        </div>
+
+        <div class="panel detail-card">
+          <h3>기본 설정의 texture payload</h3>
+          <div class="memory-bar" aria-label="2D Depth 64 MiB, Point Cube 192 MiB, VSM 128 MiB">
+            <div class="memory-part">2D DEPTH<br>64 MiB</div>
+            <div class="memory-part">POINT CUBE<br>192 MiB</div>
+            <div class="memory-part">VSM<br>128 MiB</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>RESOURCE</th><th>CALCULATION</th><th>PAYLOAD</th></tr></thead>
+              <tbody>
+                <tr><td>2D Depth Atlas</td><td><code>4096 × 4096 × 4 bytes</code></td><td>64 MiB</td></tr>
+                <tr><td>Point Cube Array</td><td><code>1024 × 1024 × 6 × 8 × 4 bytes</code></td><td>192 MiB</td></tr>
+                <tr><td>VSM Atlas</td><td><code>4096 × 4096 × 8 bytes</code></td><td>128 MiB</td></tr>
+                <tr><td><strong>Total</strong></td><td>view object와 light buffer 제외</td><td><strong>약 384 MiB</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="caption">Preview World는 2D/VSM atlas를 512²로 낮추고 cube array를 만들지 않아 메모리를 크게 절약한다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="risks">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">07 / Current risks</div>
+          <div>
+            <h2>현재 구현에서 먼저 손볼 지점</h2>
+            <p class="section-copy">아래는 설계상 가능성이 아니라 현재 코드 경로에서 직접 확인되는 동작이다. 품질과 프레임 비용에 영향이 큰 순서로 정리했다.</p>
+          </div>
+        </div>
+
+        <div class="warning-grid">
+          <article class="panel warning high">
+            <div class="severity">HIGH · CORRECTNESS</div>
+            <h3>캐스터가 메인 카메라 기준으로만 수집됨</h3>
+            <p>라이트 frustum이 아니라 camera frustum에 들어온 mesh만 shadow caster가 된다. 화면 밖 물체가 화면 안으로 드리우는 그림자가 누락될 수 있다.</p>
+          </article>
+          <article class="panel warning high">
+            <div class="severity">HIGH · VSM</div>
+            <h3>Spot VSM의 WorldPosition 전달 누락</h3>
+            <p>VSM 생성은 request의 light position으로 거리를 기록하지만, 렌더 후 만든 FShadowMapData에는 WorldPosition을 명시적으로 채우지 않는다. 샘플 깊이와 기록 깊이의 기준이 달라질 수 있다.</p>
+          </article>
+          <article class="panel warning">
+            <div class="severity">MEDIUM · BLEEDING</div>
+            <h3>2D 타일 사이 padding/gutter 없음</h3>
+            <p>PCF가 atlas tile 바깥 texel을 읽으면 이웃 라이트의 depth가 섞일 수 있다. Border sampler는 전체 텍스처 외곽에만 적용되므로 내부 경계를 보호하지 못한다.</p>
+          </article>
+          <article class="panel warning">
+            <div class="severity">MEDIUM · COST</div>
+            <h3>CastShadows/visibility 전에 요청을 생성</h3>
+            <p>등록된 모든 Directional, Spot, Point 라이트가 요청 목록에 들어간다. 셰이딩에서는 꺼져 있어도 atlas 공간과 shadow draw 비용을 사용할 수 있다.</p>
+          </article>
+          <article class="panel warning">
+            <div class="severity">MEDIUM · STALE CACHE</div>
+            <h3>Cube 할당 실패 시 −1이 캐시를 지우지 못함</h3>
+            <p>실패 경로는 SetShadowCubeMapData(light, −1)를 호출하지만 함수가 음수 index를 즉시 return한다. 이전 frame의 slice index가 캐시에 남을 가능성이 있다.</p>
+          </article>
+          <article class="panel warning">
+            <div class="severity">MEDIUM · DEPTH</div>
+            <h3>Point near plane 불일치</h3>
+            <p>cube face 투영 행렬은 near 0.1을 쓰지만 HLSL의 비선형 비교 깊이는 0.2를 사용한다. 저장된 hardware depth와 비교식 사이에 오차가 생긴다.</p>
+          </article>
+          <article class="panel warning">
+            <div class="severity">MEDIUM · QUALITY MODE</div>
+            <h3>VSM은 Spot에만 연결</h3>
+            <p>VSM atlas와 shader variant는 존재하지만 Directional CSM과 Point shadow 샘플링은 VSM 선택과 관계없이 PCF를 사용한다. Point VSM cube 리소스는 TODO 상태다.</p>
+          </article>
+          <article class="panel warning">
+            <div class="severity">LOW · PERFORMANCE</div>
+            <h3>정적 shadow cache 없음</h3>
+            <p>라이트와 캐스터가 움직이지 않아도 전체 shadow pass를 매 프레임 반복한다. Atlas는 resource binding을 줄일 뿐 draw call 수를 줄이지 않는다.</p>
+          </article>
+        </div>
+
+        <div class="panel detail-card" style="margin-top:14px">
+          <h3>권장 개선 순서</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>PRIORITY</th><th>CHANGE</th><th>EXPECTED EFFECT</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>라이트별 caster culling + off-screen caster 보존</td><td>그림자 누락 해결, 불필요 draw 감소</td></tr>
+                <tr><td>2</td><td>요청 생성 전에 visible / actor active / CastShadows 검사</td><td>Atlas 점유와 shadow pass 비용 즉시 감소</td></tr>
+                <tr><td>3</td><td>Atlas tile에 PCF 반경 이상의 2–4 texel gutter 추가</td><td>타일 경계 bleeding 제거</td></tr>
+                <tr><td>4</td><td>VSM light position 및 Point near plane 일치</td><td>깊이 비교 정확도 회복</td></tr>
+                <tr><td>5</td><td>Static/dynamic shadow cache 및 dirty tracking</td><td>움직임 없는 프레임의 shadow draw 제거</td></tr>
+                <tr><td>6</td><td>importance/distance 기반 해상도와 안정적인 persistent allocation</td><td>메모리·품질 균형, atlas 재배치 감소</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="code-map">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="kicker">08 / Code map</div>
+          <div>
+            <h2>구현을 따라갈 때 볼 파일</h2>
+            <p class="section-copy">경로는 이 HTML 파일을 기준으로 한 상대 링크다. 브라우저 보안 설정에 따라 로컬 소스 링크는 새 탭에서 열리지 않을 수 있다.</p>
+          </div>
+        </div>
+
+        <div class="panel code-map table-wrap">
+          <table>
+            <thead><tr><th>ROLE</th><th>FILE</th><th>KEY AREA</th></tr></thead>
+            <tbody>
+              <tr><td>프레임 orchestration</td><td><a href="../Source/Runtime/Renderer/SceneRenderer.cpp"><span class="path">Source/Runtime/Renderer/SceneRenderer.cpp</span></a></td><td><span class="line">Render: 93 · Shadow: 273 · Depth pass: 525</span></td></tr>
+              <tr><td>리소스·패킹·바인딩</td><td><a href="../Source/Runtime/Renderer/LightManager.cpp"><span class="path">Source/Runtime/Renderer/LightManager.cpp</span></a></td><td><span class="line">Initialize: 16 · Bind: 281 · Allocate: 535</span></td></tr>
+              <tr><td>CPU/HLSL 공유 데이터 정의</td><td><a href="../Source/Runtime/Renderer/LightManager.h"><span class="path">Source/Runtime/Renderer/LightManager.h</span></a></td><td><span class="line">FShadowMapData: 24 · Resources: 186</span></td></tr>
+              <tr><td>Directional CSM views</td><td><a href="../Source/Runtime/Engine/Components/DirectionalLightComponent.cpp"><span class="path">Source/Runtime/Engine/Components/DirectionalLightComponent.cpp</span></a></td><td><span class="line">GetShadowRenderRequests: 85</span></td></tr>
+              <tr><td>Spot shadow view</td><td><a href="../Source/Runtime/Engine/Components/SpotLightComponent.cpp"><span class="path">Source/Runtime/Engine/Components/SpotLightComponent.cpp</span></a></td><td><span class="line">Request: 52 · Matrices: 213</span></td></tr>
+              <tr><td>Point cube views</td><td><a href="../Source/Runtime/Engine/Components/PointLightComponent.cpp"><span class="path">Source/Runtime/Engine/Components/PointLightComponent.cpp</span></a></td><td><span class="line">GetShadowRenderRequests: 14</span></td></tr>
+              <tr><td>Depth-only shaders</td><td><a href="../Shaders/Shadows/DepthOnly_VS.hlsl"><span class="path">Shaders/Shadows/DepthOnly_VS.hlsl</span></a> · <a href="../Shaders/Shadows/DepthOnly_PS.hlsl"><span class="path">DepthOnly_PS.hlsl</span></a></td><td><span class="line">VS static/skinned · PS VSM moments</span></td></tr>
+              <tr><td>PCF·VSM·CSM 샘플링</td><td><a href="../Shaders/Common/LightingCommon.hlsl"><span class="path">Shaders/Common/LightingCommon.hlsl</span></a></td><td><span class="line">VSM: 290 · PCF: 369 · CSM: 523</span></td></tr>
+              <tr><td>Material resource slots</td><td><a href="../Shaders/Materials/UberLit.hlsl"><span class="path">Shaders/Materials/UberLit.hlsl</span></a></td><td><span class="line">t8–t11: 112 · lighting loop: 665</span></td></tr>
+              <tr><td>Sampler·rasterizer state</td><td><a href="../Source/Runtime/RHI/D3D11RHI.cpp"><span class="path">Source/Runtime/RHI/D3D11RHI.cpp</span></a></td><td><span class="line">Samplers: 269 · Shadow rasterizer: 898</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>GameTechLabEngine · Shadow Atlas Architecture</span>
+      <span>코드 기준 문서 · 2026-08-12</span>
+    </div>
+  </footer>
+
+  <script>
+    document.querySelectorAll('[data-tech]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.tech;
+        document.querySelectorAll('[data-tech]').forEach((item) => {
+          const active = item === button;
+          item.classList.toggle('active', active);
+          item.setAttribute('aria-selected', String(active));
+        });
+        document.querySelectorAll('.tech-panel').forEach((panel) => {
+          panel.classList.toggle('active', panel.id === target);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
