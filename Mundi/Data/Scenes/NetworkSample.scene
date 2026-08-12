@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "NextUUID": 1000,
+  "PerspectiveCamera": {
+    "Location": [-14.0, -14.0, 11.0],
+    "Rotation": [0.0, -30.0, 45.0],
+    "FOV": [60.0],
+    "NearClip": [0.1],
+    "FarClip": [200.0]
+  },
+  "Actors": {}
+}

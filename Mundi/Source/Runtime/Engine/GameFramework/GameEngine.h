@@ -15,6 +15,7 @@ public:
     bool Startup(HINSTANCE hInstance);
     void MainLoop();
     void Shutdown();
+    void ConfigureFromCommandLine(const wchar_t* CommandLine);
 
     bool IsPlayActive() const { return bPlayActive; }
     bool IsPIEActive() const { return bPlayActive; }  // Game 모드에서는 PlayActive와 동일
@@ -40,6 +41,7 @@ private:
     void Render();
 
     void HandleUVInput(float DeltaSeconds);
+    void SetupNetworkSampleWorld();
 public:
     //게임의 메인 뷰포트
     std::unique_ptr<FViewport> GameViewport;
@@ -62,6 +64,14 @@ private:
     bool bPlayActive = false;
     float UVScrollTime = 0.0f;
     FVector2D UVScrollSpeed = FVector2D(0.5f, 0.5f);
+
+    // Standalone launch options
+    bool bNetworkMode = false;
+    bool bUseUdpMovement = true;
+    bool bUseServerReconciliation = true;
+    FString StartupSceneName = "FINALgameScene";
+    FString NetworkServerAddress = "127.0.0.1";
+    uint16 NetworkServerPort = 7777;
 
     // 클라이언트 사이즈
     static float ClientWidth;

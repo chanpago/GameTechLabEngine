@@ -34,6 +34,7 @@
 #include "Hash.h"
 #include "InputManager.h"
 #include "GameModeBase.h"
+#include "Source/Runtime/Network/NetworkManager.h"
 
 IMPLEMENT_CLASS(UWorld)
 
@@ -62,6 +63,9 @@ UWorld::UWorld() : Partition(nullptr)  // Will be created in Initialize() based 
 UWorld::~UWorld()
 {
 	bIsTearingDown = true;	// 월드 삭제 중에는 새로운 액터 생성을 방지하기 위해
+
+	// Network thread가 UObject 수명보다 먼저 완전히 끝나도록 한다.
+	DisableNetworkClient();
 
 	if (Level)
 	{
@@ -203,6 +207,24 @@ void UWorld::InitializePhysScene()
 	{
 		UE_LOG("[World] PhysScene initialization failed!");
 		PhysScene.reset();
+	}
+}
+
+bool UWorld::EnableNetworkClient(const FString& Address, uint16 Port,
+	bool bUseUdpMovement, bool bUseServerReconciliation)
+{
+	DisableNetworkClient();
+	NetworkManager = std::make_unique<FNetworkManager>();
+	NetworkManager->ConfigureMovement(bUseUdpMovement, bUseServerReconciliation);
+	return NetworkManager->Connect(Address, Port);
+}
+
+void UWorld::DisableNetworkClient()
+{
+	if (NetworkManager)
+	{
+		NetworkManager->Disconnect();
+		NetworkManager.reset();
 	}
 }
 
@@ -362,6 +384,13 @@ void UWorld::Tick(float DeltaSeconds)
 	if (PhysScene && bPie)
 	{
 		PhysScene->WaitForSimulation();
+	}
+
+	// Network thread의 value packet은 main thread에서만 UObject 상태로 반영한다.
+	// Spawn/Despawn이 이번 frame의 TickActors 복사본에 반영되도록 복사 전에 실행한다.
+	if (NetworkManager)
+	{
+		NetworkManager->Tick(this, GetDeltaTime(EDeltaTime::Game));
 	}
 
 	// Tick 중 Spawn/Destroy로 등록 목록이 바뀌어도 현재 프레임 순회는 안전해야 한다.

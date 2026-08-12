@@ -29,6 +29,7 @@ class UStaticMesh;
 class FOcclusionCullingManagerCPU;
 class APlayerCameraManager;
 class AGameModeBase;
+class FNetworkManager;
 
 struct FTransform;
 struct FSceneCompData;
@@ -102,6 +103,12 @@ public:
 
     /** 뷰어 등 별도의 물리 시뮬레이션이 필요한 월드에서 호출 */
     void InitializePhysScene();
+
+    // Network sample에서만 명시적으로 활성화한다. Network thread는 UObject에 접근하지 않는다.
+    bool EnableNetworkClient(const FString& Address, uint16 Port,
+        bool bUseUdpMovement = true, bool bUseServerReconciliation = true);
+    void DisableNetworkClient();
+    FNetworkManager* GetNetworkManager() const { return NetworkManager.get(); }
 
     class UCameraComponent* GetWorldCamera(); 
     ACameraActor* GetEditorCameraActor() { return MainEditorCameraActor; }
@@ -196,6 +203,9 @@ private:
 
     /** === 물리 씬 ===*/
     std::unique_ptr<FPhysScene> PhysScene;
+
+    /** === 선택적 게임 네트워크 === */
+    std::unique_ptr<FNetworkManager> NetworkManager;
 
     // Fixed Timestep 물리 시뮬레이션
     static constexpr float FixedPhysicsDeltaTime = 1.0f / 60.0f;  // 60Hz 물리

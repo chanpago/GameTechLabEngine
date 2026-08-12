@@ -19,6 +19,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     FCrashHandler::Init();  
 
+#ifdef _GAME
+    GEngine.ConfigureFromCommandLine(GetCommandLineW());
+#endif
+
     if (!GEngine.Startup(hInstance))
         return -1;
 

@@ -140,7 +140,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);ThirdParty\Lua\lib\Debug\;ThirdParty\DirectXTex\lib\Debug\;ThirdParty\DirectXTK\lib\Debug\;ThirdParty\FBXSDK\lib\Debug\</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);ThirdParty\Lua\lib\Debug\;ThirdParty\DirectXTex\lib\Debug\;ThirdParty\DirectXTK\lib\Debug\;ThirdParty\FBXSDK\lib\Debug\;ThirdParty\physx\lib\debug\;ThirdParty\NvClothes\lib\Debug\</AdditionalLibraryDirectories>
       <AdditionalDependencies>DirectXTK.lib;DirectXTex.lib;%(AdditionalDependencies);Lua.lib;libfbxsdk-md.lib;alembic-md.lib;libxml2-md.lib;zlib-md.lib</AdditionalDependencies>
       <AdditionalOptions>/IGNORE:4099 /SOURCELINK:"$(IntDir)sourcelink.json" %(AdditionalOptions)</AdditionalOptions>
     </Link>
@@ -693,6 +693,8 @@
     <ClCompile Include="Source\Runtime\Engine\Spatial\Occlusion.cpp" />
     <ClCompile Include="Source\Runtime\Engine\Spatial\Octree.cpp" />
     <ClCompile Include="Source\Runtime\InputCore\InputManager.cpp" />
+    <ClCompile Include="Source\Runtime\Network\NetworkManager.cpp" />
+    <ClCompile Include="Source\Runtime\Network\NetworkPlayerActor.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\SceneRenderer.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\FViewport.cpp" />
     <ClCompile Include="Source\Runtime\Renderer\FViewportClient.cpp" />
@@ -1252,6 +1254,8 @@
     <ClInclude Include="Source\Runtime\Engine\Spatial\Octree.h" />
     <ClInclude Include="Source\Runtime\Engine\Spatial\WorldPartitionManager.h" />
     <ClInclude Include="Source\Runtime\InputCore\InputManager.h" />
+    <ClInclude Include="Source\Runtime\Network\NetworkManager.h" />
+    <ClInclude Include="Source\Runtime\Network\NetworkPlayerActor.h" />
     <ClInclude Include="Source\Runtime\Renderer\DecalStatManager.h" />
     <ClInclude Include="Source\Runtime\Renderer\SceneRenderer.h" />
     <ClInclude Include="Source\Runtime\Renderer\FViewport.h" />
@@ -1339,6 +1343,11 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Source\Runtime\Engine\Animation\Animinstance\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NetworkShared\NetworkShared.vcxproj">
+      <Project>{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

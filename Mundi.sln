@@ -5,6 +5,10 @@ VisualStudioVersion = 17.14.36414.22
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Mundi", "Mundi\Mundi.vcxproj", "{5284615B-23B0-454B-8694-15890740BD76}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NetworkShared", "NetworkShared\NetworkShared.vcxproj", "{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameTechLabServer", "GameTechLabServer\GameTechLabServer.vcxproj", "{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug_StandAlone|x64 = Debug_StandAlone|x64
@@ -21,6 +25,22 @@ Global
 		{5284615B-23B0-454B-8694-15890740BD76}.Release_StandAlone|x64.Build.0 = Release_StandAlone|x64
 		{5284615B-23B0-454B-8694-15890740BD76}.Release|x64.ActiveCfg = Release|x64
 		{5284615B-23B0-454B-8694-15890740BD76}.Release|x64.Build.0 = Release|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Debug_StandAlone|x64.ActiveCfg = Debug_StandAlone|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Debug_StandAlone|x64.Build.0 = Debug_StandAlone|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Debug|x64.ActiveCfg = Debug|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Debug|x64.Build.0 = Debug|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Release_StandAlone|x64.ActiveCfg = Release_StandAlone|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Release_StandAlone|x64.Build.0 = Release_StandAlone|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Release|x64.ActiveCfg = Release|x64
+		{9E1BC97D-44D6-4A94-B4AA-EC8CF86FA0D5}.Release|x64.Build.0 = Release|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Debug_StandAlone|x64.ActiveCfg = Debug_StandAlone|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Debug_StandAlone|x64.Build.0 = Debug_StandAlone|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Debug|x64.ActiveCfg = Debug|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Debug|x64.Build.0 = Debug|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Release_StandAlone|x64.ActiveCfg = Release_StandAlone|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Release_StandAlone|x64.Build.0 = Release_StandAlone|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Release|x64.ActiveCfg = Release|x64
+		{D5B40B8E-253F-44EE-9F76-C81B9CD01A31}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

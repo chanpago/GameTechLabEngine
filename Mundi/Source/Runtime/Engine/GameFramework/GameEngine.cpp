@@ -10,6 +10,17 @@
 #include "GameModeBase.h"
 #include "InputManager.h"
 #include "Source/Editor/FBX/FbxLoader.h"
+#include "Source/Runtime/Network/NetworkManager.h"
+#include "StaticMeshActor.h"
+#include "StaticMeshComponent.h"
+#include "CameraActor.h"
+#include "AmbientLightActor.h"
+#include "AmbientLightComponent.h"
+#include "DirectionalLightActor.h"
+#include "DirectionalLightComponent.h"
+#include <shellapi.h>
+
+#pragma comment(lib, "shell32")
 
 #include "BlueprintGraph/BlueprintActionDatabase.h"
 
@@ -57,6 +68,75 @@ UGameEngine::~UGameEngine()
 {
     // Cleanup is now handled in Shutdown()
     // Do not call FObjManager::Clear() here due to static destruction order
+}
+
+void UGameEngine::ConfigureFromCommandLine(const wchar_t* CommandLine)
+{
+    if (!CommandLine) return;
+    int ArgumentCount = 0;
+    LPWSTR* Arguments = CommandLineToArgvW(CommandLine, &ArgumentCount);
+    if (!Arguments) return;
+
+    for (int Index = 1; Index < ArgumentCount; ++Index)
+    {
+        const FWideString Argument = Arguments[Index];
+        if (Argument == L"-net")
+        {
+            bNetworkMode = true;
+            StartupSceneName = "NetworkSample";
+        }
+        else if (Argument == L"-udp-movement" || Argument == L"-udp-movement=on")
+        {
+            bUseUdpMovement = true;
+        }
+        else if (Argument == L"-tcp-movement" || Argument == L"-udp-movement=off")
+        {
+            bUseUdpMovement = false;
+        }
+        else if (Argument == L"-reconciliation" || Argument == L"-reconciliation=on")
+        {
+            bUseServerReconciliation = true;
+        }
+        else if (Argument == L"-no-reconciliation" || Argument == L"-reconciliation=off")
+        {
+            bUseServerReconciliation = false;
+        }
+        else if (Argument.rfind(L"-scene=", 0) == 0)
+        {
+            StartupSceneName = WideToUTF8(Argument.substr(7));
+        }
+        else if (Argument == L"-scene" && Index + 1 < ArgumentCount)
+        {
+            StartupSceneName = WideToUTF8(Arguments[++Index]);
+        }
+        else if (Argument.rfind(L"-server=", 0) == 0)
+        {
+            NetworkServerAddress = WideToUTF8(Argument.substr(8));
+        }
+        else if (Argument == L"-server" && Index + 1 < ArgumentCount)
+        {
+            NetworkServerAddress = WideToUTF8(Arguments[++Index]);
+        }
+        else if (Argument.rfind(L"-port=", 0) == 0)
+        {
+            try
+            {
+                const int ParsedPort = std::stoi(Argument.substr(6));
+                if (ParsedPort >= 1 && ParsedPort <= 65535) NetworkServerPort = static_cast<uint16>(ParsedPort);
+            }
+            catch (...) {}
+        }
+        else if (Argument == L"-port" && Index + 1 < ArgumentCount)
+        {
+            try
+            {
+                const int ParsedPort = std::stoi(Arguments[++Index]);
+                if (ParsedPort >= 1 && ParsedPort <= 65535) NetworkServerPort = static_cast<uint16>(ParsedPort);
+            }
+            catch (...) {}
+        }
+    }
+    LocalFree(Arguments);
 }
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -132,7 +212,7 @@ bool UGameEngine::CreateMainWindow(HINSTANCE hInstance)
 {
     // 윈도우 생성
     WCHAR WindowClass[] = L"JungleWindowClass";
-    WCHAR Title[] = L"Future Engine";
+    const WCHAR* Title = bNetworkMode ? L"GameTechLabEngine - Network Client" : L"Future Engine";
     HICON hIcon = (HICON)LoadImageW(NULL, L"Data\\Icon\\Future.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
     WNDCLASSW wndclass = { 0, WndProc, 0, 0, 0, hIcon, 0, 0, 0, WindowClass };
     RegisterClassW(&wndclass);
@@ -142,12 +222,12 @@ bool UGameEngine::CreateMainWindow(HINSTANCE hInstance)
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-    // 전체화면 스타일 (테두리 없음)
-    DWORD windowStyle = WS_POPUP | WS_VISIBLE;
-
-    // 전체화면 윈도우 생성 (0, 0 위치에 모니터 전체 크기)
+    // Network sample은 여러 client를 동시에 띄울 수 있도록 windowed로 실행한다.
+    const DWORD windowStyle = bNetworkMode ? (WS_OVERLAPPEDWINDOW | WS_VISIBLE) : (WS_POPUP | WS_VISIBLE);
+    const int WindowWidth = bNetworkMode ? 1024 : screenWidth;
+    const int WindowHeight = bNetworkMode ? 720 : screenHeight;
     HWnd = CreateWindowExW(0, WindowClass, Title, windowStyle,
-        0, 0, screenWidth, screenHeight,
+        bNetworkMode ? CW_USEDEFAULT : 0, bNetworkMode ? CW_USEDEFAULT : 0, WindowWidth, WindowHeight,
         nullptr, nullptr, hInstance, nullptr);
 
     if (!HWnd)
@@ -166,7 +246,7 @@ bool UGameEngine::Startup(HINSTANCE hInstance)
         return false;
 
     // 디바이스 리소스 및 렌더러 생성
-    RHIDevice.Initialize(HWnd);
+    RHIDevice.Initialize(HWnd, bNetworkMode);
     Renderer = std::make_unique<URenderer>(&RHIDevice);
 
     // Initialize audio device for game runtime
@@ -198,21 +278,35 @@ bool UGameEngine::Startup(HINSTANCE hInstance)
     GWorld->InitializePhysScene();  // PhysX 물리 씬 초기화
     ///////////////////////////////////
 
-    // 시작 scene(level)을 직접 로드
-    const FString StartupScenePath = GDataDir + "/Scenes/FINALgameScene.scene";
+    // 실행 인자로 기존 게임과 network sample scene을 분리한다.
+    const FString StartupScenePath = GDataDir + "/Scenes/" + StartupSceneName + ".scene";
     if (!GWorld->LoadLevelFromFile(UTF8ToWide(StartupScenePath)))
     {
         UE_LOG("Failed to load startup scene: %s", StartupScenePath.c_str());
         return false;
     }
 
-    // GameMode 생성 및 StartPlay 호출 (PlayerController, Pawn 생성 및 BeginPlay 처리)
-    if (GWorld->GetGameMode() == nullptr)
+    if (bNetworkMode)
     {
-        AGameModeBase* GM = GWorld->SpawnActor<AGameModeBase>(FTransform());
-        GWorld->SetGameMode(GM);
+        SetupNetworkSampleWorld();
+        if (!GWorld->EnableNetworkClient(NetworkServerAddress, NetworkServerPort,
+            bUseUdpMovement, bUseServerReconciliation))
+        {
+            UE_LOG("[Network] Initial connection failed: %s:%u", NetworkServerAddress.c_str(), NetworkServerPort);
+        }
+        INPUT.SetCursorVisible(true);
+        INPUT.ReleaseCursor();
     }
-    GWorld->GetGameMode()->StartPlay();
+    // 기존 게임 mode는 network sample에서 생성하지 않는다.
+    else
+    {
+        if (GWorld->GetGameMode() == nullptr)
+        {
+            AGameModeBase* GM = GWorld->SpawnActor<AGameModeBase>(FTransform());
+            GWorld->SetGameMode(GM);
+        }
+        GWorld->GetGameMode()->StartPlay();
+    }
 
     // 마우스는 게임 상태에 따라 GameState에서 제어
     // PressAnyKey/MainMenu 상태에서는 마우스가 보이고, Fighting 상태에서는 숨겨짐
@@ -264,9 +358,48 @@ void UGameEngine::Render()
 
     // ImGui 렌더링 (게임 UI - 체력바 등)
     UI.Render();
+    if (GWorld && GWorld->GetNetworkManager())
+    {
+        GWorld->GetNetworkManager()->DrawDebugHUD();
+    }
     UI.EndFrame();
 
     Renderer->EndFrame();
+}
+
+void UGameEngine::SetupNetworkSampleWorld()
+{
+    if (!GWorld) return;
+
+    // Scene 파일은 network mode 선택 단위이고, runtime 전용 actor는 code에서 구성한다.
+    // 이 actor들은 editor 저장 데이터나 기존 FINALgameScene을 변경하지 않는다.
+    AStaticMeshActor* Ground = GWorld->SpawnActor<AStaticMeshActor>(
+        FTransform(FVector(0.0f, 0.0f, -0.5f), FQuat::Identity(), FVector(15.0f, 15.0f, 0.5f)));
+    if (Ground)
+    {
+        Ground->ObjectName = "NetworkSample_Ground";
+        if (UStaticMeshComponent* Mesh = Ground->GetStaticMeshComponent())
+        {
+            if (Mesh->GetMaterial(0)) Mesh->SetMaterialColorByUser(0, "DiffuseColor", FLinearColor(0.18f, 0.22f, 0.28f, 1.0f));
+        }
+    }
+
+    ADirectionalLightActor* Directional = GWorld->SpawnActor<ADirectionalLightActor>();
+    if (Directional)
+    {
+        Directional->SetActorRotation(FQuat::FromAxisAngle(FVector(0.5f, -1.0f, 0.2f).GetSafeNormal(), DegreesToRadians(50.0f)));
+        Directional->GetLightComponent()->SetIntensity(2.0f);
+    }
+    AAmbientLightActor* Ambient = GWorld->SpawnActor<AAmbientLightActor>();
+    if (Ambient) Ambient->GetLightComponent()->SetIntensity(0.35f);
+
+    ACameraActor* Camera = GWorld->SpawnActor<ACameraActor>();
+    if (Camera)
+    {
+        const FVector CameraLocation(-14.0f, -14.0f, 11.0f);
+        Camera->SetActorLocation(CameraLocation);
+        Camera->SetForward((FVector(0.0f, 0.0f, 1.0f) - CameraLocation).GetSafeNormal());
+    }
 }
 
 void UGameEngine::HandleUVInput(float DeltaSeconds)

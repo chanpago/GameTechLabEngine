@@ -5,12 +5,20 @@
 #define USE_DDS_CACHE
 #define USE_OBJ_CACHE
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #define IMGUI_DEFINE_MATH_OPERATORS	// Imgui에서 곡선 표시를 위한 전용 벡터 연산자 활성화
 
 // Linker
 #pragma comment(lib, "user32")
 #pragma comment(lib, "d3d11")
 #pragma comment(lib, "d3dcompiler")
+#pragma comment(lib, "ws2_32")
 
 // DirectXTK
 #pragma comment(lib, "DirectXTK.lib")
@@ -38,9 +46,16 @@
 #include <filesystem>
 #include <sstream>
 #include <iterator>
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include <chrono>
 
 // Windows & DirectX
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
+#include <commdlg.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>

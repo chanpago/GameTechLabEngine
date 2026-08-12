@@ -53,7 +53,7 @@ public:
 
 
 public:
-	void Initialize(HWND hWindow);
+	void Initialize(HWND hWindow, bool bForceWindowed = false);
 
 	void Release();
 
@@ -239,7 +239,7 @@ public:
     ID3D11ShaderResourceView* GetBloomSRV(int index) { return BloomSRVs[index]; }
 
 private:
-	void CreateDeviceAndSwapChain(HWND hWindow); // 여기서 디바이스, 디바이스 컨택스트, 스왑체인, 뷰포트를 초기화한다
+	void CreateDeviceAndSwapChain(HWND hWindow, bool bForceWindowed); // 여기서 디바이스, 디바이스 컨택스트, 스왑체인, 뷰포트를 초기화한다
 	void CreateFrameBuffer();
 	void CreateIdBuffer();
 	void CreateDOFResources();  // DOF 렌더 타겟 생성

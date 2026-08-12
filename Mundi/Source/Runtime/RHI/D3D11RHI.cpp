@@ -3,10 +3,10 @@
 #include "GameOverlayD2D.h"
 #include "Color.h"
 
-void D3D11RHI::Initialize(HWND hWindow)
+void D3D11RHI::Initialize(HWND hWindow, bool bForceWindowed)
 {
     // 이곳에서 Device, DeviceContext, viewport, swapchain를 초기화한다
-    CreateDeviceAndSwapChain(hWindow);
+    CreateDeviceAndSwapChain(hWindow, bForceWindowed);
     CreateFrameBuffer();
     CreateIdBuffer();
     CreateDOFResources();  // DOF 렌더 타겟 생성
@@ -549,7 +549,7 @@ void D3D11RHI::Present()
     SwapChain->Present(0, 0); // vsync off (0 = no vsync, 1 = vsync)
 }
 
-void D3D11RHI::CreateDeviceAndSwapChain(HWND hWindow)
+void D3D11RHI::CreateDeviceAndSwapChain(HWND hWindow, bool bForceWindowed)
 {
     // 지원하는 Direct3D 기능 레벨을 정의
     D3D_FEATURE_LEVEL featurelevels[] = { D3D_FEATURE_LEVEL_11_0 };
@@ -567,9 +567,10 @@ void D3D11RHI::CreateDeviceAndSwapChain(HWND hWindow)
     swapchaindesc.OutputWindow = hWindow; // 렌더링할 창 핸들
 #ifdef _EDITOR
      swapchaindesc.Windowed = TRUE; // 에디터 모드: 창모드
-     #else
-       swapchaindesc.Windowed = FALSE; // 게임 모드: 전체화면 (프레임 제한 없애기 위함)
-    #endif
+#else
+     // 일반 game은 기존 전체화면 동작을 유지하고, network sample만 여러 client 비교를 위해 창모드로 실행한다.
+     swapchaindesc.Windowed = bForceWindowed ? TRUE : FALSE;
+#endif
     swapchaindesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // 스왑 방식
 
     // Direct3D 장치와 스왑 체인을 생성
