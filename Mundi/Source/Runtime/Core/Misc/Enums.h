@@ -85,6 +85,7 @@ enum class EViewMode : uint32
     VMI_WorldNormal,        // World Normal 시각화
     VMI_Wireframe,          // 와이어프레임
     VMI_SceneDepth,         // 깊이 버퍼 시각화
+    VMI_PBRMask,            // PBR 적용 여부 시각화 (초록=PBR, 빨강=Blinn-Phong)
 
     End,
 };
@@ -185,13 +186,14 @@ enum class EEngineShowFlags : uint64
     SF_FrustumCulling = 1ull << 22,
     SF_OcclusionCulling = 1ull << 23,
     SF_MaterialSorting = 1ull << 24,
+    SF_PBR = 1ull << 25,             // Enable/disable direct-light PBR shading
     SF_TileDepthDebug = 1ull << 26,  // Show tile Min/Max depth ranges used by Forward+
     SF_StaticMeshCachedPath = 1ull << 27, // Persistent static-mesh draw-command cache (opt-in)
 
     // Default enabled flags
     SF_DefaultEnabled = SF_Primitives | SF_StaticMeshes | SF_SkeletalMeshes | SF_Grid | SF_Lighting | SF_Decals |
         SF_Fog | SF_FXAA | SF_Billboard | SF_EditorIcon | SF_Shadows | SF_ShadowAntiAliasing | SF_GPUSkinning | SF_Particle | SF_DOF |
-        SF_FrustumCulling | SF_OcclusionCulling | SF_MaterialSorting,
+        SF_FrustumCulling | SF_OcclusionCulling | SF_MaterialSorting | SF_PBR,
 
     // All flags (for initialization/reset)
     SF_All = 0xFFFFFFFFFFFFFFFFull

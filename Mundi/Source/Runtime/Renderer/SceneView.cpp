@@ -111,6 +111,10 @@ TArray<FShaderMacro> FSceneView::CreateViewShaderMacros()
 	case EViewMode::VMI_WorldNormal:
 		ShaderMacros.push_back(FShaderMacro{ "VIEWMODE_WORLD_NORMAL", "1" });
 		break;
+	case EViewMode::VMI_PBRMask:
+		ShaderMacros.push_back(FShaderMacro{ "LIGHTING_MODEL_PHONG", "1" });
+		ShaderMacros.push_back(FShaderMacro{ "VIEWMODE_PBR_MASK", "1" });
+		break;
 	default:
 		// 셰이더를 강제하지 않는 모드는 여기서 처리 가능
 		break;

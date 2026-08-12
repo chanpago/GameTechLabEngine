@@ -53,7 +53,7 @@ private:
 
     // ViewMode 관련 상태 저장
     int CurrentLitSubMode = 0; // 0=default(Phong) 1=Gouraud, 2=Lambert, 3=Phong [기본값: default(Phong)]
-    int CurrentBufferVisSubMode = 1; // 0=SceneDepth, 1=WorldNormal (기본값: WorldNormal)
+    int CurrentBufferVisSubMode = 1; // 0=SceneDepth, 1=WorldNormal, 2=PBRMask (기본값: WorldNormal)
 
     // 툴바 아이콘 텍스처
     UTexture* IconSelect = nullptr;

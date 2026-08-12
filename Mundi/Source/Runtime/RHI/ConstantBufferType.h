@@ -204,6 +204,8 @@ struct FPixelConstBufferType
     uint32 bHasMaterial;
     uint32 bHasDiffuseTexture;
     uint32 bHasNormalTexture;
+	uint32 bEnablePBR;
+	uint32 PBRPadding[3];
 	uint32 bHasORMTexture;	// ORM í…ìŠ¤ì²˜ ìœ ë¬´ (Occlusion, Roughness, Metallic)
 };
 

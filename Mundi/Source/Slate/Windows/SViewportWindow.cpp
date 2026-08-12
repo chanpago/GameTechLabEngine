@@ -267,6 +267,9 @@ void SViewportWindow::RenderToolbar()
 			case EViewMode::VMI_SceneDepth:
 				CurrentViewModeName = "씬 뎁스";
 				break;
+			case EViewMode::VMI_PBRMask:
+				CurrentViewModeName = "PBR 마스크";
+				break;
 			}
 		}
 
@@ -1006,6 +1009,10 @@ void SViewportWindow::RenderViewModeDropdownMenu()
 		CurrentViewModeName = "씬 뎁스";
 		CurrentViewModeIcon = IconViewMode_BufferVis;
 		break;
+	case EViewMode::VMI_PBRMask:
+		CurrentViewModeName = "PBR 마스크";
+		CurrentViewModeIcon = IconViewMode_BufferVis;
+		break;
 	}
 
 	// 드롭다운 버튼 텍스트 준비
@@ -1223,7 +1230,8 @@ void SViewportWindow::RenderViewModeDropdownMenu()
 
 		// ===== Buffer Visualization 메뉴 (서브메뉴 포함) =====
 		bool bIsBufferVis = (CurrentViewMode == EViewMode::VMI_WorldNormal ||
-			CurrentViewMode == EViewMode::VMI_SceneDepth);
+			CurrentViewMode == EViewMode::VMI_SceneDepth ||
+			CurrentViewMode == EViewMode::VMI_PBRMask);
 
 		const char* BufferVisRadioIcon = bIsBufferVis ? "●" : "○";
 
@@ -1283,6 +1291,22 @@ void SViewportWindow::RenderViewModeDropdownMenu()
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::SetTooltip("월드 공간의 노멀 벡터를 RGB로 표시\nR=X, G=Y, B=Z 축 방향");
+			}
+
+			// PBR Mask
+			bool bIsPBRMask = (CurrentViewMode == EViewMode::VMI_PBRMask);
+			const char* PBRMaskIcon = bIsPBRMask ? "●" : "○";
+			char PBRMaskLabel[32];
+			sprintf_s(PBRMaskLabel, "%s PBR 마스크", PBRMaskIcon);
+			if (ImGui::MenuItem(PBRMaskLabel))
+			{
+				ViewportClient->SetViewMode(EViewMode::VMI_PBRMask);
+				CurrentBufferVisSubMode = 2;
+				ImGui::CloseCurrentPopup();
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("초록색: PBR 적용\n빨간색: Blinn-Phong 폴백");
 			}
 
 			ImGui::EndMenu();
@@ -1747,6 +1771,19 @@ void SViewportWindow::RenderShowFlagDropdownMenu()
 		// --- 섹션: 그래픽스 기능 ---
 		ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "그래픽스 기능");
 		ImGui::Separator();
+
+		bool bPBR = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_PBR);
+		if (ImGui::Checkbox(" PBR 직접광", &bPBR))
+		{
+			RenderSettings.ToggleShowFlag(EEngineShowFlags::SF_PBR);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("ORM 머티리얼의 직접광 셰이딩을 PBR과 Blinn-Phong 사이에서 전환합니다.");
+		}
+
+		ImGui::Separator();
+
 		bool bFrustumCulling = RenderSettings.IsShowFlagEnabled(EEngineShowFlags::SF_FrustumCulling);
 		if (ImGui::Checkbox(" 프러스텀 컬링", &bFrustumCulling))
 		{

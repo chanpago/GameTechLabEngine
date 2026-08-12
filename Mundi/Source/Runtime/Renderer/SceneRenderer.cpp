@@ -134,6 +134,10 @@ void FSceneRenderer::Render()
 	{
 		RenderLitPath();	// World Normal 시각화 모드
 	}
+	else if (View->RenderSettings->GetViewMode() == EViewMode::VMI_PBRMask)
+	{
+		RenderLitPath();	// PBR 적용 여부 시각화 모드
+	}
 	else if (View->RenderSettings->GetViewMode() == EViewMode::VMI_Wireframe)
 	{
 		RenderWireframePath();
@@ -1657,8 +1661,9 @@ void FSceneRenderer::RenderDecalPass()
 	if (Proxies.Decals.empty())
 		return;
 
-	// WorldNormal 모드에서는 Decal 렌더링 스킵
-	if (View->RenderSettings->GetViewMode() == EViewMode::VMI_WorldNormal)
+	// 머티리얼 디버그 뷰에서는 Decal 렌더링 스킵
+	if (View->RenderSettings->GetViewMode() == EViewMode::VMI_WorldNormal ||
+		View->RenderSettings->GetViewMode() == EViewMode::VMI_PBRMask)
 		return;
 
 	UWorldPartitionManager* Partition = World->GetPartitionManager();
@@ -2113,7 +2118,9 @@ void FSceneRenderer::DrawMeshBatches(
 	RHIDevice->GetDeviceContext()->PSSetShaderResources(0, 2, nullSRVs);
 	ID3D11SamplerState* nullSamplers[2] = { nullptr, nullptr };
 	RHIDevice->GetDeviceContext()->PSSetSamplers(0, 2, nullSamplers);
+	const uint32 bPBREnabled = World->GetRenderSettings().IsShowFlagEnabled(EEngineShowFlags::SF_PBR) ? 1u : 0u;
 	FPixelConstBufferType DefaultPixelConst{};
+	DefaultPixelConst.bEnablePBR = bPBREnabled;
 	RHIDevice->SetAndUpdateConstantBuffer(DefaultPixelConst);
 
 	// 현재 GPU 상태 캐싱용 변수 (UStaticMesh* 대신 실제 GPU 리소스로 변경)
@@ -2191,6 +2198,7 @@ void FSceneRenderer::DrawMeshBatches(
 			ID3D11ShaderResourceView* NormalTextureSRV = nullptr;  // t1
 			ID3D11ShaderResourceView* ORMTextureSRV = nullptr;     // t2 (Occlusion, Roughness, Metallic)
 			FPixelConstBufferType PixelConst{};
+			PixelConst.bEnablePBR = bPBREnabled;
 
 			if (Batch.Material)
 			{

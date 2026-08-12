@@ -64,6 +64,8 @@ cbuffer PixelConstBuffer : register(b4)
     uint bHasMaterial;          // 4 bytes (HLSL)
     uint bHasTexture;           // 4 bytes (HLSL)
     uint bHasNormalTexture;
+    uint bEnablePBR;
+    uint3 PBRPadding;
     uint bHasORMTexture;        // ORM 텍스처 유무 (Occlusion, Roughness, Metallic)
 };
 
@@ -346,6 +348,15 @@ PS_OUTPUT mainPS(PS_INPUT Input)
 {
     PS_OUTPUT Output;
     Output.UUID = UUID;
+
+#ifdef VIEWMODE_PBR_MASK
+    // Green: PBR is active. Red: the material is using the Blinn-Phong fallback.
+    bool bPBRActive = (bEnablePBR != 0) && (bHasORMTexture != 0);
+    Output.Color = bPBRActive
+        ? float4(0.0f, 1.0f, 0.0f, 1.0f)
+        : float4(1.0f, 0.0f, 0.0f, 1.0f);
+    return Output;
+#endif
     
     //CSM 구간 시각화
     float3 Color[2] =
@@ -593,7 +604,8 @@ PS_OUTPUT mainPS(PS_INPUT Input)
     float ao = 1.0f;
     float roughness = 0.5f;
     float metallic = 0.0f;
-    if (bHasORMTexture)
+    bool bUsePBR = (bEnablePBR != 0) && (bHasORMTexture != 0);
+    if (bUsePBR)
     {
         float3 orm = g_ORMTexColor.Sample(g_Sample, uv).rgb;
         ao = saturate(orm.r);
@@ -652,7 +664,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
 
     // Directional light (diffuse + specular)
     float3 DirectionalLightColor;
-    if (bHasORMTexture)
+    if (bUsePBR)
     {
         DirectionalLightColor = CalculateDirectionalLightPBR(DirectionalLight, Input.WorldPos, ViewPos.xyz, normal, viewDir, float4(diffuseColor, baseColor.a), true, specPower, g_ShadowAtlas2D, g_ShadowSample, specularColorPBR, roughness);
     }
@@ -685,7 +697,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
 
             if (lightType == 0)  // Point Light
             {
-                if (bHasORMTexture)
+                if (bUsePBR)
                 {
                     litColor += CalculatePointLightPBR(g_PointLightList[lightIdx], Input.WorldPos, normal, viewDir, float4(diffuseColor, baseColor.a), true, specPower, g_ShadowAtlasCube, g_ShadowSample, specularColorPBR, roughness);
                 }
@@ -696,7 +708,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
             }
             else if (lightType == 1)  // Spot Light
             {
-                if (bHasORMTexture)
+                if (bUsePBR)
                 {
                     litColor +=  CalculateSpotLightPBR(g_SpotLightList[lightIdx], Input.WorldPos, normal,
                         viewDir, float4(diffuseColor, baseColor.a), true,
@@ -716,7 +728,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
         // 타일 컴링 비활성화: 모든 라이트 순회 (기존 방식)
         for (int i = 0; i < PointLightCount; i++)
         {
-            if (bHasORMTexture)
+            if (bUsePBR)
             {
                 litColor += CalculatePointLightPBR(g_PointLightList[i], Input.WorldPos, normal, viewDir, float4(diffuseColor, baseColor.a), true, specPower, g_ShadowAtlasCube, g_ShadowSample, specularColorPBR, roughness);
             }
@@ -729,7 +741,7 @@ PS_OUTPUT mainPS(PS_INPUT Input)
         [loop]
         for (int j = 0; j < SpotLightCount; j++)
         {
-            if (bHasORMTexture)
+            if (bUsePBR)
             {
                 litColor +=  CalculateSpotLightPBR(g_SpotLightList[j],Input.WorldPos, normal, viewDir, float4(diffuseColor, baseColor.a), true, specPower, g_ShadowAtlas2D, g_ShadowSample, g_VSMShadowAtlas, g_VSMSampler, specularColorPBR, roughness);
             }

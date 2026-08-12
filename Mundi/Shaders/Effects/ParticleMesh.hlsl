@@ -54,6 +54,8 @@ cbuffer PixelConstBuffer : register(b4)
     uint bHasMaterial;
     uint bHasTexture;
     uint bHasNormalTexture;
+    uint bEnablePBR;
+    uint3 PBRPadding;
     uint bHasORMTexture;        // ORM 텍스처 (Occlusion, Roughness, Metallic) - 레이아웃 일치용
 };
 

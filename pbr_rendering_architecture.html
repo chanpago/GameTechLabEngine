@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="GameTechLabEngine의 직접광 기반 PBR 렌더링 아키텍처와 구현 설명" />
+  <title>GameTechLabEngine · PBR Rendering Architecture</title>
+  <style>
+    :root {
+      --bg: #080c12;
+      --bg-soft: #0c121b;
+      --panel: rgba(17, 25, 36, .88);
+      --panel-solid: #111924;
+      --panel-hi: #162130;
+      --line: rgba(177, 198, 224, .13);
+      --line-strong: rgba(177, 198, 224, .26);
+      --text: #f1f5f9;
+      --muted: #93a4b8;
+      --green: #65e8a2;
+      --green-soft: rgba(101, 232, 162, .12);
+      --cyan: #62d8ff;
+      --cyan-soft: rgba(98, 216, 255, .12);
+      --amber: #ffc46b;
+      --amber-soft: rgba(255, 196, 107, .12);
+      --red: #ff7c82;
+      --red-soft: rgba(255, 124, 130, .12);
+      --violet: #bd9cff;
+      --radius: 20px;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .28);
+      --sans: Pretendard, "Noto Sans KR", "Segoe UI", AppleSDGothicNeo, sans-serif;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 82px; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 84% 5%, rgba(98, 216, 255, .10), transparent 27rem),
+        radial-gradient(circle at 9% 25%, rgba(101, 232, 162, .07), transparent 30rem),
+        var(--bg);
+      font-family: var(--sans);
+      line-height: 1.68;
+      letter-spacing: -.014em;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      opacity: .15;
+      background-image:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(to bottom, black, transparent 72%);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    code, pre, .mono { font-family: var(--mono); }
+    button { font: inherit; }
+    strong { color: #fff; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 64px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(8, 12, 18, .78);
+      backdrop-filter: blur(18px);
+    }
+
+    .topbar-inner {
+      width: min(1420px, calc(100% - 40px));
+      height: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 760; }
+    .brand-mark {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      color: #07120d;
+      font: 900 13px/1 var(--mono);
+      background: linear-gradient(135deg, var(--green), var(--cyan));
+      box-shadow: 0 0 30px rgba(98, 216, 255, .18);
+    }
+    .top-meta { color: var(--muted); font: 11px/1 var(--mono); letter-spacing: .06em; }
+
+    .layout {
+      width: min(1420px, calc(100% - 40px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 225px minmax(0, 1fr);
+      gap: 52px;
+    }
+
+    .side-nav {
+      position: sticky;
+      top: 92px;
+      align-self: start;
+      padding: 22px 0 80px;
+    }
+    .side-label {
+      margin: 0 0 12px 13px;
+      color: #66798d;
+      font: 700 10px/1 var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .side-nav a {
+      position: relative;
+      display: block;
+      margin: 2px 0;
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      border-radius: 9px;
+      transition: .18s ease;
+    }
+    .side-nav a:hover,
+    .side-nav a.active { color: var(--text); background: rgba(255,255,255,.045); }
+    .side-nav a.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 9px;
+      bottom: 9px;
+      width: 2px;
+      border-radius: 2px;
+      background: var(--green);
+    }
+
+    main { min-width: 0; padding-bottom: 120px; }
+    section { margin-top: 108px; }
+
+    .hero {
+      min-height: 670px;
+      margin-top: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(330px, .8fr);
+      gap: 52px;
+      align-items: center;
+      padding: 72px 0 54px;
+    }
+    .hero > * { min-width: 0; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--green);
+      font: 750 11px/1 var(--mono);
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 24px; height: 1px; background: currentColor; }
+    h1 {
+      max-width: 800px;
+      margin: 24px 0 25px;
+      font-size: clamp(48px, 6vw, 86px);
+      line-height: .98;
+      letter-spacing: -.06em;
+      font-weight: 800;
+    }
+    h1 span { display: block; color: var(--muted); font-weight: 550; }
+    .hero-copy { max-width: 770px; color: #b8c5d3; font-size: 18px; }
+    .hero-copy strong { color: var(--green); }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+    .tag {
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #b8c5d3;
+      background: rgba(255,255,255,.025);
+      font: 11px/1 var(--mono);
+    }
+
+    .status-panel {
+      position: relative;
+      overflow: hidden;
+      padding: 25px;
+      border: 1px solid var(--line-strong);
+      border-radius: 26px;
+      background: linear-gradient(145deg, rgba(23, 35, 49, .96), rgba(12, 19, 28, .94));
+      box-shadow: var(--shadow);
+    }
+    .status-panel::after {
+      content: "";
+      position: absolute;
+      width: 180px;
+      height: 180px;
+      right: -65px;
+      top: -70px;
+      border-radius: 50%;
+      background: var(--green);
+      filter: blur(80px);
+      opacity: .13;
+    }
+    .status-kicker { color: var(--muted); font: 700 10px/1 var(--mono); letter-spacing: .12em; }
+    .status-title { margin: 14px 0 22px; font-size: 24px; font-weight: 760; }
+    .status-row {
+      display: grid;
+      grid-template-columns: 11px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 11px;
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .dot.on { background: var(--green); box-shadow: 0 0 16px rgba(101,232,162,.55); }
+    .dot.partial { background: var(--amber); box-shadow: 0 0 16px rgba(255,196,107,.4); }
+    .dot.off { background: var(--red); }
+    .status-value { color: var(--muted); font: 11px/1 var(--mono); }
+
+    .section-head { max-width: 830px; margin-bottom: 32px; }
+    .section-index { color: var(--cyan); font: 700 11px/1 var(--mono); letter-spacing: .12em; }
+    h2 { margin: 13px 0 12px; font-size: clamp(30px, 4vw, 46px); line-height: 1.08; letter-spacing: -.045em; }
+    .section-lead { margin: 0; color: var(--muted); font-size: 16px; }
+    h3 { margin: 0 0 10px; font-size: 19px; letter-spacing: -.025em; }
+    p { margin: 0 0 14px; }
+
+    .grid-2, .grid-3, .grid-4 { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .card {
+      min-width: 0;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 12px 45px rgba(0,0,0,.12);
+    }
+    .card.accent-green { border-color: rgba(101,232,162,.25); background: linear-gradient(145deg, var(--green-soft), var(--panel)); }
+    .card.accent-cyan { border-color: rgba(98,216,255,.25); background: linear-gradient(145deg, var(--cyan-soft), var(--panel)); }
+    .card.accent-amber { border-color: rgba(255,196,107,.25); background: linear-gradient(145deg, var(--amber-soft), var(--panel)); }
+    .card.accent-red { border-color: rgba(255,124,130,.25); background: linear-gradient(145deg, var(--red-soft), var(--panel)); }
+    .card p, .card li { color: #aab9c9; font-size: 14px; }
+    .card ul { margin: 13px 0 0; padding-left: 19px; }
+    .card li + li { margin-top: 7px; }
+    .card-label { margin-bottom: 12px; color: var(--muted); font: 700 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .metric { margin: 8px 0 4px; font: 800 30px/1 var(--mono); }
+    .metric.green { color: var(--green); }
+    .metric.cyan { color: var(--cyan); }
+    .metric.amber { color: var(--amber); }
+
+    .callout {
+      display: grid;
+      grid-template-columns: 4px minmax(0, 1fr);
+      gap: 16px;
+      margin-top: 20px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(255,255,255,.025);
+    }
+    .callout-bar { border-radius: 4px; background: var(--amber); }
+    .callout.green .callout-bar { background: var(--green); }
+    .callout.red .callout-bar { background: var(--red); }
+    .callout-title { margin-bottom: 5px; font-weight: 760; }
+    .callout p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .flow-shell {
+      overflow-x: auto;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(11, 17, 25, .78);
+    }
+    .flow {
+      min-width: 910px;
+      display: grid;
+      grid-template-columns: 1fr 44px 1fr 44px 1fr 44px 1.05fr 44px 1.1fr;
+      align-items: stretch;
+    }
+    .flow-node {
+      position: relative;
+      min-height: 160px;
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      border-radius: 17px;
+      background: linear-gradient(160deg, var(--panel-hi), var(--panel-solid));
+    }
+    .flow-node::before {
+      content: attr(data-step);
+      display: inline-grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      margin-bottom: 16px;
+      border-radius: 7px;
+      color: #07120d;
+      background: var(--green);
+      font: 800 11px/1 var(--mono);
+    }
+    .flow-node h3 { font-size: 16px; }
+    .flow-node p { margin: 0; color: var(--muted); font-size: 12px; }
+    .flow-node code { display: block; margin-top: 10px; color: var(--cyan); font-size: 10px; overflow-wrap: anywhere; }
+    .arrow { display: grid; place-items: center; color: #52677c; font: 25px/1 var(--mono); }
+
+    .split-flow {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) 64px minmax(0, 1fr);
+      align-items: center;
+      gap: 0;
+    }
+    .decision {
+      padding: 22px;
+      border: 1px solid rgba(98,216,255,.28);
+      border-radius: 20px;
+      background: var(--cyan-soft);
+      text-align: center;
+    }
+    .decision code { color: var(--cyan); font-size: 14px; }
+    .branches { display: grid; gap: 11px; }
+    .branch {
+      padding: 15px 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+    .branch.good { border-color: rgba(101,232,162,.28); }
+    .branch.fallback { border-color: rgba(255,124,130,.25); }
+    .branch b { display: block; margin-bottom: 4px; }
+    .branch span { color: var(--muted); font-size: 13px; }
+
+    .decision-lab {
+      display: grid;
+      grid-template-columns: minmax(0, .8fr) minmax(290px, 1.2fr);
+      gap: 20px;
+      padding: 24px;
+      border: 1px solid var(--line-strong);
+      border-radius: 24px;
+      background: linear-gradient(145deg, rgba(20,31,44,.92), rgba(11,17,25,.92));
+      box-shadow: var(--shadow);
+    }
+    .switch-list { display: grid; gap: 11px; }
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255,255,255,.025);
+    }
+    .switch-copy b { display: block; font-size: 14px; }
+    .switch-copy small { color: var(--muted); }
+    .switch {
+      position: relative;
+      flex: 0 0 auto;
+      width: 46px;
+      height: 26px;
+      border: 0;
+      border-radius: 999px;
+      cursor: pointer;
+      background: #263443;
+      transition: .2s ease;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: #c9d4df;
+      transition: .2s ease;
+    }
+    .switch.on { background: rgba(101,232,162,.34); }
+    .switch.on::after { left: 23px; background: var(--green); }
+    .result-panel {
+      display: grid;
+      place-items: center;
+      min-height: 255px;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      text-align: center;
+      background: #0b1119;
+    }
+    .result-orb {
+      width: 92px;
+      height: 92px;
+      margin: 0 auto 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font: 900 18px/1 var(--mono);
+      transition: .25s ease;
+    }
+    .result-orb.pbr { color: #05110a; background: var(--green); box-shadow: 0 0 55px rgba(101,232,162,.25); }
+    .result-orb.fallback { color: #190708; background: var(--red); box-shadow: 0 0 55px rgba(255,124,130,.22); }
+    .result-title { font-size: 25px; font-weight: 800; }
+    .result-reason { max-width: 440px; margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .condition-code {
+      margin-top: 16px;
+      padding: 9px 12px;
+      border-radius: 9px;
+      color: var(--cyan);
+      background: rgba(98,216,255,.07);
+      font: 11px/1.4 var(--mono);
+    }
+
+    .orm-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: 20px;
+    }
+    .channel { min-height: 230px; padding: 24px; }
+    .channel + .channel { border-left: 1px solid var(--line-strong); }
+    .channel.r { background: linear-gradient(145deg, rgba(255,124,130,.18), var(--panel)); }
+    .channel.g { background: linear-gradient(145deg, rgba(101,232,162,.18), var(--panel)); }
+    .channel.b { background: linear-gradient(145deg, rgba(98,216,255,.18), var(--panel)); }
+    .channel-id { font: 900 46px/1 var(--mono); opacity: .9; }
+    .channel.r .channel-id { color: var(--red); }
+    .channel.g .channel-id { color: var(--green); }
+    .channel.b .channel-id { color: var(--cyan); }
+    .channel h3 { margin-top: 18px; }
+    .channel p { color: var(--muted); font-size: 13px; }
+
+    .formula {
+      overflow-x: auto;
+      padding: 28px;
+      border: 1px solid var(--line-strong);
+      border-radius: 20px;
+      background: #0a1017;
+      text-align: center;
+    }
+    .formula-main { color: var(--text); font: 500 clamp(18px, 2.5vw, 29px)/1.5 var(--mono); white-space: nowrap; }
+    .formula-main .d { color: var(--amber); }
+    .formula-main .g { color: var(--cyan); }
+    .formula-main .f { color: var(--green); }
+    .formula-sub { margin-top: 13px; color: var(--muted); font-size: 13px; }
+
+    .code-block {
+      position: relative;
+      overflow-x: auto;
+      margin-top: 16px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: #090f16;
+      color: #c6d3df;
+      font: 12px/1.7 var(--mono);
+      white-space: pre;
+    }
+    .kw { color: var(--violet); }
+    .fn { color: var(--cyan); }
+    .num { color: var(--amber); }
+    .cm { color: #65778a; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; }
+    table { width: 100%; min-width: 720px; border-collapse: collapse; background: var(--panel); }
+    th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: #cdd8e3; background: rgba(255,255,255,.025); font: 700 11px/1.3 var(--mono); letter-spacing: .05em; }
+    td { color: #aab9c9; font-size: 13px; }
+    td code { color: var(--cyan); font-size: 11px; }
+    tr:last-child td { border-bottom: 0; }
+    .yes { color: var(--green); font-weight: 750; }
+    .no { color: var(--red); font-weight: 750; }
+
+    .source-list { display: grid; gap: 10px; }
+    .source-item {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 20px;
+      padding: 15px 17px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255,255,255,.02);
+    }
+    .source-path { min-width: 0; color: var(--cyan); font: 11px/1.5 var(--mono); overflow-wrap: anywhere; }
+    .source-role { color: var(--muted); font-size: 13px; }
+
+    .checklist { counter-reset: item; display: grid; gap: 12px; }
+    .check-step {
+      position: relative;
+      padding: 18px 18px 18px 64px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--panel);
+    }
+    .check-step::before {
+      counter-increment: item;
+      content: counter(item);
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #07120d;
+      background: var(--green);
+      font: 850 12px/1 var(--mono);
+    }
+    .check-step b { display: block; margin-bottom: 4px; }
+    .check-step span { color: var(--muted); font-size: 13px; }
+
+    footer {
+      margin-top: 105px;
+      padding-top: 28px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .side-nav { display: none; }
+      .hero { grid-template-columns: 1fr; min-height: 0; padding-top: 90px; }
+      .status-panel { max-width: 680px; }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 760px) {
+      .topbar-inner, .layout { width: min(100% - 24px, 1420px); }
+      .top-meta { display: none; }
+      section { margin-top: 78px; }
+      .hero { padding-top: 64px; gap: 32px; }
+      h1 { font-size: 47px; }
+      .hero-copy { font-size: 16px; }
+      .grid-2, .grid-3, .grid-4, .decision-lab { grid-template-columns: 1fr; }
+      .split-flow { grid-template-columns: 1fr; gap: 12px; }
+      .split-flow > .arrow { transform: rotate(90deg); height: 42px; }
+      .orm-strip { grid-template-columns: 1fr; }
+      .channel + .channel { border-left: 0; border-top: 1px solid var(--line-strong); }
+      .source-item { grid-template-columns: 1fr; gap: 5px; }
+    }
+
+    @media print {
+      .topbar, .side-nav { display: none; }
+      body { background: #fff; color: #111; }
+      body::before { display: none; }
+      .layout { width: 100%; display: block; }
+      .card, .status-panel, .flow-shell, .decision-lab, .formula, .table-wrap, .source-item, .check-step { box-shadow: none; break-inside: avoid; }
+      section { margin-top: 45px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-mark">PBR</span> GameTechLabEngine</div>
+      <div class="top-meta">IMPLEMENTATION NOTE · 2026-08-12 · DIRECT LIGHTING</div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="side-nav" aria-label="문서 목차">
+      <div class="side-label">Contents</div>
+      <a href="#overview">구현 요약</a>
+      <a href="#architecture">전체 아키텍처</a>
+      <a href="#decision">PBR 판정 조건</a>
+      <a href="#material">머티리얼과 ORM</a>
+      <a href="#binding">CPU → GPU 바인딩</a>
+      <a href="#shader">셰이더 처리 흐름</a>
+      <a href="#brdf">Cook–Torrance GGX</a>
+      <a href="#lights">라이트와 그림자</a>
+      <a href="#debug">토글과 PBR Mask</a>
+      <a href="#limits">현재 범위와 한계</a>
+      <a href="#sources">소스 코드 지도</a>
+    </nav>
+
+    <main>
+      <section class="hero" id="overview">
+        <div>
+          <div class="eyebrow">Rendering Architecture</div>
+          <h1>Direct-light PBR<span>with Blinn-Phong fallback</span></h1>
+          <p class="hero-copy">
+            이 엔진의 PBR은 <strong>Forward 렌더링의 직접광</strong>에 Cook–Torrance GGX BRDF를 적용한 하이브리드 구조다.
+            Phong 뷰 모드에서 전역 PBR 플래그가 켜져 있고 ORM 텍스처가 실제로 바인딩된 머티리얼만 PBR 경로를 사용하며,
+            나머지는 기존 Blinn-Phong 경로로 자동 폴백한다.
+          </p>
+          <div class="hero-tags">
+            <span class="tag">Direct Lighting</span>
+            <span class="tag">Cook–Torrance</span>
+            <span class="tag">GGX NDF</span>
+            <span class="tag">Schlick Fresnel</span>
+            <span class="tag">Metallic / Roughness</span>
+            <span class="tag">Forward Shading</span>
+          </div>
+        </div>
+
+        <aside class="status-panel" aria-label="현재 구현 상태">
+          <div class="status-kicker">CURRENT IMPLEMENTATION</div>
+          <div class="status-title">부분적 PBR · 직접광 중심</div>
+          <div class="status-row"><span class="dot on"></span><span>Directional / Point / Spot 직접광</span><span class="status-value">GGX</span></div>
+          <div class="status-row"><span class="dot on"></span><span>ORM 텍스처와 Normal Map</span><span class="status-value">ACTIVE</span></div>
+          <div class="status-row"><span class="dot on"></span><span>PBR ↔ Blinn-Phong 전역 토글</span><span class="status-value">SF_PBR</span></div>
+          <div class="status-row"><span class="dot on"></span><span>적용 대상 시각화</span><span class="status-value">PBR MASK</span></div>
+          <div class="status-row"><span class="dot partial"></span><span>Ambient / AO</span><span class="status-value">APPROX.</span></div>
+          <div class="status-row"><span class="dot off"></span><span>IBL / 환경 반사 / 간접광 PBR</span><span class="status-value">NOT PRESENT</span></div>
+        </aside>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <div class="section-index">00 · EXECUTIVE SUMMARY</div>
+          <h2>한 문장으로 정리하면</h2>
+          <p class="section-lead">PBR은 별도 렌더 패스가 아니라 UberLit의 Phong 픽셀 셰이더 내부에서 머티리얼별로 선택되는 직접광 셰이딩 경로다.</p>
+        </div>
+        <div class="grid-4">
+          <article class="card accent-green">
+            <div class="card-label">Activation</div>
+            <div class="metric green">3 조건</div>
+            <p>Phong 뷰 모드, <code>SF_PBR</code> ON, 유효한 ORM SRV가 동시에 필요하다.</p>
+          </article>
+          <article class="card accent-cyan">
+            <div class="card-label">Material Model</div>
+            <div class="metric cyan">ORM</div>
+            <p>R=AO, G=Roughness, B=Metallic의 패킹 텍스처를 사용한다.</p>
+          </article>
+          <article class="card accent-amber">
+            <div class="card-label">Specular BRDF</div>
+            <div class="metric amber">D·G·F</div>
+            <p>GGX 분포, Smith Geometry, Schlick Fresnel을 Cook–Torrance 식에 결합한다.</p>
+          </article>
+          <article class="card accent-red">
+            <div class="card-label">Indirect Lighting</div>
+            <div class="metric">없음</div>
+            <p>Irradiance, Prefiltered Environment, BRDF LUT 기반 IBL은 제거된 상태다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-head">
+          <div class="section-index">01 · ARCHITECTURE</div>
+          <h2>전체 데이터 흐름</h2>
+          <p class="section-lead">에셋의 텍스처 경로가 머티리얼 리소스로 해석되고, Draw 시점에 SRV와 상수 버퍼로 GPU에 전달된 뒤 UberLit에서 최종 분기가 일어난다.</p>
+        </div>
+
+        <div class="flow-shell" role="img" aria-label="PBR 렌더링 데이터 흐름">
+          <div class="flow">
+            <article class="flow-node" data-step="1">
+              <h3>Asset / Scene</h3>
+              <p>BaseColor, Normal, ORM 경로가 머티리얼 또는 MID override에 기록된다.</p>
+              <code>FINALgameScene.scene</code>
+            </article>
+            <div class="arrow">→</div>
+            <article class="flow-node" data-step="2">
+              <h3>Material Resolve</h3>
+              <p>명시적 ORM 경로를 우선 사용하고, 없으면 BaseColor 파일명에서 ORM 후보를 찾는다.</p>
+              <code>UMaterial::ResolveTextures()</code>
+            </article>
+            <div class="arrow">→</div>
+            <article class="flow-node" data-step="3">
+              <h3>Mesh Batch</h3>
+              <p>메시 섹션이 <code>UMaterialInterface</code>와 UberLit 셰이더 변형을 배치에 담는다.</p>
+              <code>CollectMeshBatches()</code>
+            </article>
+            <div class="arrow">→</div>
+            <article class="flow-node" data-step="4">
+              <h3>Renderer Binding</h3>
+              <p>t0/t1/t6 SRV와 b4 상수 버퍼를 설정한다. 전역 PBR 플래그도 이때 전달된다.</p>
+              <code>FSceneRenderer::DrawMeshBatches()</code>
+            </article>
+            <div class="arrow">→</div>
+            <article class="flow-node" data-step="5">
+              <h3>UberLit Pixel Shader</h3>
+              <p>조건을 만족하면 GGX PBR, 아니면 Blinn-Phong 경로를 선택해 직접광을 누적한다.</p>
+              <code>UberLit.hlsl → LightingCommon.hlsl</code>
+            </article>
+          </div>
+        </div>
+
+        <div class="split-flow">
+          <div class="decision"><code>LIGHTING_MODEL_PHONG<br>&amp;&amp; bEnablePBR<br>&amp;&amp; bHasORMTexture</code></div>
+          <div class="arrow">→</div>
+          <div class="branches">
+            <div class="branch good"><b style="color:var(--green)">TRUE · Direct-light PBR</b><span>Metallic/Roughness + Cook–Torrance GGX</span></div>
+            <div class="branch fallback"><b style="color:var(--red)">FALSE · Blinn-Phong fallback</b><span>Diffuse + SpecularExponent 기반 기존 조명</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="decision">
+        <div class="section-head">
+          <div class="section-index">02 · ACTIVATION RULE</div>
+          <h2>PBR 적용 판정기</h2>
+          <p class="section-lead">아래 스위치를 눌러 실제 셰이더 분기와 동일한 조건을 확인할 수 있다. PBR Mask의 초록/빨강 판정도 같은 런타임 플래그를 사용한다.</p>
+        </div>
+
+        <div class="decision-lab">
+          <div class="switch-list">
+            <div class="switch-row">
+              <div class="switch-copy"><b>Phong 픽셀 셰이딩</b><small>LIGHTING_MODEL_PHONG</small></div>
+              <button class="switch on" type="button" data-flag="phong" aria-label="Phong 모드 토글" aria-pressed="true"></button>
+            </div>
+            <div class="switch-row">
+              <div class="switch-copy"><b>전역 PBR 활성화</b><small>SF_PBR → bEnablePBR</small></div>
+              <button class="switch on" type="button" data-flag="global" aria-label="전역 PBR 토글" aria-pressed="true"></button>
+            </div>
+            <div class="switch-row">
+              <div class="switch-copy"><b>유효한 ORM 텍스처</b><small>bHasORMTexture</small></div>
+              <button class="switch on" type="button" data-flag="orm" aria-label="ORM 텍스처 토글" aria-pressed="true"></button>
+            </div>
+          </div>
+
+          <div class="result-panel" aria-live="polite">
+            <div>
+              <div class="result-orb pbr" id="resultOrb">PBR</div>
+              <div class="result-title" id="resultTitle">Cook–Torrance GGX 적용</div>
+              <div class="result-reason" id="resultReason">세 조건이 모두 충족되어 ORM 기반 직접광 PBR 경로를 사용합니다.</div>
+              <div class="condition-code">bUsePBR = bEnablePBR &amp;&amp; bHasORMTexture</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:20px">
+          <table>
+            <thead><tr><th>View mode</th><th>SF_PBR</th><th>ORM SRV</th><th>결과</th></tr></thead>
+            <tbody>
+              <tr><td>Phong</td><td>ON</td><td>Valid</td><td class="yes">GGX PBR</td></tr>
+              <tr><td>Phong</td><td>OFF</td><td>Valid</td><td class="no">Blinn-Phong</td></tr>
+              <tr><td>Phong</td><td>ON</td><td>Missing</td><td class="no">Blinn-Phong</td></tr>
+              <tr><td>Gouraud / Lambert / Unlit</td><td>무관</td><td>무관</td><td class="no">PBR 경로 아님</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="material">
+        <div class="section-head">
+          <div class="section-index">03 · MATERIAL INPUT</div>
+          <h2>ORM 텍스처가 PBR의 스위치다</h2>
+          <p class="section-lead"><code>FMaterialInfo</code>는 BaseColor, Normal, ORM 경로를 보관하고, <code>EMaterialTextureSlot::ORM</code>이 세 물성 값을 하나의 선형 텍스처로 전달한다.</p>
+        </div>
+
+        <div class="orm-strip">
+          <article class="channel r">
+            <div class="channel-id">R</div>
+            <h3>Ambient Occlusion</h3>
+            <p>현재 구현에서는 물리 기반 간접광이 아니라 단순 Ambient 항에만 곱해진다.</p>
+            <code>ambient × ao</code>
+          </article>
+          <article class="channel g">
+            <div class="channel-id">G</div>
+            <h3>Roughness</h3>
+            <p>GGX 분포의 α를 결정한다. 낮을수록 좁고 강한 반사, 높을수록 넓고 부드러운 반사가 된다.</p>
+            <code>alpha = roughness²</code>
+          </article>
+          <article class="channel b">
+            <div class="channel-id">B</div>
+            <h3>Metallic</h3>
+            <p>Diffuse를 줄이고 BaseColor를 F0 쪽으로 이동해 금속성 반사를 만든다.</p>
+            <code>F0 = lerp(dielectric, baseColor, metallic)</code>
+          </article>
+        </div>
+
+        <div class="grid-2" style="margin-top:16px">
+          <article class="card">
+            <div class="card-label">Resolution order</div>
+            <h3>ORM 로딩 우선순위</h3>
+            <ul>
+              <li>MID 또는 머티리얼에 명시된 <code>ORMTextureFileName</code></li>
+              <li><code>BaseColor → ORM</code> 파일명 치환</li>
+              <li><code>_Diffuse → _ORM</code>, <code>_BC → _ORM</code> 치환</li>
+              <li>마지막 언더스코어 뒤를 <code>_ORM</code>으로 교체</li>
+            </ul>
+          </article>
+          <article class="card accent-amber">
+            <div class="card-label">Import caveat</div>
+            <h3>FBX PBR 자동 임포트는 아님</h3>
+            <p>FBX 머티리얼 로더는 Phong/Lambert 속성을 읽는다. 따라서 ORM은 MID override로 연결하거나 파일명 자동 탐색에 성공해야 한다.</p>
+            <p>또한 기존 바이너리 호환성 때문에 <code>FArchive</code>의 <code>FMaterialInfo</code> 직렬화에는 ORM 경로가 포함되지 않는다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="binding">
+        <div class="section-head">
+          <div class="section-index">04 · CPU → GPU</div>
+          <h2>리소스 바인딩과 상수 버퍼</h2>
+          <p class="section-lead">렌더러는 머티리얼이 바뀔 때 텍스처 SRV와 <code>PixelConstBuffer(b4)</code>를 갱신한다. ORM은 타일 라이트 인덱스가 사용하는 t2를 피하기 위해 t6에 바인딩된다.</p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>GPU slot</th><th>리소스</th><th>색 공간 / 역할</th><th>설정 위치</th></tr></thead>
+            <tbody>
+              <tr><td><code>t0</code></td><td>BaseColor / Diffuse</td><td>색상 입력. 셰이더에서 linear 변환 후 조명에 사용</td><td><code>PSSetShaderResources(0, 2)</code></td></tr>
+              <tr><td><code>t1</code></td><td>Normal Map</td><td>선형 데이터. TBN으로 World Normal 복원</td><td><code>PSSetShaderResources(0, 2)</code></td></tr>
+              <tr><td><code>t2</code></td><td>Tile light indices</td><td>타일 기반 로컬 라이트 인덱스 버퍼</td><td><code>LightingBuffers.hlsl</code></td></tr>
+              <tr><td><code>t6</code></td><td>ORM</td><td>선형 데이터. R=AO, G=Roughness, B=Metallic</td><td><code>PSSetShaderResources(6, 1)</code></td></tr>
+              <tr><td><code>b4</code></td><td>PixelConstBuffer</td><td>머티리얼 상수, 텍스처 존재 여부, PBR 활성 플래그</td><td><code>SetAndUpdateConstantBuffer()</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid-2" style="margin-top:16px">
+          <article class="card accent-cyan">
+            <div class="card-label">Global switch</div>
+            <h3><code>SF_PBR → bEnablePBR</code></h3>
+            <p><code>URenderSettings</code>의 ShowFlag를 매 Draw 배치 시작 시 읽어 <code>FPixelConstBufferType</code>에 넣는다. ORM 연결은 그대로 유지되므로 동일한 에셋 조건에서 PBR과 Blinn-Phong을 비교할 수 있다.</p>
+          </article>
+          <article class="card">
+            <div class="card-label">Material capability</div>
+            <h3><code>bHasORMTexture</code></h3>
+            <p>경로 문자열만 있는 것으로 끝나지 않는다. <code>UTexture</code> 로드와 SRV 생성까지 성공해야 true가 된다. 즉 실제 GPU 바인딩 가능 여부를 나타낸다.</p>
+          </article>
+        </div>
+
+        <div class="code-block"><span class="cm">// CPU: SceneRenderer.cpp</span>
+<span class="kw">const</span> uint32 bPBREnabled = RenderSettings.IsShowFlagEnabled(SF_PBR);
+PixelConst.bEnablePBR = bPBREnabled;
+PixelConst.bHasORMTexture = (ORMTextureSRV != <span class="kw">nullptr</span>);
+PSSetShaderResources(<span class="num">6</span>, <span class="num">1</span>, &amp;ORMTextureSRV);
+
+<span class="cm">// GPU: UberLit.hlsl</span>
+<span class="kw">bool</span> bUsePBR = (bEnablePBR != <span class="num">0</span>) &amp;&amp; (bHasORMTexture != <span class="num">0</span>);</div>
+      </section>
+
+      <section id="shader">
+        <div class="section-head">
+          <div class="section-index">05 · UBERLIT PIXEL SHADER</div>
+          <h2>픽셀 하나가 최종 색이 되기까지</h2>
+          <p class="section-lead">PBR 경로는 Phong 셰이더 변형 안에 있으며, Normal과 ORM을 복원한 뒤 Direct Light별 PBR 함수를 호출한다.</p>
+        </div>
+
+        <div class="checklist">
+          <div class="check-step"><b>표면 방향 복원</b><span>버텍스 노멀을 기본값으로 사용하고 Normal Map이 있으면 TBN 행렬로 World Normal을 계산한다.</span></div>
+          <div class="check-step"><b>뷰 방향과 BaseColor 결정</b><span><code>CameraPosition - WorldPos</code>로 View Direction을 만들고 BaseColor 텍스처 또는 머티리얼 DiffuseColor를 선택한다.</span></div>
+          <div class="check-step"><b>PBR 조건 평가</b><span><code>bEnablePBR &amp;&amp; bHasORMTexture</code>를 평가한다. false면 기존 Blinn-Phong 직접광 함수로 분기한다.</span></div>
+          <div class="check-step"><b>ORM 샘플링과 물성 변환</b><span>AO, Roughness, Metallic을 읽고 Diffuse 색과 금속/비금속 F0를 구성한다.</span></div>
+          <div class="check-step"><b>Ambient와 직접광 누적</b><span>Ambient×AO를 더하고 Directional, 타일에 포함된 Point/Spot 라이트의 Diffuse+GGX Specular를 누적한다.</span></div>
+          <div class="check-step"><b>Shadow와 Emissive 적용</b><span>각 라이트의 그림자 계수를 곱한 뒤 Emissive와 Alpha를 더해 Scene Color에 출력한다.</span></div>
+        </div>
+
+        <div class="callout green">
+          <div class="callout-bar"></div>
+          <div><div class="callout-title">타일 컬링은 PBR 모델을 바꾸지 않는다</div><p>타일 컬링은 현재 픽셀에 영향을 주는 Point/Spot 라이트 목록을 줄이는 최적화다. 선택된 각 라이트에는 동일한 PBR BRDF가 적용된다.</p></div>
+        </div>
+      </section>
+
+      <section id="brdf">
+        <div class="section-head">
+          <div class="section-index">06 · BRDF</div>
+          <h2>Cook–Torrance GGX 구성</h2>
+          <p class="section-lead">Specular는 미세면 분포 D, 기하 감쇠 G, Fresnel F를 조합하고 마지막에 입사광과 N·L을 곱한다.</p>
+        </div>
+
+        <div class="formula">
+          <div class="formula-main">f<sub>spec</sub> = <span class="d">D<sub>GGX</sub></span> · <span class="g">G<sub>Smith</sub></span> · <span class="f">F<sub>Schlick</sub></span> / max(4(N·V)(N·L), ε)</div>
+          <div class="formula-sub">최종 반환: LightColor × f<sub>spec</sub> × (N·L)</div>
+        </div>
+
+        <div class="grid-3" style="margin-top:16px">
+          <article class="card accent-amber">
+            <div class="card-label">D · Normal Distribution</div>
+            <h3>GGX / Trowbridge–Reitz</h3>
+            <p>미세면 노멀들이 Half Vector 방향에 얼마나 분포하는지 나타낸다. Roughness가 하이라이트 폭과 피크를 결정한다.</p>
+            <code>α = max(roughness², 0.01)</code>
+          </article>
+          <article class="card accent-cyan">
+            <div class="card-label">G · Geometry</div>
+            <h3>Smith + Schlick-GGX</h3>
+            <p>미세면 사이의 마스킹과 섀도잉으로 인해 빛이 가려지는 비율을 근사한다.</p>
+            <code>G = G₁(N·V) × G₁(N·L)</code>
+          </article>
+          <article class="card accent-green">
+            <div class="card-label">F · Fresnel</div>
+            <h3>Schlick Approximation</h3>
+            <p>시선이 표면에 비스듬해질수록 반사가 강해지는 현상을 F0에서 보간한다.</p>
+            <code>F = F0 + (1-F0)(1-H·V)⁵</code>
+          </article>
+        </div>
+
+        <div class="grid-2" style="margin-top:16px">
+          <article class="card">
+            <div class="card-label">Metallic workflow</div>
+            <h3>Diffuse와 F0 생성</h3>
+            <div class="code-block" style="margin-top:12px">diffuseColor = baseColor × (<span class="num">1</span> - metallic) + <span class="num">0.02</span> × metallic;
+F0 = lerp(F0Dielectric, baseColor, metallic);</div>
+            <p style="margin-top:13px">금속도가 올라가면 Diffuse는 줄고 BaseColor가 Specular 반사색으로 이동한다. 검은 금속 BaseColor에는 철/강철 계열 F0=0.56을 사용하는 휴리스틱이 있다.</p>
+          </article>
+          <article class="card accent-amber">
+            <div class="card-label">Important implementation detail</div>
+            <h3>현재 F0 기본값 주의</h3>
+            <p>머티리얼이 있으면 비금속 F0로 <code>Material.SpecularColor</code>를 사용한다. <code>FMaterialInfo</code>의 기본 SpecularColor가 1.0이므로, 저작된 값이 없으면 일반적인 dielectric F0≈0.04보다 반사가 과도할 수 있다.</p>
+            <p>정확도를 높이려면 비금속 기본 F0를 0.04로 고정하거나 SpecularColor의 입력 범위를 명확히 관리하는 것이 좋다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="lights">
+        <div class="section-head">
+          <div class="section-index">07 · LIGHT INTEGRATION</div>
+          <h2>라이트 종류별 처리</h2>
+          <p class="section-lead">세 직접광 타입 모두 동일한 GGX Specular를 사용하지만 방향, 감쇠, 그림자 계산은 라이트 특성에 맞게 분리되어 있다.</p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Light type</th><th>방향 / 감쇠</th><th>PBR 함수</th><th>그림자</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Directional</strong></td><td>정규화된 역 Light Direction, 거리 감쇠 없음</td><td><code>CalculateDirectionalLightPBR</code></td><td>CSM 또는 2D shadow map</td></tr>
+              <tr><td><strong>Point</strong></td><td>LightPosition − WorldPos, inverse-square 또는 exponent falloff</td><td><code>CalculatePointLightPBR</code></td><td>Cube shadow atlas + PCF</td></tr>
+              <tr><td><strong>Spot</strong></td><td>거리 감쇠 × inner/outer cone smoothstep</td><td><code>CalculateSpotLightPBR</code></td><td>2D shadow atlas, PCF 또는 VSM</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="callout-bar"></div>
+          <div><div class="callout-title">Ambient는 PBR 간접광이 아니다</div><p>현재 Ambient는 <code>AmbientLight.Color × Ka × AO</code> 형태의 경험적 항이다. 환경에서 들어오는 방향별 복사조도를 적분하는 Irradiance/IBL과는 다르다.</p></div>
+        </div>
+      </section>
+
+      <section id="debug">
+        <div class="section-head">
+          <div class="section-index">08 · DEBUG &amp; COMPARISON</div>
+          <h2>PBR 토글과 PBR Mask 사용법</h2>
+          <p class="section-lead">에셋 연결을 바꾸지 않고 전체 PBR을 끌 수 있고, 별도 뷰 모드로 어떤 머티리얼이 실제 PBR 조건을 만족하는지 확인할 수 있다.</p>
+        </div>
+
+        <div class="grid-2">
+          <article class="card accent-cyan">
+            <div class="card-label">A/B comparison</div>
+            <h3>ShowFlag → 그래픽스 기능 → PBR 직접광</h3>
+            <ul>
+              <li><strong>ON:</strong> ORM 머티리얼은 GGX PBR</li>
+              <li><strong>OFF:</strong> 같은 BaseColor/Normal을 유지한 채 Blinn-Phong</li>
+              <li>ORM 리소스 자체는 제거하지 않고 셰이딩 분기에서만 무시</li>
+            </ul>
+          </article>
+          <article class="card accent-green">
+            <div class="card-label">Coverage visualization</div>
+            <h3>뷰 모드 → 버퍼 시각화 → PBR 마스크</h3>
+            <ul>
+              <li><span class="yes">초록:</span> <code>bEnablePBR &amp;&amp; bHasORMTexture</code></li>
+              <li><span class="no">빨강:</span> PBR OFF 또는 ORM SRV 없음</li>
+              <li>Decal은 마스크 판독을 방해하지 않도록 이 뷰에서 생략</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="callout red">
+          <div class="callout-bar"></div>
+          <div><div class="callout-title">빨간색은 원인을 구분하지 않는다</div><p>PBR Mask가 빨간색이면 “현재 PBR이 적용되지 않는다”는 뜻이다. 전역 플래그가 OFF인지, ORM 경로/로드/SRV가 누락됐는지는 머티리얼과 ShowFlag를 추가로 확인해야 한다.</p></div>
+        </div>
+      </section>
+
+      <section id="limits">
+        <div class="section-head">
+          <div class="section-index">09 · SCOPE &amp; LIMITATIONS</div>
+          <h2>현재 구현의 정확한 범위</h2>
+          <p class="section-lead">Cook–Torrance를 사용한다는 점에서는 PBR이지만, 전체 장면 조명 관점에서는 완전한 물리 기반 파이프라인이 아니라 직접광 중심의 부분 구현이다.</p>
+        </div>
+
+        <div class="grid-3">
+          <article class="card accent-green">
+            <div class="card-label">Implemented</div>
+            <h3>현재 제공</h3>
+            <ul>
+              <li>Metallic / Roughness workflow</li>
+              <li>GGX + Smith + Schlick Specular</li>
+              <li>Normal Mapping</li>
+              <li>Directional / Point / Spot 직접광</li>
+              <li>AO의 Ambient 적용</li>
+              <li>Shadow와 Tile Light Culling 연동</li>
+            </ul>
+          </article>
+          <article class="card accent-red">
+            <div class="card-label">Not implemented</div>
+            <h3>현재 없음</h3>
+            <ul>
+              <li>Diffuse Irradiance Map</li>
+              <li>Prefiltered Environment Map</li>
+              <li>Split-sum BRDF LUT</li>
+              <li>Reflection Probe / Skylight IBL</li>
+              <li>Screen-space 또는 Ray-traced GI</li>
+              <li>물리 단위 기반 노출/톤매핑 체계</li>
+            </ul>
+          </article>
+          <article class="card accent-amber">
+            <div class="card-label">Physical accuracy</div>
+            <h3>근사 및 휴리스틱</h3>
+            <ul>
+              <li>Diffuse 항에 1/π 정규화가 없음</li>
+              <li>Diffuse에 (1−F) 에너지 보존 계수 없음</li>
+              <li>금속 Diffuse floor 0.02 사용</li>
+              <li>검은 금속에 F0=0.56 대체</li>
+              <li>비금속 F0가 Material.SpecularColor에 의존</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="callout">
+          <div class="callout-bar"></div>
+          <div><div class="callout-title">추천 확장 순서</div><p>① dielectric F0와 energy conservation 정리 → ② irradiance cube + prefiltered environment + BRDF LUT로 IBL 추가 → ③ reflection probe와 HDR exposure/tonemapping 정리 순으로 확장하면 현재 구조를 유지하면서 완성도를 높일 수 있다.</p></div>
+        </div>
+      </section>
+
+      <section id="sources">
+        <div class="section-head">
+          <div class="section-index">10 · SOURCE MAP</div>
+          <h2>구현 파일 지도</h2>
+          <p class="section-lead">문서 내용은 아래 현재 소스 파일을 기준으로 정리했다. 줄 번호는 문서 작성 시점의 작업 트리 기준이다.</p>
+        </div>
+
+        <div class="source-list">
+          <div class="source-item"><div class="source-path">Mundi/Source/Runtime/Core/Misc/ResourceData.h · 5–35</div><div class="source-role">FMaterialInfo와 ORM 텍스처 경로</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Source/Runtime/Renderer/Material.h · 8–18</div><div class="source-role">Diffuse / Normal / ORM 슬롯 정의</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Source/Runtime/Renderer/Material.cpp · 117–225</div><div class="source-role">텍스처 로드와 ORM 파일명 자동 탐색</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Source/Runtime/Core/Misc/Enums.h · 77–89, 182–196</div><div class="source-role">PBR Mask 뷰 모드와 SF_PBR ShowFlag</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Source/Runtime/RHI/ConstantBufferType.h · 201–210</div><div class="source-role">CPU 측 PixelConstBuffer 레이아웃</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Source/Runtime/Renderer/SceneRenderer.cpp · 2121–2295</div><div class="source-role">PBR 플래그, SRV, 상수 버퍼 GPU 바인딩</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Shaders/Materials/UberLit.hlsl · 591–770</div><div class="source-role">ORM 샘플링, PBR 분기, 직접광 누적</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Shaders/Common/LightingCommon.hlsl · 983–1167</div><div class="source-role">Cook–Torrance GGX와 라이트별 PBR 함수</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Source/Runtime/Renderer/SceneView.cpp · 93–117</div><div class="source-role">뷰 모드별 셰이더 매크로 생성</div></div>
+          <div class="source-item"><div class="source-path">Mundi/Source/Slate/Windows/SViewportWindow.cpp · 1296–1310, 1775–1783</div><div class="source-role">PBR Mask 메뉴와 PBR 직접광 토글 UI</div></div>
+        </div>
+      </section>
+
+      <footer>
+        GameTechLabEngine PBR Rendering Architecture · 현재 작업 트리 분석 기반 · 단일 파일 오프라인 문서
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const state = { phong: true, global: true, orm: true };
+      const buttons = [...document.querySelectorAll('.switch[data-flag]')];
+      const orb = document.getElementById('resultOrb');
+      const title = document.getElementById('resultTitle');
+      const reason = document.getElementById('resultReason');
+
+      function renderDecision() {
+        const active = state.phong && state.global && state.orm;
+        orb.className = `result-orb ${active ? 'pbr' : 'fallback'}`;
+        orb.textContent = active ? 'PBR' : 'B-P';
+        title.textContent = active ? 'Cook–Torrance GGX 적용' : 'Blinn-Phong 폴백';
+
+        if (active) {
+          reason.textContent = '세 조건이 모두 충족되어 ORM 기반 직접광 PBR 경로를 사용합니다.';
+        } else if (!state.phong) {
+          reason.textContent = 'PBR 분기는 LIGHTING_MODEL_PHONG 픽셀 셰이더 경로에만 구현되어 있습니다.';
+        } else if (!state.global) {
+          reason.textContent = 'SF_PBR이 꺼져 있어 ORM이 연결되어 있어도 기존 조명 경로를 사용합니다.';
+        } else {
+          reason.textContent = '유효한 ORM SRV가 없어 머티리얼이 PBR 입력을 제공하지 못합니다.';
+        }
+      }
+
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          const key = button.dataset.flag;
+          state[key] = !state[key];
+          button.classList.toggle('on', state[key]);
+          button.setAttribute('aria-pressed', String(state[key]));
+          renderDecision();
+        });
+      });
+
+      const sections = [...document.querySelectorAll('main section[id]')];
+      const links = [...document.querySelectorAll('.side-nav a')];
+      const byId = new Map(links.map(link => [link.getAttribute('href').slice(1), link]));
+      const observer = new IntersectionObserver(entries => {
+        const visible = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible) return;
+        links.forEach(link => link.classList.remove('active'));
+        byId.get(visible.target.id)?.classList.add('active');
+      }, { rootMargin: '-20% 0px -68% 0px', threshold: [0, .2, .5] });
+      sections.forEach(section => observer.observe(section));
+      byId.get('overview')?.classList.add('active');
+    })();
+  </script>
+</body>
+</html>
