@@ -2,6 +2,7 @@
 
 #include "ServerConfig.h"
 #include "ServerLogger.h"
+#include "ServerPerformanceStats.h"
 
 #include "../NetworkShared/Common/NetworkTypes.h"
 #include "../NetworkShared/Common/ThreadSafeQueue.h"
@@ -49,6 +50,7 @@ private:
         bool bDisconnect = false;
         std::vector<Network::FSessionId> BroadcastRecipients;
         std::vector<std::uint8_t> Bytes;
+        std::size_t PacketCount = 1;
     };
 
     struct FServerPlayer
@@ -78,6 +80,8 @@ private:
     bool CreateListenSocket();
     bool CreateUdpSocket();
     void NetworkLoop();
+    void WsaPollNetworkLoop();
+    void IocpNetworkLoop();
     void ProcessNetworkEvents();
     void HandlePacket(Network::FSessionId SessionId, const Network::FPacket& Packet);
     void HandleHello(Network::FSessionId SessionId, const Network::FPacket& Packet);
@@ -86,13 +90,14 @@ private:
     void HandleDisconnect(Network::FSessionId SessionId, int ErrorCode);
     void TickServer(float FixedDeltaSeconds);
 
-    void SendTo(Network::FSessionId SessionId, std::vector<std::uint8_t> Bytes);
+    void SendTo(Network::FSessionId SessionId, std::vector<std::uint8_t> Bytes, std::size_t PacketCount = 1);
     void Broadcast(std::vector<std::uint8_t> Bytes);
     void DisconnectSession(Network::FSessionId SessionId);
     void SendUdpTo(const FServerPlayer& Recipient, std::vector<std::uint8_t> Bytes);
 
     FServerConfig Config;
     FServerLogger Logger;
+    FServerPerformanceStats PerformanceStats;
     WSADATA WsaData{};
     SOCKET ListenSocket = INVALID_SOCKET;
     SOCKET UdpSocket = INVALID_SOCKET;

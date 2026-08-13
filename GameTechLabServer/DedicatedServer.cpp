@@ -82,12 +82,14 @@ bool FDedicatedServer::Initialize()
         return false;
     }
 
+    PerformanceStats.Initialize(Config, Logger);
     bRunning = true;
     NetworkThread = std::thread(&FDedicatedServer::NetworkLoop, this);
     std::ostringstream Message;
     Message << "Server Started : TCP 0.0.0.0:" << Config.Port
             << "  UDP 0.0.0.0:" << Config.UdpPort
-            << "  TickRate=" << Config.TickRate << "  MaxClients=" << Config.MaxClients;
+            << "  TickRate=" << Config.TickRate << "  MaxClients=" << Config.MaxClients
+            << "  I/O=" << ToString(Config.NetworkIoMode);
     if (Config.bNetworkSimulationEnabled)
     {
         Message << "  UDP NetSim=" << Config.ArtificialLatencyMs << "ms one-way/"
@@ -104,7 +106,7 @@ bool FDedicatedServer::Initialize()
 
 bool FDedicatedServer::CreateListenSocket()
 {
-    ListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    ListenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
     if (ListenSocket == INVALID_SOCKET)
     {
         Logger.Log("socket() failed: " + std::to_string(WSAGetLastError()));
@@ -113,7 +115,7 @@ bool FDedicatedServer::CreateListenSocket()
 
     BOOL ReuseAddress = TRUE;
     setsockopt(ListenSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&ReuseAddress), sizeof(ReuseAddress));
-    if (!SetNonBlocking(ListenSocket))
+    if (Config.NetworkIoMode == EServerNetworkIoMode::WsaPoll && !SetNonBlocking(ListenSocket))
     {
         Logger.Log("failed to set listen socket non-blocking");
         closesocket(ListenSocket);
@@ -138,7 +140,7 @@ bool FDedicatedServer::CreateListenSocket()
 
 bool FDedicatedServer::CreateUdpSocket()
 {
-    UdpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    UdpSocket = WSASocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP, nullptr, 0, WSA_FLAG_OVERLAPPED);
     if (UdpSocket == INVALID_SOCKET)
     {
         Logger.Log("UDP socket() failed: " + std::to_string(WSAGetLastError()));
@@ -148,7 +150,7 @@ bool FDedicatedServer::CreateUdpSocket()
     BOOL ReuseAddress = TRUE;
     setsockopt(UdpSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&ReuseAddress), sizeof(ReuseAddress));
     DisableUdpConnectionReset(UdpSocket);
-    if (!SetNonBlocking(UdpSocket))
+    if (Config.NetworkIoMode == EServerNetworkIoMode::WsaPoll && !SetNonBlocking(UdpSocket))
     {
         Logger.Log("failed to set UDP socket non-blocking");
         closesocket(UdpSocket);
@@ -178,8 +180,20 @@ int FDedicatedServer::Run()
 
     while (bRunning)
     {
+        const auto WorkBegin = Clock::now();
+        if (PerformanceStats.IsEnabled())
+        {
+            PerformanceStats.SampleQueueDepths(
+                IncomingEvents.Size(), OutgoingCommands.Size(), OutgoingUdpCommands.Size());
+        }
         ProcessNetworkEvents();
         TickServer(1.0f / static_cast<float>(Config.TickRate));
+
+        const auto WorkEnd = Clock::now();
+        PerformanceStats.RecordTick(
+            std::chrono::duration<double, std::milli>(WorkEnd - WorkBegin).count(),
+            std::chrono::duration<double, std::milli>(TickDuration).count());
+        PerformanceStats.ReportIfDue(Logger, PlayersBySession.size());
 
         NextTick += std::chrono::duration_cast<Clock::duration>(TickDuration);
         const auto Now = Clock::now();
@@ -205,6 +219,8 @@ void FDedicatedServer::Shutdown()
         shutdown(ListenSocket, SD_BOTH);
     }
     if (NetworkThread.joinable()) NetworkThread.join();
+    PerformanceStats.SetActiveConnections(0);
+    PerformanceStats.ReportIfDue(Logger, PlayersBySession.size(), true);
     if (ListenSocket != INVALID_SOCKET)
     {
         closesocket(ListenSocket);
@@ -229,6 +245,18 @@ void FDedicatedServer::Shutdown()
 }
 
 void FDedicatedServer::NetworkLoop()
+{
+    if (Config.NetworkIoMode == EServerNetworkIoMode::Iocp)
+    {
+        IocpNetworkLoop();
+    }
+    else
+    {
+        WsaPollNetworkLoop();
+    }
+}
+
+void FDedicatedServer::WsaPollNetworkLoop()
 {
     using Clock = std::chrono::steady_clock;
 
@@ -267,9 +295,15 @@ void FDedicatedServer::NetworkLoop()
     auto SendUdpNow = [&](const FUdpSendCommand& Command)
     {
         if (Command.Bytes.empty() || Command.RemoteAddressLength <= 0) return;
-        sendto(UdpSocket, reinterpret_cast<const char*>(Command.Bytes.data()),
+        const int Sent = sendto(UdpSocket, reinterpret_cast<const char*>(Command.Bytes.data()),
             static_cast<int>(Command.Bytes.size()), 0,
             reinterpret_cast<const sockaddr*>(&Command.RemoteAddress), Command.RemoteAddressLength);
+        if (Sent > 0) PerformanceStats.RecordUdpSend(static_cast<std::size_t>(Sent));
+        else
+        {
+            const int Error = WSAGetLastError();
+            if (!IsWouldBlock(Error)) PerformanceStats.RecordIoError();
+        }
         // UDP snapshot은 최신 데이터가 계속 오므로 would-block/error 시 재전송하지 않는다.
     };
 
@@ -284,6 +318,7 @@ void FDedicatedServer::NetworkLoop()
         {
             if (DelayedUdpInputs.size() >= MaxDelayedUdpPackets)
             {
+                PerformanceStats.RecordQueueOverflow();
                 SimulatedUdpDroppedPackets.fetch_add(1);
                 return;
             }
@@ -291,7 +326,10 @@ void FDedicatedServer::NetworkLoop()
             SimulatedUdpDelayedPackets.fetch_add(1);
             return;
         }
-        IncomingEvents.TryPush(std::move(Event));
+        if (!IncomingEvents.TryPush(std::move(Event)))
+        {
+            PerformanceStats.RecordQueueOverflow();
+        }
     };
 
     auto SubmitOutgoingUdp = [&](FUdpSendCommand Command, Clock::time_point Now)
@@ -305,6 +343,7 @@ void FDedicatedServer::NetworkLoop()
         {
             if (DelayedUdpOutputs.size() >= MaxDelayedUdpPackets)
             {
+                PerformanceStats.RecordQueueOverflow();
                 SimulatedUdpDroppedPackets.fetch_add(1);
                 return;
             }
@@ -322,15 +361,24 @@ void FDedicatedServer::NetworkLoop()
         shutdown(It->second.Socket, SD_BOTH);
         closesocket(It->second.Socket);
         Connections.erase(It);
+        PerformanceStats.RecordConnectionClosed();
         IncomingEvents.TryPush({ENetworkEventType::Disconnected, SessionId, {}, ErrorCode});
     };
 
     while (bRunning)
     {
         const auto Now = Clock::now();
+        if (PerformanceStats.IsEnabled())
+        {
+            PerformanceStats.SampleQueueDepths(
+                IncomingEvents.Size(), OutgoingCommands.Size(), OutgoingUdpCommands.Size());
+        }
         while (!DelayedUdpInputs.empty() && DelayedUdpInputs.front().DeliveryTime <= Now)
         {
-            IncomingEvents.TryPush(std::move(DelayedUdpInputs.front().Event));
+            if (!IncomingEvents.TryPush(std::move(DelayedUdpInputs.front().Event)))
+            {
+                PerformanceStats.RecordQueueOverflow();
+            }
             DelayedUdpInputs.pop_front();
         }
         while (!DelayedUdpOutputs.empty() && DelayedUdpOutputs.front().DeliveryTime <= Now)
@@ -373,8 +421,10 @@ void FDedicatedServer::NetworkLoop()
                     const auto It = Connections.find(SessionId);
                     if (It != Connections.end() && !It->second.SendBuffer.Enqueue(Command.Bytes))
                     {
+                        PerformanceStats.RecordQueueOverflow();
                         DisconnectRequests.push_back(SessionId);
                     }
+                    else if (It != Connections.end()) PerformanceStats.RecordTcpPacketQueued(Command.PacketCount);
                 }
             }
             else
@@ -382,8 +432,10 @@ void FDedicatedServer::NetworkLoop()
                 const auto It = Connections.find(Command.SessionId);
                 if (It != Connections.end() && !It->second.SendBuffer.Enqueue(std::move(Command.Bytes)))
                 {
+                    PerformanceStats.RecordQueueOverflow();
                     DisconnectRequests.push_back(Command.SessionId);
                 }
+                else if (It != Connections.end()) PerformanceStats.RecordTcpPacketQueued(Command.PacketCount);
             }
         }
         for (const Network::FSessionId SessionId : DisconnectRequests) Disconnect(SessionId, WSAENOBUFS);
@@ -405,9 +457,11 @@ void FDedicatedServer::NetworkLoop()
         const int PollResult = WSAPoll(PollDescriptors.data(), static_cast<ULONG>(PollDescriptors.size()), 10);
         if (PollResult == SOCKET_ERROR)
         {
+            PerformanceStats.RecordIoError();
             if (bRunning) Logger.Log("WSAPoll failed: " + std::to_string(WSAGetLastError()));
             continue;
         }
+        PerformanceStats.RecordPollCycle(PollResult);
 
         if ((PollDescriptors[0].revents & POLLRDNORM) != 0)
         {
@@ -430,8 +484,10 @@ void FDedicatedServer::NetworkLoop()
                 setsockopt(ClientSocket, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&NoDelay), sizeof(NoDelay));
                 const Network::FSessionId SessionId = NextSessionId++;
                 Connections.emplace(SessionId, FClientConnection{ClientSocket});
+                PerformanceStats.RecordConnectionAccepted();
                 if (!IncomingEvents.TryPush({ENetworkEventType::Connected, SessionId, {}, 0}))
                 {
+                    PerformanceStats.RecordQueueOverflow();
                     Disconnect(SessionId, WSAENOBUFS);
                 }
             }
@@ -449,7 +505,10 @@ void FDedicatedServer::NetworkLoop()
                 if (Received > 0)
                 {
                     Network::FUdpMoveInput Move;
-                    if (Network::DeserializeUdp(Datagram, static_cast<std::size_t>(Received), Move))
+                    const bool bValidPacket = Network::DeserializeUdp(
+                        Datagram, static_cast<std::size_t>(Received), Move);
+                    PerformanceStats.RecordUdpReceive(static_cast<std::size_t>(Received), bValidPacket);
+                    if (bValidPacket)
                     {
                         FNetworkEvent Event;
                         Event.Type = ENetworkEventType::UdpMove;
@@ -491,6 +550,7 @@ void FDedicatedServer::NetworkLoop()
                     const int Received = recv(Connection.Socket, reinterpret_cast<char*>(TemporaryBuffer), sizeof(TemporaryBuffer), 0);
                     if (Received > 0)
                     {
+                        PerformanceStats.RecordTcpReceive(static_cast<std::size_t>(Received));
                         if (!Connection.ReceiveBuffer.Append(TemporaryBuffer, static_cast<std::size_t>(Received)))
                         {
                             PendingDisconnects.emplace_back(SessionId, WSAENOBUFS);
@@ -504,10 +564,12 @@ void FDedicatedServer::NetworkLoop()
                             PendingDisconnects.emplace_back(SessionId, WSAEPROTONOSUPPORT);
                             break;
                         }
+                        PerformanceStats.RecordTcpPacketsReceived(Packets.size());
                         for (Network::FPacket& Packet : Packets)
                         {
                             if (!IncomingEvents.TryPush({ENetworkEventType::Packet, SessionId, std::move(Packet), 0}))
                             {
+                                PerformanceStats.RecordQueueOverflow();
                                 PendingDisconnects.emplace_back(SessionId, WSAENOBUFS);
                                 break;
                             }
@@ -525,7 +587,11 @@ void FDedicatedServer::NetworkLoop()
                 {
                     const int ToSend = static_cast<int>(std::min<std::size_t>(Connection.SendBuffer.Size(), std::numeric_limits<int>::max()));
                     const int Sent = send(Connection.Socket, reinterpret_cast<const char*>(Connection.SendBuffer.Data()), ToSend, 0);
-                    if (Sent > 0) Connection.SendBuffer.Consume(static_cast<std::size_t>(Sent));
+                    if (Sent > 0)
+                    {
+                        PerformanceStats.RecordTcpSend(static_cast<std::size_t>(Sent));
+                        Connection.SendBuffer.Consume(static_cast<std::size_t>(Sent));
+                    }
                     else
                     {
                         const int Error = WSAGetLastError();
@@ -545,6 +611,7 @@ void FDedicatedServer::NetworkLoop()
     {
         shutdown(Pair.second.Socket, SD_BOTH);
         closesocket(Pair.second.Socket);
+        PerformanceStats.RecordConnectionClosed();
     }
     Connections.clear();
 }
@@ -556,7 +623,10 @@ void FDedicatedServer::ProcessNetworkEvents()
         switch (Event.Type)
         {
         case ENetworkEventType::Connected:
-            Logger.Log("Client Connected  Session=" + std::to_string(Event.SessionId));
+            if (Config.bVerboseConnectionLogs)
+            {
+                Logger.Log("Client Connected  Session=" + std::to_string(Event.SessionId));
+            }
             break;
         case ENetworkEventType::Packet:
             HandlePacket(Event.SessionId, Event.Packet);
@@ -636,7 +706,10 @@ void FDedicatedServer::HandleUdpMove(const FNetworkEvent& Event)
     if (!Player->bUdpReady)
     {
         Player->bUdpReady = true;
-        Logger.Log("UDP movement ready  Player=" + std::to_string(Player->PlayerId));
+        if (Config.bVerboseConnectionLogs)
+        {
+            Logger.Log("UDP movement ready  Player=" + std::to_string(Player->PlayerId));
+        }
     }
 
     ApplyMoveInput(*Player, Event.UdpMove.Sequence, Event.UdpMove.MoveX, Event.UdpMove.MoveY);
@@ -693,22 +766,33 @@ void FDedicatedServer::HandleHello(Network::FSessionId SessionId, const Network:
     const std::uint16_t AcceptedClientOptions = NewPlayer.bUseUdpMovement
         ? Network::ToOptionBits(Network::EClientNetworkOption::UdpMovement)
         : Network::ToOptionBits(Network::EClientNetworkOption::None);
-    SendTo(SessionId, Network::Serialize(Network::FS2CConnected{
+    std::vector<std::uint8_t> InitialState = Network::Serialize(Network::FS2CConnected{
         NewPlayer.PlayerId, static_cast<std::uint16_t>(Config.TickRate),
         NewPlayer.bUseUdpMovement ? Config.UdpPort : static_cast<std::uint16_t>(0),
         NewPlayer.bUseUdpMovement ? NewPlayer.UdpSessionToken : static_cast<std::uint64_t>(0),
-        EffectiveLatencyMs, EffectiveLossBasisPoints, AcceptedClientOptions}));
+        EffectiveLatencyMs, EffectiveLossBasisPoints, AcceptedClientOptions});
+    std::size_t InitialPacketCount = 1;
     for (const auto& Pair : PlayersBySession)
     {
         const FServerPlayer& Existing = Pair.second;
-        SendTo(SessionId, Network::Serialize(Network::FS2CPlayerSpawn{Existing.PlayerId, Existing.Position, Existing.Yaw}));
+        std::vector<std::uint8_t> Spawn = Network::Serialize(
+            Network::FS2CPlayerSpawn{Existing.PlayerId, Existing.Position, Existing.Yaw});
+        InitialState.insert(InitialState.end(), Spawn.begin(), Spawn.end());
+        ++InitialPacketCount;
     }
+    // TCP is a byte stream and each serialized message is self-framed. Sending the
+    // connected packet plus the initial spawn list as one command avoids an O(N^2)
+    // command-queue burst while preserving every protocol packet and its order.
+    SendTo(SessionId, std::move(InitialState), InitialPacketCount);
     PlayersBySession.emplace(SessionId, NewPlayer);
     Broadcast(Network::Serialize(Network::FS2CPlayerSpawn{NewPlayer.PlayerId, NewPlayer.Position, NewPlayer.Yaw}));
 
-    Logger.Log("Handshake complete  Session=" + std::to_string(SessionId) +
-        "  Player=" + std::to_string(NewPlayer.PlayerId) +
-        "  Movement=" + (NewPlayer.bUseUdpMovement ? "UDP" : "TCP"));
+    if (Config.bVerboseConnectionLogs)
+    {
+        Logger.Log("Handshake complete  Session=" + std::to_string(SessionId) +
+            "  Player=" + std::to_string(NewPlayer.PlayerId) +
+            "  Movement=" + (NewPlayer.bUseUdpMovement ? "UDP" : "TCP"));
+    }
 }
 
 void FDedicatedServer::HandleDisconnect(Network::FSessionId SessionId, int ErrorCode)
@@ -719,11 +803,17 @@ void FDedicatedServer::HandleDisconnect(Network::FSessionId SessionId, int Error
         const Network::FNetworkEntityId PlayerId = It->second.PlayerId;
         PlayersBySession.erase(It);
         Broadcast(Network::Serialize(Network::FS2CPlayerDespawn{PlayerId}));
-        Logger.Log("Client Disconnected  Session=" + std::to_string(SessionId) + "  Player=" + std::to_string(PlayerId) + "  Error=" + std::to_string(ErrorCode));
+        if (Config.bVerboseConnectionLogs)
+        {
+            Logger.Log("Client Disconnected  Session=" + std::to_string(SessionId) + "  Player=" + std::to_string(PlayerId) + "  Error=" + std::to_string(ErrorCode));
+        }
     }
     else
     {
-        Logger.Log("Client Disconnected  Session=" + std::to_string(SessionId) + "  Error=" + std::to_string(ErrorCode));
+        if (Config.bVerboseConnectionLogs)
+        {
+            Logger.Log("Client Disconnected  Session=" + std::to_string(SessionId) + "  Error=" + std::to_string(ErrorCode));
+        }
     }
 }
 
@@ -752,6 +842,10 @@ void FDedicatedServer::TickServer(float FixedDeltaSeconds)
     for (const auto& RecipientPair : PlayersBySession)
     {
         const FServerPlayer& Recipient = RecipientPair.second;
+        // A load-test ping client negotiates UDP movement so TCP snapshots do not
+        // contaminate RTT results, but it never registers a UDP endpoint. There is
+        // no destination to send to in that state, so skip the inner player walk.
+        if (Recipient.bUseUdpMovement && !Recipient.bUdpReady) continue;
         for (const auto& StatePair : PlayersBySession)
         {
             const FServerPlayer& Player = StatePair.second;
@@ -763,7 +857,7 @@ void FDedicatedServer::TickServer(float FixedDeltaSeconds)
             State.LastProcessedInput = Player.LastInputSequence;
             if (Recipient.bUseUdpMovement)
             {
-                if (Recipient.bUdpReady) SendUdpTo(Recipient, Network::SerializeUdp(State));
+                SendUdpTo(Recipient, Network::SerializeUdp(State));
             }
             else
             {
@@ -779,9 +873,15 @@ void FDedicatedServer::TickServer(float FixedDeltaSeconds)
     }
 }
 
-void FDedicatedServer::SendTo(Network::FSessionId SessionId, std::vector<std::uint8_t> Bytes)
+void FDedicatedServer::SendTo(Network::FSessionId SessionId, std::vector<std::uint8_t> Bytes, std::size_t PacketCount)
 {
-    if (!OutgoingCommands.TryPush({SessionId, false, false, {}, std::move(Bytes)})) DisconnectSession(SessionId);
+    FSendCommand Command{SessionId, false, false, {}, std::move(Bytes)};
+    Command.PacketCount = PacketCount;
+    if (!OutgoingCommands.TryPush(std::move(Command)))
+    {
+        PerformanceStats.RecordQueueOverflow();
+        DisconnectSession(SessionId);
+    }
 }
 
 void FDedicatedServer::Broadcast(std::vector<std::uint8_t> Bytes)
@@ -794,12 +894,19 @@ void FDedicatedServer::Broadcast(std::vector<std::uint8_t> Bytes)
         Command.BroadcastRecipients.push_back(Pair.first);
     }
     Command.Bytes = std::move(Bytes);
-    if (!OutgoingCommands.TryPush(std::move(Command))) Logger.Log("Outgoing broadcast queue overflow");
+    if (!OutgoingCommands.TryPush(std::move(Command)))
+    {
+        PerformanceStats.RecordQueueOverflow();
+        Logger.Log("Outgoing broadcast queue overflow");
+    }
 }
 
 void FDedicatedServer::DisconnectSession(Network::FSessionId SessionId)
 {
-    OutgoingCommands.TryPush({SessionId, false, true, {}, {}});
+    if (!OutgoingCommands.TryPush({SessionId, false, true, {}, {}}))
+    {
+        PerformanceStats.RecordQueueOverflow();
+    }
 }
 
 void FDedicatedServer::SendUdpTo(const FServerPlayer& Recipient, std::vector<std::uint8_t> Bytes)
@@ -811,6 +918,7 @@ void FDedicatedServer::SendUdpTo(const FServerPlayer& Recipient, std::vector<std
     Command.Bytes = std::move(Bytes);
     if (!OutgoingUdpCommands.TryPush(std::move(Command)))
     {
+        PerformanceStats.RecordQueueOverflow();
         Logger.Log("Outgoing UDP snapshot queue overflow");
     }
 }

@@ -28,12 +28,17 @@ namespace
     }
 }
 
+const char* ToString(EServerNetworkIoMode Mode)
+{
+    return Mode == EServerNetworkIoMode::Iocp ? "IOCP" : "WSAPoll";
+}
+
 FServerConfig FServerConfig::Load(const std::string& Path)
 {
     FServerConfig Config;
     std::ifstream Input(Path);
     std::string Line;
-    enum class ESection { None, Server, NetworkSimulation };
+    enum class ESection { None, Server, NetworkSimulation, Performance };
     ESection Section = ESection::None;
     while (std::getline(Input, Line))
     {
@@ -44,6 +49,7 @@ FServerConfig FServerConfig::Load(const std::string& Path)
             const std::string SectionName = ToLower(Trim(Line.substr(1, Line.size() - 2)));
             if (SectionName == "server") Section = ESection::Server;
             else if (SectionName == "networksimulation") Section = ESection::NetworkSimulation;
+            else if (SectionName == "performance") Section = ESection::Performance;
             else Section = ESection::None;
             continue;
         }
@@ -62,6 +68,14 @@ FServerConfig FServerConfig::Load(const std::string& Path)
                 else if (Key == "MaxClients") Config.MaxClients = static_cast<std::size_t>(std::clamp(std::stoi(Value), 1, 1024));
                 else if (Key == "TickRate") Config.TickRate = static_cast<std::uint32_t>(std::clamp(std::stoi(Value), 1, 240));
                 else if (Key == "MoveSpeed") Config.MoveSpeed = std::clamp(std::stof(Value), 0.1f, 100.0f);
+                else if (Key == "NetworkIoMode")
+                {
+                    Config.NetworkIoMode = ToLower(Value) == "wsapoll"
+                        ? EServerNetworkIoMode::WsaPoll
+                        : EServerNetworkIoMode::Iocp;
+                }
+                else if (Key == "IocpWorkerThreads") Config.IocpWorkerThreads =
+                    static_cast<std::uint32_t>(std::clamp(std::stoi(Value), 0, 64));
             }
             else if (Section == ESection::NetworkSimulation)
             {
@@ -72,6 +86,14 @@ FServerConfig FServerConfig::Load(const std::string& Path)
                     std::clamp(std::stof(Value), 0.0f, 30.0f);
                 else if (Key == "RandomSeed") Config.NetworkSimulationSeed =
                     static_cast<std::uint32_t>(std::stoul(Value));
+            }
+            else if (Section == ESection::Performance)
+            {
+                if (Key == "Enabled") Config.bPerformanceStatsEnabled = ParseBool(Value);
+                else if (Key == "LogIntervalSeconds") Config.PerformanceLogIntervalSeconds =
+                    static_cast<std::uint32_t>(std::clamp(std::stoi(Value), 1, 60));
+                else if (Key == "CsvEnabled") Config.bPerformanceCsvEnabled = ParseBool(Value);
+                else if (Key == "VerboseConnectionLogs") Config.bVerboseConnectionLogs = ParseBool(Value);
             }
         }
         catch (...)

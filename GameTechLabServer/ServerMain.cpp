@@ -33,6 +33,8 @@ int main(int ArgC, char** ArgV)
     }
 
     FServerConfig Config = FServerConfig::Load(ConfigPath);
+    bool bPortOverridden = false;
+    bool bUdpPortOverridden = false;
     for (int Index = 1; Index < ArgC; ++Index)
     {
         const std::string Argument = ArgV[Index];
@@ -40,6 +42,37 @@ int main(int ArgC, char** ArgV)
         {
             if (Argument == "-netsim") Config.bNetworkSimulationEnabled = true;
             else if (Argument == "-no-netsim") Config.bNetworkSimulationEnabled = false;
+            else if (Argument == "-io=iocp") Config.NetworkIoMode = EServerNetworkIoMode::Iocp;
+            else if (Argument == "-io=wsapoll") Config.NetworkIoMode = EServerNetworkIoMode::WsaPoll;
+            else if (Argument.rfind("-iocp-workers=", 0) == 0)
+            {
+                Config.IocpWorkerThreads = static_cast<std::uint32_t>(
+                    std::clamp(std::stoi(Argument.substr(14)), 0, 64));
+            }
+            else if (Argument == "-perf-stats") Config.bPerformanceStatsEnabled = true;
+            else if (Argument == "-no-perf-stats") Config.bPerformanceStatsEnabled = false;
+            else if (Argument == "-perf-csv") Config.bPerformanceCsvEnabled = true;
+            else if (Argument == "-no-perf-csv") Config.bPerformanceCsvEnabled = false;
+            else if (Argument == "-quiet-connections") Config.bVerboseConnectionLogs = false;
+            else if (Argument.rfind("-port=", 0) == 0)
+            {
+                Config.Port = static_cast<std::uint16_t>(std::clamp(std::stoi(Argument.substr(6)), 1, 65535));
+                bPortOverridden = true;
+            }
+            else if (Argument.rfind("-udp-port=", 0) == 0)
+            {
+                Config.UdpPort = static_cast<std::uint16_t>(std::clamp(std::stoi(Argument.substr(10)), 1, 65535));
+                bUdpPortOverridden = true;
+            }
+            else if (Argument.rfind("-max-clients=", 0) == 0)
+            {
+                Config.MaxClients = static_cast<std::size_t>(std::clamp(std::stoi(Argument.substr(13)), 1, 1024));
+            }
+            else if (Argument.rfind("-perf-interval=", 0) == 0)
+            {
+                Config.PerformanceLogIntervalSeconds = static_cast<std::uint32_t>(
+                    std::clamp(std::stoi(Argument.substr(15)), 1, 60));
+            }
             else if (Argument.rfind("-latency=", 0) == 0)
             {
                 Config.ArtificialLatencyMs = static_cast<std::uint16_t>(
@@ -54,10 +87,11 @@ int main(int ArgC, char** ArgV)
         }
         catch (...)
         {
-            std::cerr << "Invalid network simulation argument: " << Argument << std::endl;
+            std::cerr << "Invalid server argument: " << Argument << std::endl;
             return 2;
         }
     }
+    if (bPortOverridden && !bUdpPortOverridden) Config.UdpPort = Config.Port;
 
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
     FDedicatedServer Server(Config);
